@@ -6,6 +6,9 @@ const TYPES = {
 };
 export default class RarFile {
   constructor(options){
+    if(!options){
+      throw new Error("Invalid Arguments, options need to be either a string or object");
+    }
     if(typeof options === 'string'){
       this.path = options;
       this.type = TYPES.LOCAL;
