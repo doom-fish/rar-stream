@@ -1,44 +1,67 @@
 import binary from 'binary';
+
 const readMarkerHeader = Symbol();
 const readArchiveHeader = Symbol();
 const readFileHeader = Symbol();
 const readFileName = Symbol();
-const rarFile = Symbol();
+const stream = Symbol();
 const offset = Symbol();
 
+const MARKER_HEAD_SIZE = 11;
+const ARCHIVE_HEAD_SIZE = 13;
+const FILE_HEAD_SIZE = 300;
+
 export default class RarHeaderParser {
-  constructor(rarFileInstance){
-    this[rarFile] = rarFileInstance;
-
-
-    this.markerHeader = this[readMarkerHeader]();
-    this.archiveHeader = this[readArchiveHeader]();
-    this.files = new Set();
-
-      let file = this[readFileHeader]();
-      this.files.add(file);
-      console.log(file)
-       file = this[readFileHeader]();
-       console.log(file.name);
-       file = this[readFileHeader]();
-       console.log(file.name);  file = this[readFileHeader]();
-       console.log(file.name);  file = this[readFileHeader]();
-       console.log(file.name);  file = this[readFileHeader]();
-       console.log(file.name);
-  
+  constructor(rarFile){
+    this.files = [];
+    this.rarFile = rarFile;
+    this[offset] = 0;
+  }
+  parseMarkerHead(){
+     return this.rarFile.read(0, MARKER_HEAD_SIZE)
+                .then(stream => {
+                  this.markerHeader = this[readMarkerHeader](stream);
+                  this[offset] += this.markerHeader.head_size;
+                });
+  }
+  parseArchiveHead(){
+    return this.rarFile.read(this[offset], this[offset] + ARCHIVE_HEAD_SIZE)
+                       .then(stream => {
+                          this.archiveHeader = this[readArchiveHeader](stream);
+                          this[offset] += this.archiveHeader.head_size;
+                       });
+  }
+  parseFiles(){
+    return this.rarFile.read(this[offset], this[offset] + FILE_HEAD_SIZE)
+               .then(stream => {
+                let file = this[readFileHeader](stream);
+                this.files.push(file);
+                this[offset] += file.size + file.head_size;
+ 
+                if(this[offset] < this.rarFile.size){
+                  return this.parseFiles();
+                }else {
+                  return this;
+                }
+              });         
+  }
+  parse(){
+    return this.parseMarkerHead()
+                .then(() => this.parseArchiveHead())
+                .then(() => this.parseFiles());
   }
   *[Symbol.iterator] (){
     yield* this.files;
   }
-  [readMarkerHeader]() {
-    return binary.parse(this[rarFile].stream.read(7))
+  [readMarkerHeader](stream) {
+    return binary.parse(stream.read(7))
       .word16ls("crc")
       .word8ls("head_type")
       .word16ls("flags")
       .word16ls("head_size")
       .tap((vars) => {
         if((vars.flags & 0x8000) !== 0){
-          vars.add_size = binary.parse(this[rarFile].stream.read(4))
+          vars.add_size = binary.parse(stream.read(4))
                                 .word32ls("add_size")
                                 .vars
                                 .add_size;
@@ -48,8 +71,8 @@ export default class RarHeaderParser {
       })
       .vars;
   }
-  [readArchiveHeader]() {
-    return binary.parse(this[rarFile].stream.read(13))
+  [readArchiveHeader](stream) {
+    return binary.parse(stream.read(13))
       .word16ls("crc")
       .word8ls("head_type")
       .word16ls("flags")
@@ -68,8 +91,8 @@ export default class RarHeaderParser {
         vars.first_volume = (vars.flags & 0x0100) !== 0;
       }).vars;
   }
-  [readFileHeader]() {
-    return binary.parse(this[rarFile].stream.read(32))
+  [readFileHeader](stream) {
+    return binary.parse(stream.read(32))
       .word16ls("crc")
       .word8ls("head_type")
       .word16ls("flags")
@@ -95,7 +118,7 @@ export default class RarHeaderParser {
         vars.old_version = (vars.flags & 0x800) !== 0;
         vars.extended_time = (vars.flags & 0x1000) !== 0;
         if (vars.has_high_size) {
-           binary.parse(this[rarFile].stream.read(8))
+           binary.parse(stream.read(8))
             .word32ls("high_pack_size")
             .word32ls("high_unp_size")
             .tap((high_size_vars) => {
@@ -105,9 +128,7 @@ export default class RarHeaderParser {
             });;
         }
     
-        vars.name = this[rarFile].stream.read(vars.name_size).toString();
-        this[rarFile].stream.read(vars.size + 2);
-
+        vars.name = stream.read(vars.name_size).toString();
       }).vars;
   }
 }

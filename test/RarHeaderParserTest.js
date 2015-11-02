@@ -1,6 +1,7 @@
 import path from 'path';
-
 import chai from 'chai';
+import chaiAsPromised from 'chai-as-promised';
+chai.use(chaiAsPromised);
 let expect = chai.expect;
 chai.should();
 
@@ -17,75 +18,105 @@ describe('RarHeaderParser', () => {
       // expect(() => new RarHeaderParser()).to.throw(/Invalid Arguments/);
     });
   });
-  describe('#parseMultipleFiles', () => {
-    let instance;
+  describe('#parse', () => {
+    let singleFileInstance, multipleFilesInstance;
     beforeEach(() => {
-      instance = new RarHeaderParser(new RarFile(multipleFiles, true));
+      singleFileInstance = new RarHeaderParser(new RarFile(singleFile));
+      multipleFilesInstance = new RarHeaderParser(new RarFile(multipleFiles));
     });
-    it('should have 11 files', () => {
-      console.log([...instance].length);
+    it('should parse multipleFiles', () => {
+      return multipleFilesInstance.parse()
+                                  .then((instance) => instance.files.length)
+                                  .should
+                                  .eventually
+                                  .equal(11);
+    });
+    it('should parse multipleFileNames', () => {
+      return multipleFilesInstance.parse()
+                                  .then((instance) => instance.files.map(file => file.name))
+                                  .should
+                                  .eventually
+                                  .eql([
+                                    "acknow.txt",
+                                    "default.sfx",
+                                    "license.txt",
+                                    "order.htm",
+                                    "rar",
+                                    "rar.txt",
+                                    "rarfiles.lst",
+                                    "readme.txt",
+                                    "singleFile.rar",
+                                    "unrar",
+                                    "whatsnew.txt"
+                                  ]);
+    });
+    it('should parse mark head', () => {
+      return singleFileInstance.parse()
+                               .then(instance => singleFileInstance.markerHeader)
+                               .should
+                               .eventually
+                               .eql({
+                                  add_size: 0,
+                                  crc: 24914,
+                                  flags: 6689,
+                                  head_size: 7,
+                                  head_type: 114
+                               });
+    });
+    it('should parse archive head', () => {
+      return singleFileInstance.parse()
+                               .then(instance => singleFileInstance.archiveHeader)
+                               .should
+                               .eventually
+                               .eql({
+                                  "auth_info": false,
+                                  "block_head_enc": false,
+                                  "comment": false,
+                                  "crc": -28465,
+                                  "first_volume": false,
+                                  "flags": 0,
+                                  "has_recovery": false,
+                                  "head_size": 13,
+                                  "head_type": 115,
+                                  "lock": false,
+                                  "new_namescheme": false,
+                                  "reserved1": 0,
+                                  "reserved2": 0,
+                                  "solid_attr": false,
+                                  "volume_attr": false
+                               });
+    });
+    it('should parse single fileHeader out of single file archive', () => {
+       return singleFileInstance.parse()
+                               .then(instance => singleFileInstance.files[0])
+                               .should
+                               .eventually
+                               .eql({
+                                  "attr": 33261,
+                                  "continue_next": false,
+                                  "continue_prev": false,
+                                  "crc": -416,
+                                  "encrypted": false,
+                                  "extended_time": true,
+                                  "file_crc": 1775311619,
+                                  "flags": -28640,
+                                  "has_comment": false,
+                                  "has_high_size": false,
+                                  "has_salt": false,
+                                  "head_size": 37,
+                                  "head_type": 116,
+                                  "host": 3,
+                                  "info_from_prev": false,
+                                  "method": 48,
+                                  "name": "rar",
+                                  "name_size": 3,
+                                  "name_special": false,
+                                  "old_version": false,
+                                  "size": 570952,
+                                  "timestamp": 1197169034,
+                                  "unp_size": 570952,
+                                  "version": 20
+                               });
     });
   });
-  // describe('#parseSingleFile', () => {
-  //   let instance;
-  //   beforeEach(() => {
-  //     instance = new RarHeaderParser(new RarFile(singleFile, true));
-  //   })
-  //   it('should parse markerHead data', () => {
-  //     expect(instance.markerHeader).to.be.eql({
-  //       add_size: 0,
-  //       crc: 24914,
-  //       flags: 6689,
-  //       head_size: 7,
-  //       head_type: 114
-  //     });
-  //   });
-  //   it('should parse archiveHead data', () => {
-  //     expect(instance.archiveHeader).to.be.eql({
-  //       "auth_info": false,
-  //       "block_head_enc": false,
-  //       "comment": false,
-  //       "crc": -28465,
-  //       "first_volume": false,
-  //       "flags": 0,
-  //       "has_recovery": false,
-  //       "head_size": 13,
-  //       "head_type": 115,
-  //       "lock": false,
-  //       "new_namescheme": false,
-  //       "reserved1": 0,
-  //       "reserved2": 0,
-  //       "solid_attr": false,
-  //       "volume_attr": false
-  //     });
-  //   });
-  //   it('should parse fileHeader data', () => {
-  //     // expect([...instance][0]).to.be.eql({
-  //     //   "attr": 33261,
-  //     //   "continue_next": false,
-  //     //   "continue_prev": false,
-  //     //   "fileName": "rar",
-  //     //   "crc": 12688,
-  //     //   "encrypted": false,
-  //     //   "extended_time": true,
-  //     //   "file_crc": 1775311619,
-  //     //   "flags": -28544,
-  //     //   "has_comment": false,
-  //     //   "has_high_size": false,
-  //     //   "has_salt": false,
-  //     //   "head_size": 37,
-  //     //   "head_type": 116,
-  //     //   "host": 3,
-  //     //   "info_from_prev": false,
-  //     //   "method": 51,
-  //     //   "name_size": 3,
-  //     //   "name_special": false,
-  //     //   "old_version": false,
-  //     //   "size": 211867,
-  //     //   "timestamp": 1197169034,
-  //     //   "unp_size": 570952,
-  //     //   "version": 29
-  //     // });
-  //   });
-  // })
 });
