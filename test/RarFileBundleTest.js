@@ -2,7 +2,7 @@ import chai from 'chai';
 let expect = chai.expect;
 chai.should();
 
-import RarFileBundle from '../RarFileBundle';
+import RarFileBundle from '../src/RarFileBundle';
 
 describe('RarFileBundle', () => {
   let instance;

@@ -1,33 +1,44 @@
 import binary from 'binary';
-const ARCHIVE_END_PADDING = 20;
 const readMarkerHeader = Symbol();
 const readArchiveHeader = Symbol();
 const readFileHeader = Symbol();
 const readFileName = Symbol();
-const privateStream = Symbol();
+const rarFile = Symbol();
+const offset = Symbol();
 
 export default class RarHeaderParser {
-  constructor(stream){
-    this[privateStream] = stream;
-  }
-  parse(){
+  constructor(rarFileInstance){
+    this[rarFile] = rarFileInstance;
+
+
     this.markerHeader = this[readMarkerHeader]();
     this.archiveHeader = this[readArchiveHeader]();
-    this.fileHeader = this[readFileHeader]();
-    this.fileName = this[readFileName]();
+    this.files = new Set();
+
+      let file = this[readFileHeader]();
+      this.files.add(file);
+      console.log(file)
+       file = this[readFileHeader]();
+       console.log(file.name);
+       file = this[readFileHeader]();
+       console.log(file.name);  file = this[readFileHeader]();
+       console.log(file.name);  file = this[readFileHeader]();
+       console.log(file.name);  file = this[readFileHeader]();
+       console.log(file.name);
+  
   }
-  [readFileName](){
-    return this[privateStream].read(this.fileHeader.name_size).toString();
+  *[Symbol.iterator] (){
+    yield* this.files;
   }
   [readMarkerHeader]() {
-    return binary.parse(this[privateStream].read(7))
+    return binary.parse(this[rarFile].stream.read(7))
       .word16ls("crc")
       .word8ls("head_type")
       .word16ls("flags")
       .word16ls("head_size")
       .tap((vars) => {
         if((vars.flags & 0x8000) !== 0){
-          vars.add_size = binary.parse(this[privateStream].read(4))
+          vars.add_size = binary.parse(this[rarFile].stream.read(4))
                                 .word32ls("add_size")
                                 .vars
                                 .add_size;
@@ -38,14 +49,14 @@ export default class RarHeaderParser {
       .vars;
   }
   [readArchiveHeader]() {
-    return binary.parse(this[privateStream].read(13))
+    return binary.parse(this[rarFile].stream.read(13))
       .word16ls("crc")
       .word8ls("head_type")
       .word16ls("flags")
       .word16ls("head_size")
       .word16ls("reserved1")
       .word32ls("reserved2")
-      .tap(function(vars) {
+      .tap((vars) => {
         vars.volume_attr = (vars.flags & 0x0001) !== 0;
         vars.comment = (vars.flags & 0x0002) !== 0;
         vars.lock = (vars.flags & 0x0004) !== 0;
@@ -58,7 +69,7 @@ export default class RarHeaderParser {
       }).vars;
   }
   [readFileHeader]() {
-    return binary.parse(this[privateStream].read(32))
+    return binary.parse(this[rarFile].stream.read(32))
       .word16ls("crc")
       .word8ls("head_type")
       .word16ls("flags")
@@ -72,7 +83,7 @@ export default class RarHeaderParser {
       .word8ls("method")
       .word16ls("name_size")
       .word32ls("attr")
-      .tap(function(vars) {
+      .tap((vars) => {
         vars.continue_prev = (vars.flags & 0x01) !== 0;
         vars.continue_next = (vars.flags & 0x02) !== 0;
         vars.encrypted = (vars.flags & 0x04) !== 0;
@@ -83,16 +94,20 @@ export default class RarHeaderParser {
         vars.has_salt = (vars.flags & 0x400) !== 0;
         vars.old_version = (vars.flags & 0x800) !== 0;
         vars.extended_time = (vars.flags & 0x1000) !== 0;
-
         if (vars.has_high_size) {
-           binary.parse(this[privateStream].read(8))
+           binary.parse(this[rarFile].stream.read(8))
             .word32ls("high_pack_size")
             .word32ls("high_unp_size")
             .tap((high_size_vars) => {
+
               vars.size = high_size_vars.high_pack_size * 0x100000000 + vars.size;
               vars.unp_size = high_size_vars.high_unp_size * 0x100000000 + vars.unp_size;
             });;
         }
+    
+        vars.name = this[rarFile].stream.read(vars.name_size).toString();
+        this[rarFile].stream.read(vars.size + 2);
+
       }).vars;
   }
 }
