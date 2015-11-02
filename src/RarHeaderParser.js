@@ -6,42 +6,43 @@ const readFileHeader = Symbol();
 const readFileName = Symbol();
 const stream = Symbol();
 const offset = Symbol();
+const rarFile = Symbol();
 
 const MARKER_HEAD_SIZE = 11;
 const ARCHIVE_HEAD_SIZE = 13;
 const FILE_HEAD_SIZE = 300;
 
 export default class RarHeaderParser {
-  constructor(rarFile){
+  constructor(rarFileInstance){
     this.files = [];
-    this.rarFile = rarFile;
+    this[rarFile] = rarFileInstance;
     this[offset] = 0;
   }
   parseMarkerHead(){
-     return this.rarFile.read(0, MARKER_HEAD_SIZE)
+     return this[rarFile].read(0, MARKER_HEAD_SIZE)
                 .then(stream => {
                   this.markerHeader = this[readMarkerHeader](stream);
                   this[offset] += this.markerHeader.head_size;
                 });
   }
   parseArchiveHead(){
-    return this.rarFile.read(this[offset], this[offset] + ARCHIVE_HEAD_SIZE)
+    return this[rarFile].read(this[offset], this[offset] + ARCHIVE_HEAD_SIZE)
                        .then(stream => {
                           this.archiveHeader = this[readArchiveHeader](stream);
                           this[offset] += this.archiveHeader.head_size;
                        });
   }
   parseFiles(){
-    return this.rarFile.read(this[offset], this[offset] + FILE_HEAD_SIZE)
+    return this[rarFile].read(this[offset], this[offset] + FILE_HEAD_SIZE)
                .then(stream => {
-                let file = this[readFileHeader](stream);
-                this.files.push(file);
-                this[offset] += file.size + file.head_size;
+                  let file = this[readFileHeader](stream);
+                  this.files.push(file);
+                  this[offset] += file.size + file.head_size;
  
-                if(this[offset] < this.rarFile.size){
-                  return this.parseFiles();
-                }else {
-                  return this;
+                  if(this[offset] < this[rarFile].size){
+                    return this.parseFiles();
+                  } else {
+                    return this;
                 }
               });         
   }
