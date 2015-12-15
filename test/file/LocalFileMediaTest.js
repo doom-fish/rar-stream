@@ -4,6 +4,7 @@ import path from 'path';
 let expect = chai.expect;
 chai.should();
 
+let singleFile = path.resolve(__dirname, '../binary-data/single-short-filename.rar');
 import LocalFileMedia from '../../src/file/LocalFileMedia';
 
 describe('LocalFileMedia', () => {
@@ -20,6 +21,11 @@ describe('LocalFileMedia', () => {
     it('should throw if path does not point to a local file', () => {
       expect(() => new LocalFileMedia("not a local file")).to.throw(/ENOENT: no such file or directory/);
 
+    });
+    it('should parse path and read file size if string is passed as options', () => {
+      let instance = new LocalFileMedia(singleFile);
+      expect(instance.name).to.equal('single-short-filename.rar');
+      expect(instance.size).to.equal(571016);
     });
   });
 });

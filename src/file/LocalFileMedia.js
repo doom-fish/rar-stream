@@ -16,7 +16,7 @@ export default class LocalFileMedia extends FileMedia {
     super(fileInfo);
 
     this._createReadStream = (start, end) => {
-      return fs.createReadStream(localFilePath, start, end);
+      return fs.createReadStream(localFilePath, {start: start, end: end});
     };
   }
 }

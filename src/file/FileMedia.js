@@ -21,8 +21,8 @@ export default class FileMedia extends AbstractFileMedia{
     if(start > end){
       throw Error("Invalid Arguments, start offset can not be greater than end offset");
     }
-    
     let stream = this._createReadStream(start, end);
+    
     return new Promise((resolve, reject) => {
       stream.on('readable', () => resolve(stream));
       stream.on('error', (error) => reject(error));

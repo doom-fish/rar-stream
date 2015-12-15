@@ -6,7 +6,7 @@ let expect = chai.expect;
 chai.should();
 
 import RarHeaderParser from '../src/RarHeaderParser';
-import RarFile from '../src/RarFile';
+import LocalFileMedia from '../src/file/LocalFileMedia';
 
 let singleFile = path.resolve(__dirname, 'binary-data/single-short-filename.rar');
 let multipleFiles = path.resolve(__dirname, 'binary-data/multiple-files.rar');
@@ -21,8 +21,8 @@ describe('RarHeaderParser', () => {
   describe('#parse', () => {
     let singleFileInstance, multipleFilesInstance;
     beforeEach(() => {
-      singleFileInstance = new RarHeaderParser(new RarFile(singleFile));
-      multipleFilesInstance = new RarHeaderParser(new RarFile(multipleFiles));
+      singleFileInstance = new RarHeaderParser(new LocalFileMedia(singleFile));
+      multipleFilesInstance = new RarHeaderParser(new LocalFileMedia(multipleFiles));
     });
     it('should parse multipleFiles', () => {
       return multipleFilesInstance.parse()
