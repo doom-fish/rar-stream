@@ -9,12 +9,14 @@
   "author": "1313",
   "license": "ISC",
   "dependencies": {
-    "binary": "^0.3.0",
-    "chai-as-promised": "^5.1.0"
+    "binary": "^0.3.0"
   },
   "devDependencies": {
+    "chai-as-promised": "^5.1.0",
     "babel": "^6.0.14",
     "babel-core": "^6.0.14",
+    "babel-runtime": "^6.0.14",
+    "babel-preset-stage-0": "^6.0.14",
     "babel-plugin-transform-regenerator": "^6.0.14",
     "babel-plugin-transform-runtime": "^6.0.14",
     "babel-preset-es2015": "^6.0.14",
