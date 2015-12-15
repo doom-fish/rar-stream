@@ -15,7 +15,7 @@ let multipleFiles = path.resolve(__dirname, 'binary-data/multiple-files.rar');
 describe('RarHeaderParser', () => {
   describe('#constructor', () => {
     it('should take a RarFile as argument', () => { 
-      // expect(() => new RarHeaderParser()).to.throw(/Invalid Arguments/);
+       expect(() => new RarHeaderParser()).to.throw(/Invalid Arguments/);
     });
   });
   describe('#parse', () => {

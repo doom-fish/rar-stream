@@ -1,4 +1,5 @@
 import binary from 'binary';
+import rarFileType from './RarFile';
 
 const readMarkerHeader = Symbol();
 const readArchiveHeader = Symbol();
@@ -14,8 +15,13 @@ const FILE_HEAD_SIZE = 300;
 
 export default class RarHeaderParser {
   constructor(rarFileInstance){
-    this.files = [];
+    if(!(rarFileInstance instanceof rarFileType)){
+      throw new Error("Invalid Arguments, rarFileInstance need to be a RarFile, was: ", typeof rarFileInstance);
+    }
+
     this[rarFile] = rarFileInstance;
+
+    this.files = [];
     this[offset] = 0;
   }
   parseMarkerHead(){
@@ -123,12 +129,10 @@ export default class RarHeaderParser {
             .word32ls("high_pack_size")
             .word32ls("high_unp_size")
             .tap((high_size_vars) => {
-
               vars.size = high_size_vars.high_pack_size * 0x100000000 + vars.size;
               vars.unp_size = high_size_vars.high_unp_size * 0x100000000 + vars.unp_size;
-            });;
+            });
         }
-    
         vars.name = stream.read(vars.name_size).toString();
       }).vars;
   }
