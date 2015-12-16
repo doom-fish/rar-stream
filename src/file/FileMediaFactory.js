@@ -1,5 +1,6 @@
 import FileMediaTypes from './FileMediaTypes';
 import TorrentFileMedia from './TorrentFileMedia';
+import LocalFileMedia from './LocalFileMedia';
 
 export default {
   createInstance(type, fileInfo){
@@ -15,7 +16,7 @@ export default {
         return new TorrentFileMedia(fileInfo);
       }
       case FileMediaTypes.LOCAL: {
-        
+        return new LocalFileMedia(fileInfo);
       }
 
       default: return null;
