@@ -1,6 +1,6 @@
 const RXX_EXTENSION =  /\.R(\d\d)$|.RAR$/i;
 const RAR_EXTENSION = /.RAR$/i;
-const PART_RXX_EXTENSION = /.PART(\d\d).RAR/i;
+const PARTXX_RAR_EXTENSION = /.PART(\d\d).RAR/i;
 
 export default class RarFileBundle {
   constructor(fileNames){
@@ -17,7 +17,7 @@ export default class RarFileBundle {
     if(this._extensionType === "rxx"){
       this._fileNames = this._fileNames.filter(part => part.match(RXX_EXTENSION));
     }else{
-      this._fileNames = this._fileNames.filter(part => part.match(PART_RXX_EXTENSION));
+      this._fileNames = this._fileNames.filter(part => part.match(PARTXX_RAR_EXTENSION));
     }
   }
   sort(){
@@ -28,7 +28,7 @@ export default class RarFileBundle {
     }
   }
   _calculateExtensionType(){
-    let anyPartXXTypes = this._fileNames.filter(part => part.match(PART_RXX_EXTENSION));
+    let anyPartXXTypes = this._fileNames.filter(part => part.match(PARTXX_RAR_EXTENSION));
     
     if(anyPartXXTypes.length > 0){
       this._extensionType = "partxx";
@@ -38,8 +38,8 @@ export default class RarFileBundle {
   }
   _sortPartxx(){
     this._fileNames.sort((first, second) => {
-      let firstMatch = first.match(PART_RXX_EXTENSION);
-      let secondMatch = second.match(PART_RXX_EXTENSION);
+      let firstMatch = first.match(PARTXX_RAR_EXTENSION);
+      let secondMatch = second.match(PARTXX_RAR_EXTENSION);
       let firstNumber = +(firstMatch && firstMatch[1] || 0);
       let secondNumber = +(secondMatch && secondMatch[1] || 0);
       return firstNumber - secondNumber; 

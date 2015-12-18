@@ -1,7 +1,6 @@
 import binary from 'binary';
 import AbstractFileMedia from './file/AbstractFileMedia';
 
-
 const MARKER_HEAD_SIZE = 11;
 const ARCHIVE_HEAD_SIZE = 13;
 const FILE_HEAD_SIZE = 300;
@@ -41,14 +40,15 @@ export default class RarHeaderParser {
                   if(this._offset < (this._rarFile.size - ARCHIVE_END_PADDING)){
                     return this.parseFiles();
                   } else {
-                    return this;
-                }
+                    return;
+                  }
               });         
   }
   parse(){
     return this.parseMarkerHead()
                 .then(() => this.parseArchiveHead())
-                .then(() => this.parseFiles());
+                .then(() => this.parseFiles())
+                .then(() => { return this; } );
   }
   *[Symbol.iterator] (){
     yield* this._files;

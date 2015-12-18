@@ -57,7 +57,7 @@ describe('FileMedia', () => {
       torrentCreateReadStreamInstance.createReadStream(0, 20);
       torrentFile.createReadStream.should.have.been.calledWith(0, 20);
     });
-    it('should subscribe to events ', () => {
+    it('should subscribe to events', () => {
       let spy =  sinon.spy();
       let torrentFile = {
         createReadStream: () => ({
