@@ -3,7 +3,7 @@ import  binary from 'binary';
 
 import AbstractParser from './AbstractParser';
 
-export default class MarkHeadParser extends AbstractParser {
+export default class MarkerHeadParser extends AbstractParser {
   constructor(buffer){
     super();
     if(!(buffer instanceof Buffer)){
