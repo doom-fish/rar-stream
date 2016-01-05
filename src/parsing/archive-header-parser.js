@@ -1,17 +1,17 @@
-import {Buffer} from 'buffer';
-import  binary from 'binary';
+import {Buffer} from "buffer";
+import binary from "binary";
 
-import AbstractParser from './AbstractParser';
+import AbstractParser from "./abstract-parser";
 
-export default class ArchiveHeadParser extends AbstractParser {
-  constructor(buffer){
+export default class ArchiveHeaderParser extends AbstractParser {
+  constructor(buffer) {
     super();
-    if(!(buffer instanceof Buffer)){
-      throw Error('Invalid Arguments, buffer needs to be a Buffer instance');
+    if (!(buffer instanceof Buffer)) {
+      throw Error("Invalid Arguments, buffer needs to be a Buffer instance");
     }
     this._buffer = buffer;
   }
-  _parseFlags(parsedVars){  
+  _parseFlags(parsedVars) {
     parsedVars.hasVolumeAttributes = (parsedVars.flags & 0x0001) !== 0;
     parsedVars.hasComment = (parsedVars.flags & 0x0002) !== 0;
     parsedVars.isLocked = (parsedVars.flags & 0x0004) !== 0;
@@ -22,16 +22,16 @@ export default class ArchiveHeadParser extends AbstractParser {
     parsedVars.isBlockEncoded = (parsedVars.flags & 0x0080) !== 0;
     parsedVars.isFirstVolume = (parsedVars.flags & 0x0100) !== 0;
   }
-  parse(){
+  parse() {
     let {vars: archiveHeader} = binary.parse(this._buffer)
                                       .word16lu("crc")
                                       .word8lu("type")
                                       .word16lu("flags")
-                                      .word32lu("size")
+                                      .word16lu("size")
                                       .word16lu("reserved1")
                                       .word32lu("reserved2")
                                       .tap(this._parseFlags);
 
-      return archiveHeader;
+    return archiveHeader;
   }
 }

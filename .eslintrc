@@ -1,0 +1,9 @@
+---
+"extends":
+  - "defaults/configurations/walmart/es6-test"
+"env":
+  "node": true
+"rules":
+  "prefer-const": 0
+  "no-bitwise": 0
+  "max-statements": 0

@@ -1,13 +1,13 @@
-export default class FileMedia {
-  createReadStream(start, end){
+export default class AbstractFileMedia {
+  createReadStream() {
     return new Promise((resolve, reject) => {
-       reject (Error("Abstract Method, make sure to implement this method in sub class"));
+      reject(Error("Abstract Method, make sure to implement this method in sub class"));
     });
   }
-  get size(){
+  get size() {
     throw Error("Abstract Method, make sure to implement this method in sub class");
   }
-  get name(){
+  get name() {
     throw Error("Abstract Method, make sure to implement this method in sub class");
   }
 }

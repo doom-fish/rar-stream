@@ -1,26 +1,26 @@
-import {Readable} from 'stream';
-import sinon from 'sinon';
-import chai from 'chai';
+import {Readable} from "stream";
+import chai from "chai";
+import dirtyChai from "dirty-chai";
+chai.use(dirtyChai);
 let expect = chai.expect;
-let assert = chai.assert;
 
 chai.should();
 
-import RarFileBundle from '../src/RarFileBundle';
-import RarStream from '../src/RarStream';
+import RarFileBundle from "../src/rar-file-bundle";
+import RarStream from "../src/rar-stream";
 
 
-describe('RarStream', () => {
+describe("RarStream", () => {
   let simpleRarFileBundle;
   beforeEach(() => {
     simpleRarFileBundle = new RarFileBundle(["1.rar", "1.r00"]);
   });
-  describe('#constructor', () => {
-    it('should be constructable', () => {
+  describe("#constructor", () => {
+    it("should be constructable", () => {
       expect(new RarStream(simpleRarFileBundle)).to.be.an.instanceOf(RarStream);
       expect(new RarStream(simpleRarFileBundle)).to.be.an.instanceOf(Readable);
     });
-    it('should throw with empty fileBundle argument', () => {
+    it("should throw with empty fileBundle argument", () => {
       expect(() => new RarStream()).to.throw(/Invalid Arguments/);
     });
   });

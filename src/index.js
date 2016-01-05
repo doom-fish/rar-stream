@@ -1,11 +1,7 @@
-var RarFileBundle = require('./RarFileBundle');
-
-function createRarFileBundle(fileNames){
-  return new RarFileBundle(fileNames);
-}
-
-
+let RarFileBundle = require("./rar-file-bundle");
 
 module.exports = {
-  createRarFileBundle: createRarFileBundle
-}
+  createRarFileBundle(fileNames) {
+    return new RarFileBundle(fileNames);
+  }
+};
