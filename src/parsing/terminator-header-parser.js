@@ -7,7 +7,11 @@ export default class TerminatorHeaderParser extends AbstractParser {
   }
 
   parse() {
-    let { vars: terminatorHeader } = binary.parse(this._buffer);
+    let { vars: terminatorHeader } = binary.parse(this._buffer)
+                                           .word16lu("crc")
+                                           .word8lu("type")
+                                           .word16lu("flags")
+                                           .word16lu("size");
 
     return terminatorHeader;
   }
