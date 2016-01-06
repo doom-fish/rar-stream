@@ -3,7 +3,6 @@ import chaiAsPromised from "chai-as-promised";
 chai.use(chaiAsPromised);
 let expect = chai.expect;
 
-import {Buffer} from "buffer";
 import MarkerHeaderParser from "../../src/parsing/marker-header-parser";
 
 const MarkerHeaderData = new Buffer("526172211A0700", "hex");

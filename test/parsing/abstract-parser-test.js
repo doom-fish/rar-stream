@@ -9,7 +9,7 @@ import AbstractParser from "../../src/parsing/abstract-parser";
 describe("AbstractParserTest", () => {
   let instance;
   beforeEach(() => {
-    instance = new AbstractParser();
+    instance = new AbstractParser(new Buffer(0));
   });
   describe("#constructor", () => {
     it("should be constructable", () => {

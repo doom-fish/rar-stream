@@ -3,9 +3,7 @@ import chaiAsPromised from "chai-as-promised";
 chai.use(chaiAsPromised);
 let expect = chai.expect;
 
-import {Buffer} from "buffer";
 import ArchiveHeaderParser from "../../src/parsing/archive-header-parser";
-
 const ArchiveHeaderData = new Buffer("CF907300000D00000000000000", "hex");
 
 describe("ArchiveHeaderParser", () => {

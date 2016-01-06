@@ -3,8 +3,6 @@ import chaiAsPromised from "chai-as-promised";
 chai.use(chaiAsPromised);
 let expect = chai.expect;
 
-
-import {Buffer} from "buffer";
 import FileHeaderParser from "../../src/parsing/file-header-parser";
 
 const FileHeaderData = new Buffer("D9777420902C005C1000005C10000003C5A6D2158A595B" +
