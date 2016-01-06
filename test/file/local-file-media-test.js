@@ -1,7 +1,5 @@
 import chai from "chai";
-import dirtyChai from "dirty-chai";
 import path from "path";
-chai.use(dirtyChai);
 let expect = chai.expect;
 chai.should();
 

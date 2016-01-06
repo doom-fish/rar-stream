@@ -39,15 +39,15 @@ describe("ArchiveHeaderParser", () => {
       archiveHeader.reserved2.should.equal(0x0);
     });
     it("should parse flags correctly", () => {
-      archiveHeader.hasVolumeAttributes.should.be.false();
-      archiveHeader.hasComment.should.be.false();
-      archiveHeader.isLocked.should.be.false();
-      archiveHeader.hasSolidAttributes.should.be.false();
-      archiveHeader.isNewNameScheme.should.be.false();
-      archiveHeader.hasAuthInfo.should.be.false();
-      archiveHeader.hasRecovery.should.be.false();
-      archiveHeader.isBlockEncoded.should.be.false();
-      archiveHeader.isFirstVolume.should.be.false();
+      archiveHeader.hasVolumeAttributes.should.be.false;;
+      archiveHeader.hasComment.should.be.false;;
+      archiveHeader.isLocked.should.be.false;;
+      archiveHeader.hasSolidAttributes.should.be.false;;
+      archiveHeader.isNewNameScheme.should.be.false;;
+      archiveHeader.hasAuthInfo.should.be.false;;
+      archiveHeader.hasRecovery.should.be.false;;
+      archiveHeader.isBlockEncoded.should.be.false;;
+      archiveHeader.isFirstVolume.should.be.false;;
     });
   });
 });

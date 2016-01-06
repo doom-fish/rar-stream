@@ -1,6 +1,4 @@
 import chai from "chai";
-import dirtyChai from "dirty-chai";
-chai.use(dirtyChai);
 let expect = chai.expect;
 chai.should();
 
@@ -21,7 +19,7 @@ describe("RarFileBundle", () => {
   });
   describe("#length", () => {
     it("should return lenght should be defined", () => {
-      expect(instance.length).to.not.be.undefined();
+      expect(instance.length).to.not.be.undefined;
     });
     it("should return lenght should be 0 with an empty array as input", () => {
       let emptyInstance = new RarFileBundle([]);
@@ -35,7 +33,7 @@ describe("RarFileBundle", () => {
   });
   describe("#iterator", () => {
     it("should be defined", () => {
-      expect(instance[Symbol.iterator]).to.not.be.undefined();
+      expect(instance[Symbol.iterator]).to.not.be.undefined;
     });
     it("should deconstruct into input parameteres", () => {
       let input = ["a.r01", "a.r02", "a.r03", "a.r04"];

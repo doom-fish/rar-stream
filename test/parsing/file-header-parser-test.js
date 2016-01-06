@@ -64,16 +64,16 @@ describe("FileHeaderParserTest", () => {
       fileHeader.attributes.should.equal(0x000081A4);
     });
     it("should parse flags into booleans", () => {
-      fileHeader.continuesFromPrevious.should.be.false();
-      fileHeader.continuesInNext.should.be.false();
-      fileHeader.isEncrypted.should.be.false();
-      fileHeader.hasComment.should.be.false();
-      fileHeader.hasInfoFromPrevious.should.be.false();
-      fileHeader.hasHighSize.should.be.false();
-      fileHeader.hasSpecialName.should.be.false();
-      fileHeader.hasSalt.should.be.false();
-      fileHeader.isOldVersion.should.be.false();
-      fileHeader.hasExtendedTime.should.be.true();
+      fileHeader.continuesFromPrevious.should.be.false;
+      fileHeader.continuesInNext.should.be.false;
+      fileHeader.isEncrypted.should.be.false;
+      fileHeader.hasComment.should.be.false;
+      fileHeader.hasInfoFromPrevious.should.be.false;
+      fileHeader.hasHighSize.should.be.false;
+      fileHeader.hasSpecialName.should.be.false;
+      fileHeader.hasSalt.should.be.false;
+      fileHeader.isOldVersion.should.be.false;
+      fileHeader.hasExtendedTime.should.be.true;
     });
     it("should handle high file size", () => {
       let highFileSizeBuffer = new Buffer("D97774111111115C1000005C10000003C5A6D2158A5" +
@@ -82,7 +82,7 @@ describe("FileHeaderParserTest", () => {
       let highFileSizeHeaderParser = new FileHeaderParser(highFileSizeBuffer);
       let highFileSizeHeader = highFileSizeHeaderParser.parse();
 
-      highFileSizeHeader.hasHighSize.should.be.true();
+      highFileSizeHeader.hasHighSize.should.be.true;
       highFileSizeHeader.size.should.equal(0x40000105c);
       highFileSizeHeader.unpackedSize.should.equal(0x40000105c);
     });
