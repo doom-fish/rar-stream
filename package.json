@@ -14,7 +14,6 @@
   "devDependencies": {
     "babel": "^6.3.13",
     "babel-core": "^6.3.17",
-    "babel-plugin-rewire": "git+https://github.com/1313/babel-plugin-rewire.git#1.0.1",
     "babel-plugin-syntax-jsx": "^6.3.13",
     "babel-plugin-transform-regenerator": "^6.3.18",
     "babel-plugin-transform-runtime": "^6.3.13",

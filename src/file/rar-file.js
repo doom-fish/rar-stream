@@ -13,12 +13,5 @@ export default class RarFile {
     }
     this._files = new Set();
     this._offset = 0;
-    this._readMarkerHeader()
-        .then(() => this._readArchiveHeader());
-  }
-  _readMarkerHeader() {
-    return this._createReadStream(this._offset, MarkerHeaderParser.size)
-               .then(MarkerHeaderParser.parse)
-
   }
 }
