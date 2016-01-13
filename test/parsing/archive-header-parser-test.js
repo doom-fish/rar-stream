@@ -1,16 +1,18 @@
 import chai from "chai";
 import chaiAsPromised from "chai-as-promised";
+import {mockStreamFromString} from "../mocks/mock-buffer-stream";
+
 chai.use(chaiAsPromised);
 let expect = chai.expect;
 
 import ArchiveHeaderParser from "../../src/parsing/archive-header-parser";
-const ArchiveHeaderData = new Buffer("CF907300000D00000000000000", "hex");
 
 describe("ArchiveHeaderParser", () => {
   let instance;
   let archiveHeader;
+
   beforeEach(() => {
-    instance = new ArchiveHeaderParser(ArchiveHeaderData);
+    instance = new ArchiveHeaderParser(mockStreamFromString("CF907300000D00000000000000"));
     archiveHeader = instance.parse();
   });
   describe("#constructor", () => {
@@ -19,6 +21,11 @@ describe("ArchiveHeaderParser", () => {
     });
     it("should take a stream as constructor parameter", () => {
       expect(() => new ArchiveHeaderParser()).to.throw(/Invalid Arguments/);
+    });
+  });
+  describe("#size", () => {
+    it("should return a size constant of 13", () => {
+      instance.size.should.be.eql(13);
     });
   });
   describe("#parse", () => {
@@ -39,15 +46,15 @@ describe("ArchiveHeaderParser", () => {
       archiveHeader.reserved2.should.equal(0x0);
     });
     it("should parse flags correctly", () => {
-      archiveHeader.hasVolumeAttributes.should.be.false;;
-      archiveHeader.hasComment.should.be.false;;
-      archiveHeader.isLocked.should.be.false;;
-      archiveHeader.hasSolidAttributes.should.be.false;;
-      archiveHeader.isNewNameScheme.should.be.false;;
-      archiveHeader.hasAuthInfo.should.be.false;;
-      archiveHeader.hasRecovery.should.be.false;;
-      archiveHeader.isBlockEncoded.should.be.false;;
-      archiveHeader.isFirstVolume.should.be.false;;
+      archiveHeader.hasVolumeAttributes.should.be.false;
+      archiveHeader.hasComment.should.be.false;
+      archiveHeader.isLocked.should.be.false;
+      archiveHeader.hasSolidAttributes.should.be.false;
+      archiveHeader.isNewNameScheme.should.be.false;
+      archiveHeader.hasAuthInfo.should.be.false;
+      archiveHeader.hasRecovery.should.be.false;
+      archiveHeader.isBlockEncoded.should.be.false;
+      archiveHeader.isFirstVolume.should.be.false;
     });
   });
 });

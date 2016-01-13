@@ -1,7 +1,6 @@
 import chai from "chai";
 import path from "path";
 let expect = chai.expect;
-chai.should();
 
 let singleFile = path.resolve(__dirname, "../binary-data/single-short-filename.rar");
 import LocalFileMedia from "../../src/file/local-file-media";

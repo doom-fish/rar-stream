@@ -2,8 +2,8 @@ import binary from "binary";
 import AbstractParser from "./abstract-parser";
 
 export default class ArchiveHeaderParser extends AbstractParser {
-  constructor(buffer) {
-    super(buffer);
+  constructor(stream) {
+    super(stream);
   }
   _parseFlags(parsedVars) {
     parsedVars.hasVolumeAttributes = (parsedVars.flags & 0x0001) !== 0;
@@ -16,8 +16,12 @@ export default class ArchiveHeaderParser extends AbstractParser {
     parsedVars.isBlockEncoded = (parsedVars.flags & 0x0080) !== 0;
     parsedVars.isFirstVolume = (parsedVars.flags & 0x0100) !== 0;
   }
+  get size() {
+    return 13;
+  }
   parse() {
-    let {vars: archiveHeader} = binary.parse(this._buffer)
+    let buffer = this._stream.read(this.size);
+    let {vars: archiveHeader} = binary.parse(buffer)
                                       .word16lu("crc")
                                       .word8lu("type")
                                       .word16lu("flags")

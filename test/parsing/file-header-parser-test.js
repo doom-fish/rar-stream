@@ -1,28 +1,36 @@
 import chai from "chai";
 import chaiAsPromised from "chai-as-promised";
+import {mockStreamFromString} from "../mocks/mock-buffer-stream";
 chai.use(chaiAsPromised);
 let expect = chai.expect;
 
 import FileHeaderParser from "../../src/parsing/file-header-parser";
 
-const FileHeaderData = new Buffer("D9777420902C005C1000005C10000003C5A6D2158A595B" +
-                                  "4714300A00A481000061636B6E6F772E74787400C0", "hex");
-
 describe("FileHeaderParserTest", () => {
   let instance;
   let fileHeader;
   beforeEach(() => {
-    instance = new FileHeaderParser(FileHeaderData);
+    instance = new FileHeaderParser(mockStreamFromString("D9777420902C005C" +
+                                                         "1000005C10000003" +
+                                                         "C5A6D2158A595B47" +
+                                                         "14300A00A4810000" +
+                                                         "61636B6E6F772E74" +
+                                                         "787400C0"));
     fileHeader = instance.parse();
   });
   describe("#constructor", () => {
     it("should be constructable", () => {
-      expect(instance).to.be.an.instanceof(FileHeaderParser);
+      instance.should.be.an.instanceof(FileHeaderParser);
     });
     it("should take a stream as constructor parameter", () => {
       expect(() => new FileHeaderParser()).to.throw(/Invalid Arguments/);
     });
   });
+  describe("#size", () => {
+    it("should return size constant 280", () => {
+      instance.size.should.be.eql(280);
+    });
+  }),
   describe("#parse", () => {
     it("should parse crc properly", () => {
       fileHeader.crc.should.be.equal(0x77D9);
@@ -76,9 +84,10 @@ describe("FileHeaderParserTest", () => {
       fileHeader.hasExtendedTime.should.be.true;
     });
     it("should handle high file size", () => {
-      let highFileSizeBuffer = new Buffer("D97774111111115C1000005C10000003C5A6D2158A5" +
-                                          "95B4714300A00A4810000040000000400000061636B6" +
-                                          "E6F772E74787400C0", "hex");
+      let highFileSizeBuffer = mockStreamFromString("D97774111111115C1000005C10000003C5A6D2158A5" +
+                                                   "95B4714300A00A4810000040000000400000061636B6" +
+                                                   "E6F772E74787400C0");
+
       let highFileSizeHeaderParser = new FileHeaderParser(highFileSizeBuffer);
       let highFileSizeHeader = highFileSizeHeaderParser.parse();
 

@@ -2,8 +2,8 @@ import binary from "binary";
 import AbstractParser from "./abstract-parser";
 
 export default class FileHeaderParser extends AbstractParser {
-  constructor(buffer) {
-    super(buffer);
+  constructor(stream) {
+    super(stream);
   }
   _parseFlags(parsedVars) {
     parsedVars.continuesFromPrevious = (parsedVars.flags & 0x01) !== 0;
@@ -30,8 +30,12 @@ export default class FileHeaderParser extends AbstractParser {
       parsedVars.unpackedSize = highUnpackSize * 0x100000000 + parsedVars.unpackedSize;
     }
   }
+  get size() {
+    return 280;
+  }
   parse() {
-    let {vars: fileHeader} = binary.parse(this._buffer)
+    let buffer = this._stream.read(this.size);
+    let {vars: fileHeader} = binary.parse(buffer)
                                    .word16lu("crc")
                                    .word8lu("type")
                                    .word16lu("flags")
