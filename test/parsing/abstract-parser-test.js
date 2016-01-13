@@ -17,9 +17,9 @@ describe("AbstractParserTest", () => {
       expect(instance).to.be.an.instanceof(AbstractParser);
     });
   });
-  describe("#size", () => {
+  describe("#bytesToRead", () => {
     it("should throw as getter is abstract", () => {
-      expect(() => instance.size).to.throw(/Abstract Getter/);
+      expect(() => instance.bytesToRead).to.throw(/Abstract Getter/);
     });
   });
   describe("#parse", () => {

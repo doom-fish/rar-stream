@@ -16,12 +16,11 @@ export default class ArchiveHeaderParser extends AbstractParser {
     parsedVars.isBlockEncoded = (parsedVars.flags & 0x0080) !== 0;
     parsedVars.isFirstVolume = (parsedVars.flags & 0x0100) !== 0;
   }
-  get size() {
+  get bytesToRead() {
     return 13;
   }
   parse() {
-    let buffer = this._stream.read(this.size);
-    let {vars: archiveHeader} = binary.parse(buffer)
+    let {vars: archiveHeader} = binary.parse(this.read())
                                       .word16lu("crc")
                                       .word8lu("type")
                                       .word16lu("flags")

@@ -10,13 +10,11 @@ export default class MarkerHeaderParser extends AbstractParser {
       parsedVars.size += addSize || 0;
     }
   }
-  get size() {
+  get bytesToRead() {
     return 11;
   }
   parse() {
-    let buffer = this._stream.read(this.size);
-
-    let { vars: markerHeader } = binary.parse(buffer)
+    let { vars: markerHeader } = binary.parse(this.read())
                                     .word16lu("crc")
                                     .word8lu("type")
                                     .word16lu("flags")

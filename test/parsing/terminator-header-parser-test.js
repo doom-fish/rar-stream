@@ -21,9 +21,9 @@ describe("TerminatorHeaderParserTest", () => {
       instance.should.be.an.instanceof(AbstractParser);
     });
   });
-  describe("#size", () => {
-    it("should return a size constant of 7", () => {
-      instance.size.should.be.eql(7);
+  describe("#bytesToRead", () => {
+    it("should return a bytesToRead constant of 7", () => {
+      instance.bytesToRead.should.be.eql(7);
     });
   });
   describe("#parse", () => {

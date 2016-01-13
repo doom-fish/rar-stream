@@ -21,9 +21,9 @@ describe("MarkerHeaderParser", () => {
       expect(() => new MarkerHeaderParser()).to.throw(/Invalid Arguments/);
     });
   });
-  describe("#size", () => {
-    it("should return a size constant of 7", () => {
-      instance.size.should.be.eql(11);
+  describe("#bytesToRead", () => {
+    it("should return a bytesToRead constant of 7", () => {
+      instance.bytesToRead.should.be.eql(11);
     });
   });
   describe("#parse", () => {

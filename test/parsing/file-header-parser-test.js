@@ -26,9 +26,9 @@ describe("FileHeaderParserTest", () => {
       expect(() => new FileHeaderParser()).to.throw(/Invalid Arguments/);
     });
   });
-  describe("#size", () => {
-    it("should return size constant 280", () => {
-      instance.size.should.be.eql(280);
+  describe("#bytesToRead", () => {
+    it("should return bytesToRead constant 280", () => {
+      instance.bytesToRead.should.be.eql(280);
     });
   }),
   describe("#parse", () => {

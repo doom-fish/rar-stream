@@ -23,9 +23,9 @@ describe("ArchiveHeaderParser", () => {
       expect(() => new ArchiveHeaderParser()).to.throw(/Invalid Arguments/);
     });
   });
-  describe("#size", () => {
-    it("should return a size constant of 13", () => {
-      instance.size.should.be.eql(13);
+  describe("#bytesToRead", () => {
+    it("should return a bytesToRead constant of 13", () => {
+      instance.bytesToRead.should.be.eql(13);
     });
   });
   describe("#parse", () => {

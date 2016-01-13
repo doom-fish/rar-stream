@@ -30,12 +30,11 @@ export default class FileHeaderParser extends AbstractParser {
       parsedVars.unpackedSize = highUnpackSize * 0x100000000 + parsedVars.unpackedSize;
     }
   }
-  get size() {
+  get bytesToRead() {
     return 280;
   }
   parse() {
-    let buffer = this._stream.read(this.size);
-    let {vars: fileHeader} = binary.parse(buffer)
+    let {vars: fileHeader} = binary.parse(this.read())
                                    .word16lu("crc")
                                    .word8lu("type")
                                    .word16lu("flags")

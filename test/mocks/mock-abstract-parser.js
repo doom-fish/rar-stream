@@ -5,7 +5,7 @@ export default class MockAbstractParser extends AbstractParser {
     super(stream);
     this._size = size;
   }
-  get size() {
+  get bytesToRead() {
     return this._size;
   }
 }
