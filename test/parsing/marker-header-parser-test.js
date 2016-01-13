@@ -10,7 +10,7 @@ describe("MarkerHeaderParser", () => {
   let instance;
   let markerHeader;
   beforeEach(() => {
-    instance = new MarkerHeaderParser(mockStreamFromString("526172211A0700"));
+    instance = new MarkerHeaderParser(mockStreamFromString("526172211A0700", {size: 11}));
     markerHeader = instance.parse();
   });
   describe("#constructor", () => {
@@ -29,28 +29,29 @@ describe("MarkerHeaderParser", () => {
   describe("#parse", () => {
     it("should correctly parse crc correctly", () => {
       markerHeader.crc.should.equal(0x6152);
-
-      let invalidInstance = new MarkerHeaderParser(mockStreamFromString("526272211A0700"));
+      let stream = mockStreamFromString("526272211A0700", {size: 11});
+      let invalidInstance = new MarkerHeaderParser(stream);
       let invalidMarkerHeader = invalidInstance.parse();
       invalidMarkerHeader.crc.should.not.equal(0x6152);
     });
     it("should correctly parse type correctly", () => {
       markerHeader.type.should.equal(0x72);
-
-      let invalidInstance = new MarkerHeaderParser(mockStreamFromString("526275211A0700"));
+      let stream = mockStreamFromString("526275211A0700", {size: 11});
+      let invalidInstance = new MarkerHeaderParser(stream);
       let invalidMarkerHeader = invalidInstance.parse();
       invalidMarkerHeader.type.should.not.equal(0x72);
     });
     it("should parse flags correctly", () => {
       markerHeader.flags.should.equal(0x1A21);
-
-      let invalidInstance = new MarkerHeaderParser(mockStreamFromString("23462346234623462346"));
+      let stream = mockStreamFromString("23462346234623", {size: 11});
+      let invalidInstance = new MarkerHeaderParser(stream);
       let invalidMarkerHeader = invalidInstance.parse();
       invalidMarkerHeader.flags.should.not.equal(0x1A21);
     });
     it("should parse size properly", () => {
       markerHeader.size.should.equal(0x07);
-      let invalidInstance = new MarkerHeaderParser(mockStreamFromString("23462346234623462346"));
+      let stream = mockStreamFromString("23462346234623", {size: 11});
+      let invalidInstance = new MarkerHeaderParser(stream);
       let invalidMarkerHeader = invalidInstance.parse();
       invalidMarkerHeader.flags.should.not.equal(0x07);
     });

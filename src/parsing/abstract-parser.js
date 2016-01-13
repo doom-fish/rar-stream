@@ -13,4 +13,10 @@ export default class AbstractParser {
   parse() {
     throw Error("Abstract Method, implement in sub classes");
   }
+  read() {
+    if (!this._size || Number.isNaN(this._size) || this._size < 0) {
+      throw Error("Invalid Size, size need to be a positive number");
+    }
+    return this._stream.read(this.size);
+  }
 }

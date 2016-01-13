@@ -1,6 +1,5 @@
 import binary from "binary";
 import AbstractParser from "./abstract-parser";
-
 export default class MarkerHeaderParser extends AbstractParser {
   constructor(stream) {
     super(stream);

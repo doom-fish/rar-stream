@@ -15,7 +15,7 @@ describe("FileHeaderParserTest", () => {
                                                          "C5A6D2158A595B47" +
                                                          "14300A00A4810000" +
                                                          "61636B6E6F772E74" +
-                                                         "787400C0"));
+                                                         "787400C0", {size: 280}));
     fileHeader = instance.parse();
   });
   describe("#constructor", () => {
@@ -86,7 +86,7 @@ describe("FileHeaderParserTest", () => {
     it("should handle high file size", () => {
       let highFileSizeBuffer = mockStreamFromString("D97774111111115C1000005C10000003C5A6D2158A5" +
                                                    "95B4714300A00A4810000040000000400000061636B6" +
-                                                   "E6F772E74787400C0");
+                                                   "E6F772E74787400C0", {size: 280});
 
       let highFileSizeHeaderParser = new FileHeaderParser(highFileSizeBuffer);
       let highFileSizeHeader = highFileSizeHeaderParser.parse();

@@ -12,9 +12,10 @@ MockFileMedia.prototype._read = function () {
   this._object = null;
 };
 
-export const mockStreamFromString = function (str, options = { padding: 500 }, variant = "hex") {
-  if (options.padding) {
-    str += Array.apply(0, Array(options.padding)).map(() => "0").join("");
+export const mockStreamFromString = function (str, options = {}, variant = "hex") {
+  if (options.size) {
+    let padding = Math.abs(options.size - str.length / 2);
+    str += Array.apply(0, Array(padding)).map(() => "00").join("");
   }
   return new MockFileMedia(new Buffer(str, variant), options);
 };

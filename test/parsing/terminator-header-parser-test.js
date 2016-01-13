@@ -33,42 +33,54 @@ describe("TerminatorHeaderParserTest", () => {
     it("should have a crc value as 2 bytes", () => {
       terminatorHeader.crc.should.not.be.undefiend;
       terminatorHeader.crc.should.be.eql(0x3DC4);
-      new TerminatorHeaderParser(mockStreamFromString("4444")).parse().crc.should.be.eql(0x4444);
-      new TerminatorHeaderParser(mockStreamFromString("1234")).parse().crc.should.be.eql(0x3412);
-      new TerminatorHeaderParser(mockStreamFromString("ABBA")).parse().crc.should.be.eql(0xBAAB);
-      new TerminatorHeaderParser(mockStreamFromString("0000")).parse().crc.should.be.eql(0x0000);
+      new TerminatorHeaderParser(mockStreamFromString("4444", {size: 7})).parse()
+        .crc.should.be.eql(0x4444);
+      new TerminatorHeaderParser(mockStreamFromString("1234", {size: 7})).parse()
+        .crc.should.be.eql(0x3412);
+      new TerminatorHeaderParser(mockStreamFromString("ABBA", {size: 7})).parse()
+        .crc.should.be.eql(0xBAAB);
+      new TerminatorHeaderParser(mockStreamFromString("0000", {size: 7})).parse()
+        .crc.should.be.eql(0x0000);
     });
     it("should parse crc in little endian format", () => {
-      new TerminatorHeaderParser(mockStreamFromString("3412")).parse().crc.should.be.eql(0x1234);
-      new TerminatorHeaderParser(mockStreamFromString("1234")).parse().crc.should.be.eql(0x3412);
+      new TerminatorHeaderParser(mockStreamFromString("3412", {size: 7})).parse()
+        .crc.should.be.eql(0x1234);
+      new TerminatorHeaderParser(mockStreamFromString("1234", {size: 7})).parse()
+        .crc.should.be.eql(0x3412);
     });
     it("should have a type value as 1 byte", () => {
       terminatorHeader.type.should.not.be.undefiend;
       terminatorHeader.type.should.be.eql(0x7B);
-      new TerminatorHeaderParser(mockStreamFromString("000074")).parse().type.should.be.eql(0x74);
-      new TerminatorHeaderParser(mockStreamFromString("000045")).parse().type.should.be.eql(0x45);
-      new TerminatorHeaderParser(mockStreamFromString("000055")).parse().type.should.be.eql(0x55);
-      new TerminatorHeaderParser(mockStreamFromString("123474")).parse().type.should.be.eql(0x74);
-      new TerminatorHeaderParser(mockStreamFromString("FFFF74")).parse().type.should.be.eql(0x74);
+      new TerminatorHeaderParser(mockStreamFromString("000074", {size: 7})).parse()
+        .type.should.be.eql(0x74);
+      new TerminatorHeaderParser(mockStreamFromString("000045", {size: 7})).parse()
+        .type.should.be.eql(0x45);
+      new TerminatorHeaderParser(mockStreamFromString("000055", {size: 7})).parse()
+        .type.should.be.eql(0x55);
+      new TerminatorHeaderParser(mockStreamFromString("123474", {size: 7})).parse()
+        .type.should.be.eql(0x74);
+      new TerminatorHeaderParser(mockStreamFromString("FFFF74", {size: 7})).parse()
+        .type.should.be.eql(0x74);
     });
     it("should parse flags as 2 bytes", () => {
       terminatorHeader.flags.should.not.be.undefiend;
       terminatorHeader.flags.should.be.eql(0x4000);
-      let parser = new TerminatorHeaderParser(mockStreamFromString("0000004444"));
+      let parser = new TerminatorHeaderParser(mockStreamFromString("0000004444", {size: 7}));
       parser.parse().flags.should.be.eql(0x4444);
-      parser = new TerminatorHeaderParser(mockStreamFromString("0000001234")).parse();
+      parser = new TerminatorHeaderParser(mockStreamFromString("0000001234", {size: 7})).parse();
       parser.flags.should.be.eql(0x3412);
-      parser = new TerminatorHeaderParser(mockStreamFromString("000000ABBA")).parse();
+      parser = new TerminatorHeaderParser(mockStreamFromString("000000ABBA", {size: 7})).parse();
       parser.flags.should.be.eql(0xBAAB);
-      parser = new TerminatorHeaderParser(mockStreamFromString("FFFFFF0000")).parse();
+      parser = new TerminatorHeaderParser(mockStreamFromString("FFFFFF0000", {size: 7})).parse();
       parser.flags.should.be.eql(0x0000);
-      parser = new TerminatorHeaderParser(mockStreamFromString("0000000000")).parse();
+      parser = new TerminatorHeaderParser(mockStreamFromString("0000000000", {size: 7})).parse();
       parser.flags.should.be.eql(0x0000);
     });
     it("should parse flags as little endian", () => {
-      let parser = new TerminatorHeaderParser(mockStreamFromString("123456789A")).parse();
+      let stream = mockStreamFromString("123456789A", {size: 7});
+      let parser = new TerminatorHeaderParser(stream).parse();
       parser.flags.should.be.eql(0x9A78);
-      parser = new TerminatorHeaderParser(mockStreamFromString("1234569A78")).parse();
+      parser = new TerminatorHeaderParser(mockStreamFromString("1234569A78", {size: 7})).parse();
       parser.flags.should.be.eql(0x789A);
     });
     it("should parse size as 2 bytes", () => {
