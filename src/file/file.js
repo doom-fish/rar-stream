@@ -1,3 +1,4 @@
+import {Readable} from "stream";
 
 export default class File {
   constructor(options) {
@@ -10,8 +11,16 @@ export default class File {
     if (typeof options.name !== "string") {
       throw Error("Invalid Arguments, file needs a name string as options to its constructor");
     }
+    if (!(options.stream instanceof Readable)) {
+      throw Error("Invalid Arguments, file needs to have a " +
+                  "Readable stream passed to its constructor");
+    }
     this._name = options.name;
     this._size = options.size;
+    this._stream = options.stream;
+  }
+  get stream() {
+    return this._stream;
   }
   get size() {
     return this._size;
