@@ -5,13 +5,13 @@ import FileMedia from "./file-media";
 import TorrentFileMedia from "./torrent-file-media";
 import LocalFileMedia from "./local-file-media";
 
-import RarFile from "./rar-file";
+import File from "./file";
 
-export {FileMediaFactory};
-
-export {AbstractFileMedia};
-export {FileMedia};
-export {TorrentFileMedia};
-export {LocalFileMedia};
-
-export {RarFile};
+export {
+  FileMediaFactory,
+  AbstractFileMedia,
+  FileMedia,
+  TorrentFileMedia,
+  LocalFileMedia,
+  File
+};
