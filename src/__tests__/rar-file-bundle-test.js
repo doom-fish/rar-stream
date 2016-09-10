@@ -1,6 +1,6 @@
 import test from 'ava';
 import RarFileBundle from '../rar-file-bundle';
-console.log(test.beforeEach);
+
 test('RarFileBundle construcor should throw with empty arguments', t => {
   t.throws(() => new RarFileBundle(), /Invalid Arguments/);
 });

@@ -1,5 +1,5 @@
 import test from 'ava';
-import sinon from 'sinon';
+import td from 'testdouble';
 
 import FileMedia from '../file-media';
 
@@ -26,29 +26,41 @@ test('FileMedia.createReadStream should throw if start is greater than end param
 });
 
 test('FileMedia.createReadStream should return a promise', t => {
+  const createReadStream = td.function();
+  td.when(createReadStream(0,0)).thenReturn({
+    on: (name, cb) => {
+      cb();
+    }
+  });
 
   const instance = new FileMedia({
-    createReadStream: sinon.spy(() => ({
-        on: (name, cb) => cb()
-      }))
+    createReadStream: createReadStream
   });
+
   t.truthy(instance.createReadStream(0, 0) instanceof Promise);
 });
 
-test('FileMedia.createReadStream should return a readable stream', t => {
-  const spy = sinon.spy();
-  const torrentFile = {
-    createReadStream: sinon.spy(() => ({
-        on: (name, cb) => {
-          spy(name);
-          cb();
-        }
-      }))
+test('FileMedia.createReadStream should return a readable stream', () => {
+  const eventSubscribed = td.function('.eventSubscribed');
+  const createReadStream = td.function();
+
+  const stream = {
+    on: (name, cb) => {
+      eventSubscribed(name);
+      cb();
+    }
   };
+
+  td.when(createReadStream(
+    td.matchers.isA(Number),
+    td.matchers.isA(Number)
+  )).thenReturn(stream);
+
+  const torrentFile = {createReadStream};
   const instance = new FileMedia(torrentFile);
+
   return instance.createReadStream(0, 20).then(() => {
-    t.deepEqual(torrentFile.createReadStream.args[0], [0, 20]);
-    t.truthy(spy.calledWith('readable'));
-    t.truthy(spy.calledWith('error'));
+    td.verify(eventSubscribed('readable'));
+    td.verify(eventSubscribed('error'));
   });
 });
