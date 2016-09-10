@@ -1,8 +1,9 @@
+//@flow
 import FileMedia from './file-media';
 import fs from 'fs';
 
 export default class LocalFileMedia extends FileMedia {
-  constructor(localFilePath) {
+  constructor(localFilePath: string) {
     if (typeof localFilePath !== 'string') {
       throw new Error('Invalid Arguments, localFilePath' +
                       'need to be passed to the constructor as a string');

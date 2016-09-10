@@ -1,3 +1,4 @@
+//@flow
 import test from 'ava';
 import MarkerHeaderParser from '../marker-header-parser';
 import bind, { newPadding, hammingWeight } from '../__mocks__/utils';

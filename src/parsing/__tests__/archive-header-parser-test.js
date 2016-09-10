@@ -1,3 +1,4 @@
+//@flow
 import test from 'ava';
 import ArchiveHeaderParser from '../archive-header-parser';
 import bind, { hammingWeight, btoh } from '../__mocks__/utils';

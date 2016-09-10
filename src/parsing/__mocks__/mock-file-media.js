@@ -1,8 +1,9 @@
+//@flow
 import {mockStreamFromString} from './mock-buffer-stream';
-import {FileMedia} from '../../src/file';
+import FileMedia from '../../file-media/file-media';
 
 export default class MockFileMedia extends FileMedia {
-  constructor(stringData, size) {
+  constructor(stringData: string, size: number) {
     super({
       name: 'MockStream',
       size: stringData.length,

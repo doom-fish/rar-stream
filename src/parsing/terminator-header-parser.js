@@ -1,14 +1,17 @@
+//@flow
 import binary from 'binary';
+
+import {Readable} from 'stream';
 import AbstractParser from './abstract-parser';
 
 export default class TerminatorHeaderParser extends AbstractParser {
-  constructor(stream) {
+  constructor(stream: Readable) {
     super(stream);
   }
-  get bytesToRead() {
+  get bytesToRead() : number{
     return 7;
   }
-  parse() {
+  parse() : Object {
     let { vars: terminatorHeader } = binary.parse(this.read())
                                            .word16lu('crc')
                                            .word8lu('type')

@@ -1,3 +1,4 @@
+//@flow
 import test from 'ava';
 import FileHeaderParser from '../file-header-parser';
 import bind, { newPadding, hammingWeight, btoh } from '../__mocks__/utils';

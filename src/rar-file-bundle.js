@@ -1,9 +1,13 @@
+//@flow
 const RXX_EXTENSION = /\.R(\d\d)$|.RAR$/i;
 const RAR_EXTENSION = /.RAR$/i;
 const PARTXX_RAR_EXTENSION = /.PART(\d\d).RAR/i;
 
 export default class RarFileBundle {
-  constructor(fileNames) {
+  _fileNames: string[];
+  _extensionType: string;
+  _length: number;
+  constructor(fileNames: string[]) {
     if (!fileNames) {
       throw new Error('Invalid Arguments, fileNames need to be passed to the constructor');
     }
@@ -59,10 +63,10 @@ export default class RarFileBundle {
       }
     });
   }
-  get length() {
+  get length(): number {
     return this._fileNames.length;
   }
-  *[Symbol.iterator]() {
-    yield* this._fileNames;
+  get fileNames() :  string[] {
+    return this._fileNames;
   }
 }

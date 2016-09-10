@@ -1,7 +1,8 @@
+//@flow
 import FileMedia from './file-media';
 
 export default class TorrentFileMedia extends FileMedia {
-  constructor(fileInfo) {
+  constructor(fileInfo: Object) {
     if (!fileInfo) {
       throw new Error('Invalid Arguments, fileInfo need to be passed to the constructor');
     }

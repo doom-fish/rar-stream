@@ -1,3 +1,4 @@
+//@flow
 import test from 'ava';
 import TerminatorHeaderParser from '../terminator-header-parser';
 import bind, { hammingWeight } from '../__mocks__/utils';

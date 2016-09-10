@@ -1,11 +1,14 @@
+//@flow
+import {Readable} from 'stream';
 import AbstractParser from '../abstract-parser';
 
 export default class MockAbstractParser extends AbstractParser {
-  constructor(stream, size) {
+  _size: number;
+  constructor(stream: Readable, size: number) {
     super(stream);
     this._size = size;
   }
-  get bytesToRead() {
+  get bytesToRead() :number{
     return this._size;
   }
 }

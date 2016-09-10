@@ -1,11 +1,8 @@
+//@flow
 import test from 'ava';
 import td from 'testdouble';
 
 import FileMedia from '../file-media';
-
-test('FileMedia constructor should throw if options are empty', t => {
-  t.throws(() => new FileMedia(), /Invalid Arguments/)
-});
 
 test('FileMedia.name should expose the name from the constructor as a getter',  t => {
   const namedTorrentMedia = new FileMedia({name: 'Named Media'});
