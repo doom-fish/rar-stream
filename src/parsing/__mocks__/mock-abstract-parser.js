@@ -1,4 +1,4 @@
-import AbstractParser from "../../src/parsing/abstract-parser";
+import AbstractParser from '../abstract-parser';
 
 export default class MockAbstractParser extends AbstractParser {
   constructor(stream, size) {

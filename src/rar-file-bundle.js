@@ -5,35 +5,34 @@ const PARTXX_RAR_EXTENSION = /.PART(\d\d).RAR/i;
 export default class RarFileBundle {
   constructor(fileNames) {
     if (!fileNames) {
-      throw new Error("Invalid Arguments, fileNames need to be passed to the constructor");
+      throw new Error('Invalid Arguments, fileNames need to be passed to the constructor');
     }
     this._fileNames = fileNames;
-    this._calculateExtensionType();
-
+    this._resolveFileExtension();
     this.filter();
     this.sort();
   }
   filter() {
-    if (this._extensionType === "rxx") {
+    if (this._extensionType === 'rxx') {
       this._fileNames = this._fileNames.filter((part) => part.match(RXX_EXTENSION));
     }else {
       this._fileNames = this._fileNames.filter((part) => part.match(PARTXX_RAR_EXTENSION));
     }
   }
   sort() {
-    if (this._extensionType === "rxx") {
+    if (this._extensionType === 'rxx') {
       this._sortRxx();
     }else {
       this._sortPartxx();
     }
   }
-  _calculateExtensionType() {
+  _resolveFileExtension() {
     let anyPartXXTypes = this._fileNames.filter((part) => part.match(PARTXX_RAR_EXTENSION));
 
     if (anyPartXXTypes.length > 0) {
-      this._extensionType = "partxx";
+      this._extensionType = 'partxx';
     }else {
-      this._extensionType = "rxx";
+      this._extensionType = 'rxx';
     }
   }
   _sortPartxx() {

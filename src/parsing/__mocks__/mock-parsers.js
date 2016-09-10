@@ -7,7 +7,7 @@ export class MockEmptyParser {
 export class MockFileHeaderParser {
   parse() {
     return {
-      name: "test"
+      name: 'test'
     };
   }
 }

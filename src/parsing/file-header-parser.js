@@ -1,5 +1,5 @@
-import binary from "binary";
-import AbstractParser from "./abstract-parser";
+import binary from 'binary';
+import AbstractParser from './abstract-parser';
 
 export default class FileHeaderParser extends AbstractParser {
   constructor(stream) {
@@ -18,13 +18,13 @@ export default class FileHeaderParser extends AbstractParser {
     parsedVars.hasExtendedTime = (parsedVars.flags & 0x1000) !== 0;
   }
   _parseFileName(parsedVars) {
-    let {vars: {nameBuffer}} = this.buffer("nameBuffer", parsedVars.nameSize);
-    parsedVars.name = nameBuffer.toString("utf-8");
+    let {vars: {nameBuffer}} = this.buffer('nameBuffer', parsedVars.nameSize);
+    parsedVars.name = nameBuffer.toString('utf-8');
   }
   _handleHighFileSize(parsedVars) {
     if (parsedVars.hasHighSize) {
-      let {vars: {highPackSize, highUnpackSize}} = this.word32ls("highPackSize")
-                                                        .word32ls("highUnpackSize");
+      let {vars: {highPackSize, highUnpackSize}} = this.word32ls('highPackSize')
+                                                        .word32ls('highUnpackSize');
 
       parsedVars.size = highPackSize * 0x100000000 + parsedVars.size;
       parsedVars.unpackedSize = highUnpackSize * 0x100000000 + parsedVars.unpackedSize;
@@ -35,19 +35,19 @@ export default class FileHeaderParser extends AbstractParser {
   }
   parse() {
     let {vars: fileHeader} = binary.parse(this.read())
-                                   .word16lu("crc")
-                                   .word8lu("type")
-                                   .word16lu("flags")
-                                   .word16lu("headSize")
-                                   .word32lu("size")
-                                   .word32lu("unpackedSize")
-                                   .word8lu("host")
-                                   .word32lu("fileCrc")
-                                   .word32lu("timestamp")
-                                   .word8lu("version")
-                                   .word8lu("method")
-                                   .word16lu("nameSize")
-                                   .word32lu("attributes")
+                                   .word16lu('crc')
+                                   .word8lu('type')
+                                   .word16lu('flags')
+                                   .word16lu('headSize')
+                                   .word32lu('size')
+                                   .word32lu('unpackedSize')
+                                   .word8lu('host')
+                                   .word32lu('fileCrc')
+                                   .word32lu('timestamp')
+                                   .word8lu('version')
+                                   .word8lu('method')
+                                   .word16lu('nameSize')
+                                   .word32lu('attributes')
                                    .tap(this._parseFlags)
                                    .tap(this._handleHighFileSize)
                                    .tap(this._parseFileName);

@@ -1,4 +1,4 @@
-import {Readable} from "stream";
+import {Readable} from 'stream';
 
 export class MockFileMedia extends Readable {
   constructor(object, options) {
@@ -12,10 +12,10 @@ MockFileMedia.prototype._read = function () {
   this._object = null;
 };
 
-export const mockStreamFromString = function (str, options = {}, variant = "hex") {
+export const mockStreamFromString = (str, options = {}, variant = 'hex') => {
   if (options.size) {
     let padding = Math.abs(options.size - str.length / 2);
-    str += Array.apply(0, Array(padding)).map(() => "00").join("");
+    str += Array.apply(0, Array(padding)).map(() => '00').join('');
   }
   return new MockFileMedia(new Buffer(str, variant), options);
 };

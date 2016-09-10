@@ -1,9 +1,19 @@
 ---
 "extends":
-  - "defaults/configurations/walmart/es6-test"
+  - "eslint:recommended"
 "env":
   "node": true
+  "mocha": true
+  "es6": true
+"parser": "babel-eslint"
+"plugins":
+  - "babel"
+  - "filenames"
 "rules":
-  "prefer-const": 0
+  "quotes":
+    - 2
+    - "single"
+    - "allowTemplateLiterals": true
+  "strict": 0
   "no-bitwise": 0
   "max-statements": 0

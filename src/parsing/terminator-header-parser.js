@@ -1,5 +1,5 @@
-import binary from "binary";
-import AbstractParser from "./abstract-parser";
+import binary from 'binary';
+import AbstractParser from './abstract-parser';
 
 export default class TerminatorHeaderParser extends AbstractParser {
   constructor(stream) {
@@ -10,10 +10,10 @@ export default class TerminatorHeaderParser extends AbstractParser {
   }
   parse() {
     let { vars: terminatorHeader } = binary.parse(this.read())
-                                           .word16lu("crc")
-                                           .word8lu("type")
-                                           .word16lu("flags")
-                                           .word16lu("size");
+                                           .word16lu('crc')
+                                           .word8lu('type')
+                                           .word16lu('flags')
+                                           .word16lu('size');
 
     return terminatorHeader;
   }
