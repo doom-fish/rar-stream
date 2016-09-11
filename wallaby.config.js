@@ -23,7 +23,7 @@ module.exports = function (wallaby) {
     testFramework: 'ava',
 
     setup: function () {
-      require('babel-polyfill');
+      require('babel-polyfill')
     },
 
     debug: true

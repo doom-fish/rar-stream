@@ -1,15 +1,13 @@
 //@flow
 import {Readable} from 'stream';
 export default class FileMedia {
-  // eslint-disable-next-line
-  _createReadStream: (start: number, end: number) => Readable;
+   _createReadStream: (start: number, end: number) => Readable;
   _name: string;
   _size: number;
   constructor(fileInfo: Object) {
     if (!fileInfo) {
       throw new Error('Invalid Arguments, fileInfo need to be passed to the constructor');
     }
-
     this._createReadStream = fileInfo.createReadStream;
     this._name = fileInfo.name;
     this._size = fileInfo.size;
@@ -20,7 +18,7 @@ export default class FileMedia {
   get size() : number {
     return this._size;
   }
-  createReadStream(start: number, end: number) {
+  createReadStream(start: number, end: number) : Promise<Readable> {
     if (start > end) {
       throw Error('Invalid Arguments, start offset can not be greater than end offset');
     }

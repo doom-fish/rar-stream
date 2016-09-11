@@ -3,11 +3,11 @@
   - "eslint:recommended"
 "env":
   "node": true
-  "mocha": true
   "es6": true
 "parser": "babel-eslint"
 "plugins":
   - "babel"
+  - "flowtype"
   - "filenames"
 "rules":
   "quotes":

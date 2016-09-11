@@ -1,5 +1,6 @@
 //@flow
 import test from 'ava';
+import FileMedia from '../file-media/file-media';
 import RarFileBundle from '../rar-file-bundle';
 
 test('RarFileBundle length should be 0 with an empty array as input', t => {
@@ -8,22 +9,24 @@ test('RarFileBundle length should be 0 with an empty array as input', t => {
 });
 
 test('RarFileBundle should return length with the same length as input', t => {
-  const input = ['a.r01', 'a.r02', 'a.r03', 'a.r04', 'a.r05'];
-  const inputInstance = new RarFileBundle(input);
+  const input = ['a.r01', 'a.r02', 'a.r03','a.r04','a.r05'];
+  const fileMedias = input.map((name) => new FileMedia({name}));
+  const inputInstance = new RarFileBundle(fileMedias);
   t.is(inputInstance.length, input.length);
 });
 
-
 test('RarFileBundle should deconstruct into input', t => {
   const input = ['a.r01', 'a.r02', 'a.r03', 'a.r04', 'a.r05'];
-  const inputInstance = new RarFileBundle(input);
-  t.deepEqual(input, inputInstance.fileNames);
+  const fileMedias = input.map((name) => new FileMedia({name}));
+  const inputInstance = new RarFileBundle(fileMedias);
+  t.deepEqual(fileMedias, inputInstance.files);
 });
 
 test('RarFileBundle should return unsorted rxx filenames in a sorted manner', t => {
   const unsortedFileNames = ['a.r03', 'a.r02', 'a.rar', 'a.r01', 'a.r00'];
+  const fileMedias = unsortedFileNames.map((name) => new FileMedia({name}));
   const sortedFileNames = ['a.rar', 'a.r00', 'a.r01', 'a.r02', 'a.r03'];
-  const instanceWithUnsortedParameters = new RarFileBundle(unsortedFileNames);
+  const instanceWithUnsortedParameters = new RarFileBundle(fileMedias);
   t.deepEqual(instanceWithUnsortedParameters.fileNames, sortedFileNames);
 });
 
@@ -45,8 +48,9 @@ test('RarFileBundle should return unsorted part file names in a sorted manner', 
     'a.part05.rar',
     'a.part02.rar'
   ];
+  const fileMedias = unsortedFileNames.map((name) => new FileMedia({name}));
 
-  const instanceWithUnsortedParameters = new RarFileBundle(unsortedFileNames);
+  const instanceWithUnsortedParameters = new RarFileBundle(fileMedias);
   t.deepEqual(instanceWithUnsortedParameters.fileNames, sortedFileNames);
 });
 
@@ -61,6 +65,7 @@ test('RarFileBundle should filter out non rar files', t => {
     'a.nfo',
     'a.part05.rar'
   ];
+  const fileMedias = unfilteredFileNames.map((name) => new FileMedia({name}));
 
   const filteredFileNames = [
     'a.part01.rar',
@@ -69,6 +74,6 @@ test('RarFileBundle should filter out non rar files', t => {
     'a.part04.rar',
     'a.part05.rar'
   ];
-  const unFilteredInstance = new RarFileBundle(unfilteredFileNames);
+  const unFilteredInstance = new RarFileBundle(fileMedias);
   t.deepEqual(unFilteredInstance.fileNames, filteredFileNames);
 });

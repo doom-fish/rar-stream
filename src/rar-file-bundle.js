@@ -1,26 +1,26 @@
 //@flow
+import FileMedia from './file-media/file-media';
+
 const RXX_EXTENSION = /\.R(\d\d)$|.RAR$/i;
 const RAR_EXTENSION = /.RAR$/i;
 const PARTXX_RAR_EXTENSION = /.PART(\d\d).RAR/i;
 
 export default class RarFileBundle {
-  _fileNames: string[];
+  _fileMedias: FileMedia[];
   _extensionType: string;
   _length: number;
-  constructor(fileNames: string[]) {
-    if (!fileNames) {
-      throw new Error('Invalid Arguments, fileNames need to be passed to the constructor');
-    }
-    this._fileNames = fileNames;
+  
+  constructor(fileMedias: FileMedia[]) {
+    this._fileMedias = fileMedias;
     this._resolveFileExtension();
     this.filter();
     this.sort();
   }
   filter() {
     if (this._extensionType === 'rxx') {
-      this._fileNames = this._fileNames.filter((part) => part.match(RXX_EXTENSION));
+      this._fileMedias = this._fileMedias.filter((file) => file.name.match(RXX_EXTENSION));
     }else {
-      this._fileNames = this._fileNames.filter((part) => part.match(PARTXX_RAR_EXTENSION));
+      this._fileMedias = this._fileMedias.filter((file) => file.name.match(PARTXX_RAR_EXTENSION));
     }
   }
   sort() {
@@ -31,7 +31,7 @@ export default class RarFileBundle {
     }
   }
   _resolveFileExtension() {
-    let anyPartXXTypes = this._fileNames.filter((part) => part.match(PARTXX_RAR_EXTENSION));
+    let anyPartXXTypes = this._fileMedias.filter((file) => file.name.match(PARTXX_RAR_EXTENSION));
 
     if (anyPartXXTypes.length > 0) {
       this._extensionType = 'partxx';
@@ -40,23 +40,23 @@ export default class RarFileBundle {
     }
   }
   _sortPartxx() {
-    this._fileNames.sort((first, second) => {
-      let firstMatch = first.match(PARTXX_RAR_EXTENSION);
-      let secondMatch = second.match(PARTXX_RAR_EXTENSION);
+    this._fileMedias.sort((first, second) => {
+      let firstMatch = first.name.match(PARTXX_RAR_EXTENSION);
+      let secondMatch = second.name.match(PARTXX_RAR_EXTENSION);
       let firstNumber = +(firstMatch && firstMatch[1] || 0);
       let secondNumber = +(secondMatch && secondMatch[1] || 0);
       return firstNumber - secondNumber;
     });
   }
   _sortRxx() {
-    this._fileNames.sort((first, second) => {
-      if (first.match(RAR_EXTENSION)) {
+    this._fileMedias.sort((first, second) => {
+      if (first.name.match(RAR_EXTENSION)) {
         return -1;
-      } else if (second.match(RAR_EXTENSION)) {
+      } else if (second.name.match(RAR_EXTENSION)) {
         return 1;
       } else {
-        let firstMatch = first.match(RXX_EXTENSION);
-        let secondMatch = second.match(RXX_EXTENSION);
+        let firstMatch = first.name.match(RXX_EXTENSION);
+        let secondMatch = second.name.match(RXX_EXTENSION);
         let firstNumber = +(firstMatch && firstMatch[1] || 0);
         let secondNumber = +(secondMatch && secondMatch[1] || 0);
         return firstNumber - secondNumber;
@@ -64,9 +64,12 @@ export default class RarFileBundle {
     });
   }
   get length(): number {
-    return this._fileNames.length;
+    return this._fileMedias.length;
   }
   get fileNames() :  string[] {
-    return this._fileNames;
+    return this._fileMedias.map(file => file.name);
+  }
+  get files() : FileMedia[]{
+    return this._fileMedias;
   }
 }

@@ -3,12 +3,13 @@ import {mockStreamFromString} from './mock-buffer-stream';
 import FileMedia from '../../file-media/file-media';
 
 export default class MockFileMedia extends FileMedia {
-  constructor(stringData: string, size: number) {
+  constructor(stringData: string) {
+    const byteLength = stringData.replace(/\s/g, '').length;
     super({
       name: 'MockStream',
-      size: stringData.length,
+      size: byteLength,
       createReadStream: (start, end) => {
-        return mockStreamFromString(stringData, {start, end, size});
+        return mockStreamFromString(stringData, {start, end, byteLength});
       }
     });
   }
