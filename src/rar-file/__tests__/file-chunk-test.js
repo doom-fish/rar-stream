@@ -12,7 +12,6 @@ function streamToBufferPromise(stream) {
     })
 }
 
-
 test('FileChunk#getStream should return a stream from its FileMedia', t => {
   t.plan(1);
   const bufferString ='123456789A';
@@ -34,5 +33,17 @@ test('FileChunk#getStream should return a stream with a subset stream of FileMed
                   .then(streamToBufferPromise)
                   .then((buffer) => {
                     t.deepEqual(new Buffer('56789A', 'hex'), buffer);
+                  });
+});
+
+test('FileChunk#getStream should return a stream with another subset stream of FileMedia', t => {
+  t.plan(1);
+  const bufferString ='123456789A';
+  const fileMedia = new MockFileMedia(bufferString);
+  const fileChunk = new FileChunk(fileMedia, 1, 3);
+  return fileChunk.getStream()
+                  .then(streamToBufferPromise)
+                  .then((buffer) => {
+                    t.deepEqual(new Buffer('3456', 'hex'), buffer);
                   });
 });

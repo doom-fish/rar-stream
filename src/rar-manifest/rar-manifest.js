@@ -1,9 +1,10 @@
 //@flow
 import FileMedia from '../file-media/file-media'
-import RarFleBundle from '../rar-file-bundle';
-export default class FileManifest {
-  _rarFileBundle: RarFleBundle;
-  constructor(rarFileBundle: RarFleBundle){
+import RarFileBundle from '../rar-file/rar-file-bundle'
+
+export default class RarManifest {
+  _rarFileBundle: RarFileBundle;
+  constructor(rarFileBundle: RarFileBundle){
     this._rarFileBundle = rarFileBundle;
   }
   getFiles() : Promise<FileMedia[]>{

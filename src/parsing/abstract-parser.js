@@ -4,9 +4,6 @@ import {Readable} from 'stream';
 export default class AbstractParser {
   _stream: Readable;
   constructor(stream: Readable) {
-    if (!(stream instanceof Readable)) {
-      throw Error('Invalid Arguments, stream needs to be a ReadableStream instance');
-    }
     this._stream = stream;
   }
   get bytesToRead(): number {

@@ -1,6 +1,6 @@
 //@flow
 import test from 'ava';
-import FileMedia from '../file-media/file-media';
+import FileMedia from '../../file-media/file-media'
 import RarFileBundle from '../rar-file-bundle';
 
 test('RarFileBundle length should be 0 with an empty array as input', t => {

@@ -1,5 +1,5 @@
 //@flow
-import FileMedia from './file-media/file-media';
+import FileMedia from '../file-media/file-media'
 
 const RXX_EXTENSION = /\.R(\d\d)$|.RAR$/i;
 const RAR_EXTENSION = /.RAR$/i;
@@ -9,7 +9,7 @@ export default class RarFileBundle {
   _fileMedias: FileMedia[];
   _extensionType: string;
   _length: number;
-  
+
   constructor(fileMedias: FileMedia[]) {
     this._fileMedias = fileMedias;
     this._resolveFileExtension();

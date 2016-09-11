@@ -5,9 +5,6 @@ export default class FileMedia {
   _name: string;
   _size: number;
   constructor(fileInfo: Object) {
-    if (!fileInfo) {
-      throw new Error('Invalid Arguments, fileInfo need to be passed to the constructor');
-    }
     this._createReadStream = fileInfo.createReadStream;
     this._name = fileInfo.name;
     this._size = fileInfo.size;
