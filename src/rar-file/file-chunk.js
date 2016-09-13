@@ -10,6 +10,15 @@ export default class FileChunk {
     this._startOffset = startOffset;
     this._endOffset   = endOffset;
   }
+  set startOffset (value: number) {
+    this._startOffset = value;
+  }
+  set endOffset (value: number) {
+    this._endOffset = value;
+  }
+  get length():number {
+    return this._endOffset - this._startOffset;
+  }
   getStream (): Promise<Readable> {
     return this._fileMedia.createReadStream(this._startOffset, this._endOffset);
   }
