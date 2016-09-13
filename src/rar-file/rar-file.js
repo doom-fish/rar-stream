@@ -7,9 +7,7 @@ export default class RarFile{
   constructor(...rarFileChunks: RarFileChunk[]){
     this._rarFileChunks = rarFileChunks;
   }
-  get size () : number {
-      return this._rarFileChunks.reduce((size, chunk) => (size + chunk.length), 0);
-  }
+  
   createReadStream(startOffset: number, endOffset: number): RarStream {
     this._adjustStartOffset(startOffset);
     this._adjustEndOffset(endOffset);
@@ -24,7 +22,7 @@ export default class RarFile{
     this._rarFileChunks[0].startOffset = startOffsetCopy;
   }
   _adjustEndOffset(endOffset :number): void{
-    let size = this.size;
+    let size = this._rarFileChunks.reduce((size, chunk) => (size + chunk.length), 0);
     while(endOffset <= size && this._rarFileChunks.length > 1){
       size -= this._rarFileChunks[this._rarFileChunks.length - 1].length;
       this._rarFileChunks.pop();
