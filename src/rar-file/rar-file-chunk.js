@@ -1,7 +1,7 @@
 //@flow
 import {Readable} from 'stream';
 import FileMedia from '../file-media/file-media';
-export default class FileChunk {
+export default class RarFileChunk {
   _fileMedia: FileMedia;
   _startOffset: number;
   _endOffset: number;

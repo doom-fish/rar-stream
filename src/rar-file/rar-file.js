@@ -1,34 +1,34 @@
 //@flow
 import RarStream from './rar-stream'
-import FileChunk from './file-chunk';
+import RarFileChunk from './rar-file-chunk';
 export default class RarFile{
-  _fileChunks: FileChunk[];
+  _RarFileChunks: RarFileChunk[];
 
-  constructor(fileChunks: FileChunk[]){
-    this._fileChunks = fileChunks;
+  constructor(RarFileChunks: RarFileChunk[]){
+    this._RarFileChunks = RarFileChunks;
   }
   get size () : number {
-      return this._fileChunks.reduce((size, chunk) => (size + chunk.length), 0);
+      return this._RarFileChunks.reduce((size, chunk) => (size + chunk.length), 0);
   }
   createReadStream(startOffset: number, endOffset: number): RarStream {
     this._adjustStartOffset(startOffset);
     this._adjustEndOffset(endOffset);
-    return new RarStream(this._fileChunks);
+    return new RarStream(this._RarFileChunks);
   }
   _adjustStartOffset(startOffset: number): void {
     let startOffsetCopy = startOffset;
-    while(startOffset > 0 && this._fileChunks.length > 1){
-      startOffset -= this._fileChunks[0].length;
-      this._fileChunks.shift();
+    while(startOffset > 0 && this._RarFileChunks.length > 1){
+      startOffset -= this._RarFileChunks[0].length;
+      this._RarFileChunks.shift();
     }
-    this._fileChunks[0].startOffset = startOffsetCopy;
+    this._RarFileChunks[0].startOffset = startOffsetCopy;
   }
   _adjustEndOffset(endOffset :number): void{
     let size = this.size;
-    while(endOffset <= size && this._fileChunks.length > 1){
-      size -= this._fileChunks[this._fileChunks.length - 1].length;
-      this._fileChunks.pop();
+    while(endOffset <= size && this._RarFileChunks.length > 1){
+      size -= this._RarFileChunks[this._RarFileChunks.length - 1].length;
+      this._RarFileChunks.pop();
     }
-    this._fileChunks[this._fileChunks.length - 1].endOffset = endOffset;
+    this._RarFileChunks[this._RarFileChunks.length - 1].endOffset = endOffset;
   }
 }
