@@ -2,12 +2,12 @@
 import {Readable} from 'stream';
 import RarFileChunk from './rar-file-chunk';
 export default class RarStream extends Readable {
-  _RarFileChunks: RarFileChunk[];
+  _rarFileChunks: RarFileChunk[];
   _byteOffset: number = 0;
   _currentChunk: RarFileChunk;
-  constructor(RarFileChunks: RarFileChunk[], options: Object = {}){
-    super(options);
-    this._RarFileChunks = RarFileChunks;
+  constructor(...rarFileChunks: RarFileChunk[]){
+    super();
+    this._rarFileChunks = rarFileChunks;
     this._next();
   }
   pushData(stream: Readable, chunk: ?(Buffer | string)) : ?boolean {
@@ -16,7 +16,7 @@ export default class RarStream extends Readable {
       }
   }
   _next() {
-    this._currentChunk = this._RarFileChunks.shift();
+    this._currentChunk = this._rarFileChunks.shift();
     if(!this._currentChunk){
       this.push(null);
     } else {

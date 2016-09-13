@@ -15,9 +15,11 @@ test('rar stream should stream over list of file chunks', (t) => {
   t.plan(1);
   const bufferString ='123456789ABC';
   const fileMedia = new MockFileMedia(bufferString);
-  const RarFileChunk1 = new RarFileChunk(fileMedia,0, 2);
-  const RarFileChunk2 = new RarFileChunk(fileMedia,2, 6);
-  const rarStream = new RarStream([RarFileChunk1, RarFileChunk2]);
+
+  const rarStream = new RarStream(
+    new RarFileChunk(fileMedia,0, 2),
+    new RarFileChunk(fileMedia,2, 6)
+  );
   return streamToBufferPromise(rarStream).then((buffer) => {
     t.deepEqual(buffer, new Buffer(bufferString, 'hex'));
   });
@@ -28,9 +30,11 @@ test('rar stream should stream over list of file chunks that are fragmented', (t
   const bufferString ='123456789ABC';
   const fragmentedResult = '349ABC';
   const fileMedia = new MockFileMedia(bufferString);
-  const RarFileChunk1 = new RarFileChunk(fileMedia,1, 2);
-  const RarFileChunk2 = new RarFileChunk(fileMedia,4, 6);
-  const rarStream = new RarStream([RarFileChunk1, RarFileChunk2]);
+
+  const rarStream = new RarStream(
+    new RarFileChunk(fileMedia,1, 2),
+    new RarFileChunk(fileMedia,4, 6)
+  );
   return streamToBufferPromise(rarStream)
     .then((buffer) => t.deepEqual(buffer, new Buffer(fragmentedResult, 'hex')));
 });
@@ -39,10 +43,12 @@ test('rar stream should stream over longer list of file chunks', (t) => {
   t.plan(1);
   const bufferString ='123456789ABC';
   const fileMedia = new MockFileMedia(bufferString);
-  const RarFileChunk1 = new RarFileChunk(fileMedia,0, 2);
-  const RarFileChunk2 = new RarFileChunk(fileMedia,2, 4);
-  const RarFileChunk3 = new RarFileChunk(fileMedia,4, 6);
-  const rarStream = new RarStream([RarFileChunk1, RarFileChunk2, RarFileChunk3]);
+
+  const rarStream = new RarStream(
+    new RarFileChunk(fileMedia,0, 2),
+    new RarFileChunk(fileMedia,2, 4),
+    new RarFileChunk(fileMedia,4, 6)
+  );
   return streamToBufferPromise(rarStream)
   .then((buffer) => t.deepEqual(buffer, new Buffer(bufferString, 'hex')));
 });
