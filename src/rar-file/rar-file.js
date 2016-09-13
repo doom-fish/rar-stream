@@ -13,7 +13,7 @@ export default class RarFile{
   createReadStream(startOffset: number, endOffset: number): RarStream {
     this._adjustStartOffset(startOffset);
     this._adjustEndOffset(endOffset);
-    return new RarStream(this._rarFileChunks);
+    return new RarStream(...this._rarFileChunks);
   }
   _adjustStartOffset(startOffset: number): void {
     let startOffsetCopy = startOffset;

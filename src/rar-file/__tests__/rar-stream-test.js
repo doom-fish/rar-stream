@@ -10,7 +10,6 @@ const streamToBufferPromise = (stream) =>
   new Promise((resolve) =>
     streamToBuffer(stream, (err, buffer) => resolve(buffer)));
 
-
 test('rar stream should stream over list of file chunks', (t) => {
   t.plan(1);
   const bufferString ='123456789ABC';
