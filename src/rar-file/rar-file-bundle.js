@@ -10,14 +10,17 @@ export default class RarFileBundle {
   _extensionType: string;
   _length: number;
 
-  constructor(fileMedias: FileMedia[]) {
+  constructor(...fileMedias: FileMedia[]) {
     this._fileMedias = fileMedias;
-    this._resolveFileExtension();
-    this.filter();
-    this.sort();
+    if(this._fileMedias.length > 0) {
+      this._resolveFileExtension();
+      this.filter();
+      this.sort();
+    }
   }
   filter() {
     if (this._extensionType === 'rxx') {
+
       this._fileMedias = this._fileMedias.filter((file) => file.name.match(RXX_EXTENSION));
     }else {
       this._fileMedias = this._fileMedias.filter((file) => file.name.match(PARTXX_RAR_EXTENSION));

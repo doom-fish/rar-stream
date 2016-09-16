@@ -2,7 +2,9 @@
 import {Readable} from 'stream';
 import binary from 'binary';
 import AbstractParser from './abstract-parser';
+
 export default class MarkerHeaderParser extends AbstractParser {
+  static bytesToRead = 11;
   constructor(stream: Readable) {
     super(stream);
   }
@@ -15,7 +17,7 @@ export default class MarkerHeaderParser extends AbstractParser {
     };
   }
   get bytesToRead():number {
-    return 11;
+    return MarkerHeaderParser.bytesToRead;
   }
   parse() : Object {
     let { vars: markerHeader } = binary.parse(this.read())
@@ -24,6 +26,7 @@ export default class MarkerHeaderParser extends AbstractParser {
                                     .word16lu('flags')
                                     .word16lu('size')
                                     .tap(this._addSizeIfFlagIsSet());
+
     return markerHeader;
   }
 }

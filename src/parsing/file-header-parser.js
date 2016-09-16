@@ -4,6 +4,7 @@ import binary from 'binary';
 import AbstractParser from './abstract-parser';
 
 export default class FileHeaderParser extends AbstractParser {
+  static bytesToRead = 280;
   constructor(stream: Readable) {
     super(stream);
   }
@@ -40,7 +41,7 @@ export default class FileHeaderParser extends AbstractParser {
   }
 
   get bytesToRead() : number{
-    return 280;
+    return FileHeaderParser.bytesToRead;
   }
   parse() : Object{
     let {vars: fileHeader} = binary.parse(this.read())

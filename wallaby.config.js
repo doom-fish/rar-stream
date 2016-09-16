@@ -22,7 +22,9 @@ module.exports = function (wallaby) {
 
     testFramework: 'ava',
 
-    setup: function () {
+    setup: function (wallaby) {
+      global.isBeingRunInWallaby = true;
+      global.fixturePath = wallaby.localProjectDir + 'src/rar-manifest/__fixtures__/';
       require('babel-polyfill')
     },
 

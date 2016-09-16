@@ -6,13 +6,11 @@ export default class RarStream extends Readable {
     super();
     this._next(rarFileChunks);
   }
-
   pushData(stream: Readable, chunk: ?(Buffer | string)) : ?boolean {
       if (!super.push(chunk)){
         stream.pause();
       }
   }
-
   _next(rarFileChunks: RarFileChunk[]) {
     const chunk = rarFileChunks.shift();
     if(!chunk){
@@ -24,7 +22,6 @@ export default class RarStream extends Readable {
       });
     }
   }
-  
   _read (){
     this.resume();
   }

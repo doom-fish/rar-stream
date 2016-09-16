@@ -44,7 +44,7 @@ test('ArchiveHeaderParser.parse should parse flags as little endian', t => {
 test('ArchiveHeaderParser.parse should parse size as 1 byte', t => {
 	t.is(parseHeader('size', 'ffffffff00ff'), 0xFF);
 	t.is(parseHeader('size', 'ffffffff000f'), 0x0F);
-	t.is(parseHeader('size', 'ffffffff0000'), 0x00);
+	t.is(parseHeader('size', 'ffffffff0000'), 0x0D);
 	t.is(parseHeader('size', 'ffffffff00AB'), 0xAB);
 });
 

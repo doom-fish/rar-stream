@@ -12,7 +12,7 @@ export default class LocalFileMedia extends FileMedia {
     let fileInfo = {
       name: nameParts[nameParts.length - 1],
       size: fs.statSync(localFilePath).size,
-      createReadStream: (start, end) => fs.createReadStream(localFilePath, {start, end})
+      createReadStream: (start, end) => fs.createReadStream(localFilePath, {start, end: end -1})
     };
     super(fileInfo);
   }

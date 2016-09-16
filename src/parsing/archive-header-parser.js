@@ -4,6 +4,7 @@ import binary from 'binary';
 import AbstractParser from './abstract-parser';
 
 export default class ArchiveHeaderParser extends AbstractParser {
+	static bytesToRead = 13;
 	constructor(stream: Readable) {
 		super(stream);
 	}
@@ -21,7 +22,7 @@ export default class ArchiveHeaderParser extends AbstractParser {
 		}
 	}
 	get bytesToRead() :number{
-		return 13;
+		return ArchiveHeaderParser.bytesToRead;
 	}
 	parse() : Object {
 		let { vars: archiveHeader } = binary.parse(this.read())
@@ -32,7 +33,7 @@ export default class ArchiveHeaderParser extends AbstractParser {
 			.word16lu('reserved1')
 			.word32lu('reserved2')
 			.tap(this._parseFlags());
-
+			archiveHeader.size = archiveHeader.size || this.bytesToRead;
 		return archiveHeader;
 	}
 }

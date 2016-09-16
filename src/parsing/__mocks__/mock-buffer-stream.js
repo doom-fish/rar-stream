@@ -29,5 +29,6 @@ export const mockStreamFromString = (str: string, options: Object = {}, variant:
     let padding = Math.abs(options.size - str.length / 2);
     str += Array(padding).fill().map(() => '00').join('');
   }
+
   return new MockFileStream(new Buffer(str, variant), options);
 };
