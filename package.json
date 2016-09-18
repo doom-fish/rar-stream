@@ -1,6 +1,6 @@
 {
     "name": "rar-stream",
-    "version": "0.0.1",
+    "version": "0.0.2",
     "description": "",
     "main": "index.js",
     "scripts": {
@@ -20,7 +20,8 @@
     "dependencies": {
         "babel-runtime": "^6.9.2",
         "binary": "^0.3.0",
-        "stream-to": "^2.0.0"
+        "progress-stream": "^1.2.0",
+        "stream-to-buffer": "^0.1.0"
     },
     "devDependencies": {
         "ava": "^0.16.0",
@@ -39,7 +40,6 @@
         "eslint-plugin-flowtype": "^2.18.1",
         "flow-bin": "^0.32.0",
         "nyc": "^8.3.0",
-        "stream-to-buffer": "^0.1.0",
         "testdouble": "^1.7.0"
     }
 }
