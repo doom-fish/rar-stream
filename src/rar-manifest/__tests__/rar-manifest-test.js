@@ -111,7 +111,7 @@ test('file-manifest#getFiles should should a promise with files matching file co
                 .then((files) => files[1].createReadStream(260, 500))
                 .then(streamToBufferPromise);
 
-  const outterFileBuffer = streamToBufferPromise(fs.createReadStream(path.join(fixturePath, 'file2.txt'), {start: 260, end: 499}));
+  const outterFileBuffer = streamToBufferPromise(fs.createReadStream(path.join(fixturePath, 'file2.txt'), {start: 260, end: 500}));
 
   return Promise.all([innerFileBuffer, outterFileBuffer])
         .then(([buffer1, buffer2]) => {

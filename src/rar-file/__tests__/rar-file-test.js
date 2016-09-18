@@ -27,7 +27,7 @@ test('RarFile#createReadStream should return a rar-stream that is composed by ch
 test('RarFile#createReadStream should return a shortened rar-stream that is composed by chunks', (t) => {
   t.plan(1);
   const bufferString ='123456789ABC';
-  const shortnedResult ='3456789A';
+  const shortnedResult ='3456789ABC';
 
   const fileMedia = new MockFileMedia(bufferString);
   const rarFile = new RarFile(
@@ -43,7 +43,7 @@ test('RarFile#createReadStream should return a shortened rar-stream that is comp
 test('RarFile#createReadStream should drop chunks depending on end offsets', (t) => {
   t.plan(1);
   const bufferString ='123456789ABC';
-  const shortnedResult ='123456';
+  const shortnedResult ='12345678';
 
   const fileMedia = new MockFileMedia(bufferString);
 
@@ -105,7 +105,7 @@ test('RarFile#createReadStream should drop chunk depending on start offset', (t)
   const shortnedResult ='3456789A';
   const fileMedia = new MockFileMedia(bufferString);
   const rarFile = new RarFile('file.txt', new RarFileChunk(fileMedia, 0, 6));
-  const stream = rarFile.createReadStream(1, 5);
+  const stream = rarFile.createReadStream(1, 4);
   return streamToBufferPromise(stream)
     .then((buffer) => t.deepEqual(new Buffer(shortnedResult, 'hex'), buffer));
 });
@@ -124,7 +124,7 @@ test('RarFile#createReadStream should drop chunk depending on start offset', (t)
     new RarFileChunk(fileMedia, 4, 5),
     new RarFileChunk(fileMedia, 5, 6),
   );
-  const stream = rarFile.createReadStream(1, 5);
+  const stream = rarFile.createReadStream(1, 4);
   return streamToBufferPromise(stream)
     .then((buffer) => t.deepEqual(new Buffer(shortnedResult, 'hex'), buffer));
 });
@@ -134,7 +134,7 @@ test('RarFile#createReadStream should parse a fragmented stream properly', (t) =
   t.plan(1);
   const bufferString ='123456789ABCDF';
 
-  const shortnedResult ='789a';
+  const shortnedResult ='789abc';
   const fileMedia = new MockFileMedia(bufferString);
   const rarFile = new RarFile(
     'file.txt',
@@ -145,7 +145,8 @@ test('RarFile#createReadStream should parse a fragmented stream properly', (t) =
   const stream = rarFile.createReadStream(1, 3);
   return streamToBufferPromise(stream)
     .then((buffer) => {
-      t.deepEqual(new Buffer(shortnedResult, 'hex'), buffer)
+      t.deepEqual(
+        new Buffer(shortnedResult, 'hex'), buffer)
     });
 });
 
