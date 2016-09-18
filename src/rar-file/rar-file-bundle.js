@@ -21,7 +21,9 @@ export default class RarFileBundle {
   filter() {
     if (this._extensionType === 'rxx') {
 
-      this._fileMedias = this._fileMedias.filter((file) => file.name.match(RXX_EXTENSION));
+      this._fileMedias = this._fileMedias.filter(
+        (file) => (file.name && file.name.match(RXX_EXTENSION))
+      );
     }else {
       this._fileMedias = this._fileMedias.filter((file) => file.name.match(PARTXX_RAR_EXTENSION));
     }
@@ -34,7 +36,9 @@ export default class RarFileBundle {
     }
   }
   _resolveFileExtension() {
-    let anyPartXXTypes = this._fileMedias.filter((file) => file.name.match(PARTXX_RAR_EXTENSION));
+    let anyPartXXTypes = this._fileMedias.filter((file) => (
+      file.name && file.name.match(PARTXX_RAR_EXTENSION))
+    );
 
     if (anyPartXXTypes.length > 0) {
       this._extensionType = 'partxx';
