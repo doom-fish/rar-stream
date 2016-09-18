@@ -39,6 +39,6 @@
     "flow-bin": "^0.32.0",
     "nyc": "^8.3.0",
     "stream-to-buffer": "^0.1.0",
-    "testdouble": "^1.6.1"
+    "testdouble": "^1.7.0"
   }
 }

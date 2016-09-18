@@ -20,6 +20,13 @@ const file2 = fs.readFileSync(path.join(fixturePath, 'file2.txt'));
 const file3 = fs.readFileSync(path.join(fixturePath, 'file3.txt'));
 const file4 = fs.readFileSync(path.join(fixturePath, 'file4.txt'));
 
+
+const  createMultiples2kFileRarBundle = () => new RarFileBundle(
+  new LocalFileMedia(path.join(fixturePath, 'files2k.rar')),
+  new LocalFileMedia(path.join(fixturePath, 'files2k.r00')),
+  new LocalFileMedia(path.join(fixturePath, 'files2k.r01'))
+);
+
 const  createMultiplesFileRarBundle = () => new RarFileBundle(
   new LocalFileMedia(path.join(fixturePath, 'files.rar')),
   new LocalFileMedia(path.join(fixturePath, 'files.r00')),
@@ -53,6 +60,20 @@ test('file-manifest#getFiles should should a promise with files matching file co
                 });
 });
 
+test('file-manifest#getFiles should should a promise with files matching file content of inner rar files', t => {
+  t.plan(5);
+  const fileBundle = createMultiples2kFileRarBundle();
+  const manifest = new RarManifest(fileBundle);
+  return manifest.getFiles()
+                .then((files) => Promise.all(files.map(file => file.readToEnd())))
+                .then(buffers => {
+                  t.is(buffers.length, 4);
+                  t.deepEqual(buffers[0], file1);
+                  t.deepEqual(buffers[1], file2);
+                  t.deepEqual(buffers[2], file3);
+                  t.deepEqual(buffers[3], file4);
+                });
+});
 
 test('file-manifest#getFiles should should a promise with files matching file content of inner rar files', t => {
   t.plan(5);
@@ -61,10 +82,10 @@ test('file-manifest#getFiles should should a promise with files matching file co
   return manifest.getFiles()
                 .then((files) => Promise.all(files.map(file => file.readToEnd())))
                 .then(buffers => {
-                  t.is(buffers.length, 5)
-                  t.deepEqual(buffers[0], file1)
-                  t.deepEqual(buffers[1], file2)
-                  t.deepEqual(buffers[3], file3)
-                  t.deepEqual(buffers[4], file4)
+                  t.is(buffers.length, 4);
+                  t.deepEqual(buffers[0], file1);
+                  t.deepEqual(buffers[1], file2);
+                  t.deepEqual(buffers[2], file3);
+                  t.deepEqual(buffers[3], file4);
                 });
 });

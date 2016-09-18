@@ -24,6 +24,7 @@ export default class RarManifest {
   _rarFiles: RarFile[];
   constructor(rarFileBundle: RarFileBundle){
     this._rarFileBundle = rarFileBundle;
+
   }
   _parseMarkerHead(fileMedia: FileMedia) : Promise<Header>{
     return fileMedia.createReadStream(0, MarkerHeaderParser.bytesToRead)
@@ -58,6 +59,7 @@ export default class RarManifest {
                     .then(parser => parser.parse())
                     .then(fileHeader => ([...files, {
                       name: fileHeader.name,
+                      continuesInNext: fileHeader.continuesInNext,
                       offset: offset + fileHeader.headSize + fileHeader.size,
                       chunk: new RarFileChunk(
                         fileMedia,
@@ -68,10 +70,9 @@ export default class RarManifest {
 
     const parseFiles = (parseFilePromise = Promise.resolve([])) : Promise<ParseChunk[]> => {
       parseFilePromise = parseFilePromise.then(files => {
-                        const mediaEnd = fileMedia.size - TerminalHeaderParser.bytesToRead;
+                        const mediaEnd = fileMedia.size - 20;
                         const previous = files[files.length -1];
-                      
-                        return (!previous || previous.offset < mediaEnd)
+                        return (!previous || (!previous.continuesInNext && previous.offset < mediaEnd))
                           ? parseFiles(parseFile(files))
                           : files;
                        });

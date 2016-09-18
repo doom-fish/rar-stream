@@ -144,7 +144,6 @@ test('RarFile#createReadStream should parse a fragmented stream properly', (t) =
   const stream = rarFile.createReadStream(1, 3);
   return streamToBufferPromise(stream)
     .then((buffer) => {
-      console.log(buffer.toString('hex'));
       t.deepEqual(new Buffer(shortnedResult, 'hex'), buffer)
     });
 });
