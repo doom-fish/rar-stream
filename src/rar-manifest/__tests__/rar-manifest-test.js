@@ -5,6 +5,11 @@ import fs from 'fs';
 import RarManifest from '../rar-manifest';
 import RarFileBundle from '../../rar-file/rar-file-bundle'
 import LocalFileMedia from '../../file-media/local-file-media';
+import streamToBuffer from 'stream-to-buffer';
+
+const streamToBufferPromise = (stream) => new Promise((resolve, reject) => streamToBuffer(stream,
+  (err, buffer) => err? reject(err) : resolve(buffer))
+);
 
 let fixturePath = path.join(__dirname, '../__fixtures__');
 if(global.isBeingRunInWallaby) {
@@ -96,6 +101,22 @@ test('file-manifest#getFiles should should a promise with files matching file co
                   t.deepEqual(buffers[2], file3);
                   t.deepEqual(buffers[3], file4);
                 });
+});
+
+test('file-manifest#getFiles should should a promise with files matching file content of inner rar files', t => {
+  t.plan(1);
+  const fileBundle = createMultiplesFileRarBundle();
+  const manifest = new RarManifest(fileBundle);
+  const innerFileBuffer = manifest.getFiles()
+                .then((files) => files[1].createReadStream(260, 500))
+                .then(streamToBufferPromise);
+
+  const outterFileBuffer = streamToBufferPromise(fs.createReadStream(path.join(fixturePath, 'file2.txt'), {start: 260, end: 499}));
+
+  return Promise.all([innerFileBuffer, outterFileBuffer])
+        .then(([buffer1, buffer2]) => {
+          t.deepEqual(buffer1.length, buffer2.length);
+       });
 });
 
 test('file-manifest#getFiles should should a promise with files matching file content of inner rar files', t => {

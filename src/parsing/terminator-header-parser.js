@@ -6,6 +6,7 @@ import AbstractParser from './abstract-parser';
 
 export default class TerminatorHeaderParser extends AbstractParser {
   static bytesToRead = 7;
+  static endOfArchivePadding = 20;
   constructor(stream: Readable) {
     super(stream);
   }

@@ -11,6 +11,7 @@ import TerminalHeaderParser from '../parsing/terminator-header-parser';
 type ParseChunk = {
   name: string,
   offset: number,
+  continuesInNext: boolean,
   chunk: RarFileChunk
 }
 
@@ -38,7 +39,7 @@ export default class RarManifest {
                     .then(parser => parser.parse())
                     .then(header => ({offset: offset + header.size, header}));
   }
-  _combineIntoFiles (fileChunks: ParseChunk[]) : RarFile[] {
+  _combineIntoFiles (fileChunks: Array<ParseChunk[]>) : RarFile[] {
     const groupedChunks = fileChunks.reduce((rarFileChunks, chunks) => {
       chunks.forEach(fileChunk => {
         if(!rarFileChunks[fileChunk.name]) {
@@ -52,7 +53,7 @@ export default class RarManifest {
     return Object.keys(groupedChunks)
                  .map(fileName => new RarFile(fileName, ...groupedChunks[fileName]));
   }
-  _parseFileHeads(offset: number, fileMedia: FileMedia)  :  Promise<RarFile[]>{
+  _parseFileHeads(offset: number, fileMedia: FileMedia)  :  Promise<ParseChunk[]>{
     const parseFile = (files = []) => {
       return fileMedia.createReadStream(offset, offset + FileHeaderParser.bytesToRead)
                     .then(stream => new FileHeaderParser(stream))
@@ -70,7 +71,7 @@ export default class RarManifest {
 
     const parseFiles = (parseFilePromise = Promise.resolve([])) : Promise<ParseChunk[]> => {
       parseFilePromise = parseFilePromise.then(files => {
-                        const mediaEnd = fileMedia.size - 20;
+                        const mediaEnd = fileMedia.size - TerminalHeaderParser.endOfArchivePadding;
                         const previous = files[files.length -1];
                         return (!previous || (!previous.continuesInNext && previous.offset < mediaEnd))
                           ? parseFiles(parseFile(files))

@@ -133,6 +133,7 @@ test('RarFile#createReadStream should drop chunk depending on start offset', (t)
 test('RarFile#createReadStream should parse a fragmented stream properly', (t) => {
   t.plan(1);
   const bufferString ='123456789ABCDF';
+
   const shortnedResult ='789a';
   const fileMedia = new MockFileMedia(bufferString);
   const rarFile = new RarFile(
@@ -140,6 +141,25 @@ test('RarFile#createReadStream should parse a fragmented stream properly', (t) =
     new RarFileChunk(fileMedia, 0, 1),
     new RarFileChunk(fileMedia, 3, 5),
     new RarFileChunk(fileMedia, 7, 8)
+  );
+  const stream = rarFile.createReadStream(1, 3);
+  return streamToBufferPromise(stream)
+    .then((buffer) => {
+      t.deepEqual(new Buffer(shortnedResult, 'hex'), buffer)
+    });
+});
+
+test('RarFile#createReadStream should parse a fragmented stream properly', (t) => {
+  t.plan(1);
+  const bufferString ='123456789ABCDF';
+
+  const shortnedResult ='78df';
+  const fileMedia = new MockFileMedia(bufferString);
+  const rarFile = new RarFile(
+    'file.txt',
+    new RarFileChunk(fileMedia, 0, 1),
+    new RarFileChunk(fileMedia, 3, 4),
+    new RarFileChunk(fileMedia, 6, 7)
   );
   const stream = rarFile.createReadStream(1, 3);
   return streamToBufferPromise(stream)
