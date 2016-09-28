@@ -1,11 +1,11 @@
 //@flow
 import {Readable} from 'stream';
 export default class FileMedia {
-   _createReadStream: (start: number, end: number) => Readable;
+   _createReadStream: (opts: Object) => Readable;
   _name: string;
   _size: number;
   constructor(fileInfo: Object) {
-    this._createReadStream = fileInfo.createReadStream;
+    this._createReadStream = (opts) => fileInfo.createReadStream(opts);
     this._name = fileInfo.name;
     this._size = fileInfo.size;
   }
@@ -15,11 +15,11 @@ export default class FileMedia {
   get size() : number {
     return this._size;
   }
-  createReadStream(start: number, end: number) : Promise<Readable> {
+  createReadStream({start, end}) : Promise<Readable> {
     if (start > end) {
       throw Error('Invalid Arguments, start offset can not be greater than end offset');
     }
-    let stream = this._createReadStream(start, end);
+    let stream = this._createReadStream({start, end: end});
 
     return new Promise((resolve, reject) => {
       stream.on('readable', () => resolve(stream));

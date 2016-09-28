@@ -28,13 +28,13 @@ export default class RarManifest {
 
   }
   _parseMarkerHead(fileMedia: FileMedia) : Promise<Header>{
-    return fileMedia.createReadStream(0, MarkerHeaderParser.bytesToRead)
+    return fileMedia.createReadStream({start: 0, end: MarkerHeaderParser.bytesToRead})
                     .then(stream => new MarkerHeaderParser(stream))
                     .then(parser => parser.parse())
                     .then(header => ({offset: header.size, header}));
   }
   _parseArchiveHead(offset: number, fileMedia: FileMedia) :  Promise<Header>{
-    return fileMedia.createReadStream(offset, AchiverHeadParser.bytesToRead)
+    return fileMedia.createReadStream({start: offset, end: AchiverHeadParser.bytesToRead})
                     .then(stream => new AchiverHeadParser(stream))
                     .then(parser => parser.parse())
                     .then(header => ({offset: offset + header.size, header}));
@@ -55,25 +55,28 @@ export default class RarManifest {
   }
   _parseFileHeads(offset: number, fileMedia: FileMedia)  :  Promise<ParseChunk[]>{
     const parseFile = (files = []) => {
-      return fileMedia.createReadStream(offset, offset + FileHeaderParser.bytesToRead)
+      return fileMedia.createReadStream({start: offset, end: offset + FileHeaderParser.bytesToRead})
                     .then(stream => new FileHeaderParser(stream))
                     .then(parser => parser.parse())
-                    .then(fileHeader => ([...files, {
-                      name: fileHeader.name,
-                      continuesInNext: fileHeader.continuesInNext,
-                      offset: offset + fileHeader.headSize + fileHeader.size,
-                      chunk: new RarFileChunk(
-                        fileMedia,
-                        offset += fileHeader.headSize,
-                        offset += fileHeader.size)
-                    }]));
+                    .then(fileHeader => {
+                      files = [...files, {
+                        name: fileHeader.name,
+                        continuesInNext: fileHeader.continuesInNext,
+                        chunk: new RarFileChunk(
+                          fileMedia,
+                          offset += fileHeader.headSize,
+                          offset += fileHeader.size -1)
+                      }];
+                      offset += 1;
+                      return files;
+                    })
                   };
 
     const parseFiles = (parseFilePromise = Promise.resolve([])) : Promise<ParseChunk[]> => {
       parseFilePromise = parseFilePromise.then(files => {
                         const mediaEnd = fileMedia.size - TerminalHeaderParser.endOfArchivePadding;
                         const previous = files[files.length -1];
-                        return (!previous || (!previous.continuesInNext && previous.offset < mediaEnd))
+                        return (!previous || (!previous.continuesInNext && offset < mediaEnd))
                           ? parseFiles(parseFile(files))
                           : files;
                        });

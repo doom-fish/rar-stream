@@ -11,7 +11,7 @@ const directory = process.argv[2];
 fs.readdir(directory, (err, files) => {
   if(err) console.error(err);
   const fileMedias = files.map((file) => new LocalFileMedia(path.resolve(directory, file)));
-  // console.log(fileMedias);
+
 
   const bundle = new RarFileBundle(...fileMedias);
   const manifest = new RarManifest(bundle);
@@ -26,8 +26,9 @@ fs.readdir(directory, (err, files) => {
         process.stdout.write('\x1B[2J\x1B[0f');
         console.log(`Unpacking: ${innerFile.name} (${Math.round(progress.percentage)}%) at speed: ${prettysize(progress.speed)}/S`)
       });
+
       const writeStream = fs.createWriteStream(path.resolve(directory, innerFile.name));
-      innerFile.createReadStream(0, innerFile.size - 1).pipe(str).pipe(writeStream);
+      innerFile.createReadStream({start: 0, end: innerFile.size - 1}).pipe(str).pipe(writeStream);
     });
   });
 });

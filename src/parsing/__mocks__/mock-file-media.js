@@ -9,7 +9,7 @@ export default class MockFileMedia extends FileMedia {
     super({
       name: name || 'MockStream',
       size: byteLength / 2,
-      createReadStream: (start, end) => {
+      createReadStream: ({start, end}) => {
         return mockStreamFromString(stringData, {start, end, byteLength});
       }
     });

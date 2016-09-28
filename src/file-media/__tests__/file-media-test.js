@@ -19,12 +19,12 @@ test('FileMedia.size should expose the size from the constructor as a getter', t
 
 test('FileMedia.createReadStream should throw if start is greater than end paramter', t => {
   const instance = new FileMedia({});
-  t.throws(() => instance.createReadStream(2, 0), /Invalid Arguments/);
+  t.throws(() => instance.createReadStream({start: 2, end:0}), /Invalid Arguments/);
 });
 
 test('FileMedia.createReadStream should return a promise', t => {
   const createReadStream = td.function();
-  td.when(createReadStream(0,0)).thenReturn({
+  td.when(createReadStream({start:0,end:0})).thenReturn({
     on: (name, cb) => {
       cb();
     }
@@ -34,7 +34,7 @@ test('FileMedia.createReadStream should return a promise', t => {
     createReadStream: createReadStream
   });
 
-  t.truthy(instance.createReadStream(0, 0) instanceof Promise);
+  t.truthy(instance.createReadStream({start:0, end:0}) instanceof Promise);
 });
 
 test('FileMedia.createReadStream should return a readable stream', () => {
@@ -48,15 +48,13 @@ test('FileMedia.createReadStream should return a readable stream', () => {
     }
   };
 
-  td.when(createReadStream(
-    td.matchers.isA(Number),
-    td.matchers.isA(Number)
+  td.when(createReadStream(td.matchers.isA(Object)
   )).thenReturn(stream);
 
   const torrentFile = {createReadStream};
   const instance = new FileMedia(torrentFile);
 
-  return instance.createReadStream(0, 20).then(() => {
+  return instance.createReadStream({start:0, end:20}).then(() => {
     td.verify(eventSubscribed('readable'));
     td.verify(eventSubscribed('error'));
   });

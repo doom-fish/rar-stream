@@ -24,7 +24,7 @@ export default class RarFile{
   readToEnd() : Promise<Buffer> {
     return new Promise((resolve, reject) => {
 
-      streamToBuffer(this.createReadStream(0, this.size - 1), (err, buffer) => {
+      streamToBuffer(this.createReadStream({start: 0, end: this.size}), (err, buffer) => {
         if (err) {
           reject(err);
         } else {
@@ -33,14 +33,14 @@ export default class RarFile{
       });
     });
   }
-  createReadStream(startOffset: number, endOffset: number): RarStream {
-    if(startOffset < 0 || endOffset > this._size){
+  createReadStream({start, end} = {start: 0, end: this._size}): RarStream {
+    if(start < 0 || end > this._size){
       throw Error('Illegal start/end offset');
     }
 
     let rarFileChunks = [...this._rarFileChunks];
-    rarFileChunks     = this._adjustStartOffset(startOffset, rarFileChunks);
-    rarFileChunks     = this._adjustEndOffset(endOffset, rarFileChunks);
+    rarFileChunks     = this._adjustStartOffset(start, rarFileChunks);
+    rarFileChunks     = this._adjustEndOffset(end, rarFileChunks);
     return new RarStream(...rarFileChunks);
   }
   get name () :string{
@@ -48,6 +48,17 @@ export default class RarFile{
   }
   get size () : number {
     return this._size;
+  }
+  _calculateChunkMap(rarFileChunks: RarFileChunk[]) : ChunkMapping[] {
+    const chunkMap = [];
+
+    for(const chunk of rarFileChunks){
+      const previousChunk = chunkMap[chunkMap.length -1];
+      const start = previousChunk && previousChunk.end || 0;
+      const end = start + chunk.length;
+      chunkMap.push({start, end, chunk});
+    }
+    return chunkMap;
   }
   _findMappedChunk(offset: number): ChunkMapping {
     let selectedMap = this._chunkMap[0];
@@ -66,23 +77,7 @@ export default class RarFile{
       rarFileChunks.shift();
     }
     selectedMap.chunk._startOffset += Math.abs(startOffset - selectedMap.start);
-
-    if(rarFileChunks[0]._startOffset === rarFileChunks[0]._endOffset){
-      rarFileChunks.shift();
-    }
-
     return rarFileChunks;
-  }
-  _calculateChunkMap(rarFileChunks: RarFileChunk[]) : ChunkMapping[] {
-    const chunkMap = [];
-
-    for(const chunk of rarFileChunks){
-      const previousChunk = chunkMap[chunkMap.length -1];
-      const start = previousChunk && previousChunk.end || 0;
-      const end = start + chunk.length;
-      chunkMap.push({start, end, chunk});
-    }
-    return chunkMap;
   }
   _adjustEndOffset(endOffset :number, rarFileChunks: RarFileChunk[]): RarFileChunk[]{
     const selectedMap = this._findMappedChunk(endOffset);
@@ -96,12 +91,6 @@ export default class RarFile{
     }
 
     selectedMap.chunk._endOffset -= Math.abs(endOffset - selectedMap.end);
-
-    const lastChunk = rarFileChunks[rarFileChunks.length -1];
-    if(lastChunk._startOffset === lastChunk._endOffset){
-      rarFileChunks.pop();
-    }
-    rarFileChunks[rarFileChunks.length -1]._endOffset++;
     return rarFileChunks;
   }
 }

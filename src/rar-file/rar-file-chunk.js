@@ -20,6 +20,9 @@ export default class RarFileChunk {
     return this._endOffset - this._startOffset;
   }
   getStream (): Promise<Readable> {
-    return this._fileMedia.createReadStream(this._startOffset, this._endOffset);
+    return this._fileMedia.createReadStream({
+      start: this._startOffset,
+      end: this._endOffset
+    });
   }
 }

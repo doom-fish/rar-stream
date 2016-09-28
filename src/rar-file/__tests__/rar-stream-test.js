@@ -49,5 +49,7 @@ test('rar stream should stream over longer list of file chunks', (t) => {
     new RarFileChunk(fileMedia,4, 6)
   );
   return streamToBufferPromise(rarStream)
-  .then((buffer) => t.deepEqual(buffer, new Buffer(bufferString, 'hex')));
+  .then((buffer) => {
+    t.deepEqual(buffer, new Buffer(bufferString, 'hex'));
+  });
 });
