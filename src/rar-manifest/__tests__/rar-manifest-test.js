@@ -49,6 +49,14 @@ const createMultipleSingleRarBundle = () => new RarFileBundle(
   new LocalFileMedia(path.join(fixturePath, 'multiple.rar'))
 );
 
+const createMultipleSplittedRarBundle = () => new RarFileBundle(
+  new LocalFileMedia(path.join(fixturePath, 'multipleSplitted.rar')),
+  new LocalFileMedia(path.join(fixturePath, 'multipleSplitted.r00')),
+  new LocalFileMedia(path.join(fixturePath, 'multipleSplitted.r01')),
+  new LocalFileMedia(path.join(fixturePath, 'multipleSplitted.r02')),
+  new LocalFileMedia(path.join(fixturePath, 'multipleSplitted.r03')),
+);
+
 const streamsToPromises = (streams) => Promise.all(streams.map(streamToBufferPromise));
 const readToEnd = (files) => Promise.all(files.map(file => file.readToEnd()));
 const log = (data) => (console.log(data) || data);
@@ -142,5 +150,36 @@ test('single rar file with multiple inner files can be read in pieces', (t) => {
                    t.deepEqual(pair1[0], pair1[1])
                    t.deepEqual(pair2[0], pair2[1])
                    t.deepEqual(pair3[0], pair3[1])
+                 });
+});
+
+test('multiple rar file with multiple inner can be read as a whole', (t) => {
+  t.plan(4);
+  const bundle = createMultipleSplittedRarBundle();
+  const manifest = new RarManifest(bundle);
+  return manifest.getFiles()
+                 .then(readToEnd)
+                 .then(buffers => {
+                   t.is(buffers.length, 3);
+                   t.deepEqual(buffers[0], multi1FileBinFixture)
+                   t.deepEqual(buffers[1], multi2FileBinFixture)
+                   t.deepEqual(buffers[2], multi3FileBinFixture)
+                 });
+});
+
+test('multple rar files with multiple inner files can be read in pieces', (t) => {
+  t.plan(3);
+  const bundle = createMultipleSplittedRarBundle();
+  const manifest = new RarManifest(bundle);
+  const interval = {start: 1000, end: 3000};
+  return manifest.getFiles()
+                 .then(matchRarStreamWithFileSystem(interval))
+                 .then((pairs) => pairs.map(streamsToPromises))
+                 .then((awaits) => Promise.all(awaits))
+                 .then(([pair1, pair2, pair3]) => {
+                   fs.writeFileSync(path.join(fixturePath, 'dump'), pair1[0])
+                   t.deepEqual(pair1[0].length, pair1[1].length)
+                   t.deepEqual(pair2[0].length, pair2[1].length)
+                   t.deepEqual(pair3[0].length, pair3[1].length)
                  });
 });
