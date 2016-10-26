@@ -159,5 +159,34 @@ test('multi rar file with many inner files can be read as whole', async (t) => {
   t.is(rarFile2.length, splitted2.length);
   t.is(rarFile3.length, splitted3.length);
   t.is(rarFile4.length, splitted4.length);
+});
 
+
+test('multi rar file with many inner files can be read in parts', async (t) => {
+  const bundle = createMultipleRarFileWithManyInnerBundle();
+  const interval = {start: 50, end: 200};
+  const manifest = new RarManifest(bundle);
+
+  const [rarFile1, rarFile2, rarFile3, rarFile4] = await manifest.getFiles();
+
+  const rarFile1Buffer = await streamToBufferPromise(rarFile1.createReadStream(interval));
+  const rarFile2Buffer = await streamToBufferPromise(rarFile2.createReadStream(interval));
+  const rarFile3Buffer = await streamToBufferPromise(rarFile3.createReadStream(interval));
+  const rarFile4Buffer = await streamToBufferPromise(rarFile4.createReadStream(interval));
+
+  const splittedFile1Buffer = await streamToBufferPromise(fs.createReadStream(multiSplitted1FilePath, interval));
+  const splittedFile2Buffer = await streamToBufferPromise(fs.createReadStream(multiSplitted2FilePath, interval));
+  const splittedFile3Buffer = await streamToBufferPromise(fs.createReadStream(multiSplitted3FilePath, interval));
+  const splittedFile4Buffer = await streamToBufferPromise(fs.createReadStream(multiSplitted4FilePath, interval));
+
+
+  t.is(rarFile1Buffer.length, splittedFile1Buffer.length);
+  t.is(rarFile2Buffer.length, splittedFile2Buffer.length);
+  t.is(rarFile3Buffer.length, splittedFile3Buffer.length);
+  t.is(rarFile4Buffer.length, splittedFile4Buffer.length);
+
+  t.deepEqual(rarFile1Buffer, splittedFile1Buffer);
+  t.deepEqual(rarFile2Buffer, splittedFile2Buffer);
+  t.deepEqual(rarFile3Buffer, splittedFile3Buffer);
+  t.deepEqual(rarFile4Buffer, splittedFile4Buffer);
 });
