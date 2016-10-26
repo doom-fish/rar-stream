@@ -14,7 +14,7 @@ export default class RarFile{
   _name: string;
   _chunkMap: ChunkMapping[];
   _size: number;
-  constructor(name: string, ...rarFileChunks: RarFileChunk[]){
+  constructor(name: string, rarFileChunks: RarFileChunk[]){
     this._rarFileChunks = rarFileChunks;
     this._chunkMap = this._calculateChunkMap(rarFileChunks);
     this._size = this._rarFileChunks.reduce((size, chunk) => (size + chunk.length), 0);
@@ -24,7 +24,7 @@ export default class RarFile{
   readToEnd() : Promise<Buffer> {
     return new Promise((resolve, reject) => {
 
-      streamToBuffer(this.createReadStream({start: 0, end: this.size}), (err, buffer) => {
+      streamToBuffer(this.createReadStream({start: 0, end: this._size}), (err, buffer) => {
         if (err) {
           reject(err);
         } else {
@@ -33,7 +33,12 @@ export default class RarFile{
       });
     });
   }
-  createReadStream({start, end} = {start: 0, end: this._size}): RarStream {
+  createReadStream(options): RarStream {
+    if(!options){
+      options = {start: 0, end: this._size};
+    }
+    const {start, end} = options;
+
     if(start < 0 || end > this._size){
       throw Error('Illegal start/end offset');
     }
@@ -54,10 +59,11 @@ export default class RarFile{
 
     for(const chunk of rarFileChunks){
       const previousChunk = chunkMap[chunkMap.length -1];
-      const start = previousChunk && previousChunk.end || 0;
+      const start = previousChunk && (previousChunk.end) || 0;
       const end = start + chunk.length;
       chunkMap.push({start, end, chunk});
     }
+
     return chunkMap;
   }
   _findMappedChunk(offset: number): ChunkMapping {
@@ -80,6 +86,7 @@ export default class RarFile{
     return rarFileChunks;
   }
   _adjustEndOffset(endOffset :number, rarFileChunks: RarFileChunk[]): RarFileChunk[]{
+
     const selectedMap = this._findMappedChunk(endOffset);
 
     for(let index = rarFileChunks.length - 1; index >= 0; --index){
@@ -89,8 +96,9 @@ export default class RarFile{
         break;
       }
     }
-
+    // endOffset++;
     selectedMap.chunk._endOffset -= Math.abs(endOffset - selectedMap.end);
+
     return rarFileChunks;
   }
 }

@@ -9,16 +9,12 @@ const streamToBufferPromise = (stream) =>
     streamToBuffer(stream, (err, buffer) =>
       resolve(buffer)));
 
-test('RarFileChunk#getStream should return a stream from its FileMedia', t => {
-  t.plan(1);
+test('RarFileChunk#getStream should return a stream from its FileMedia', async t => {
   const bufferString ='123456789A';
   const fileMedia = new MockFileMedia(bufferString);
   const rarFileChunk = new RarFileChunk(fileMedia, 0, 5);
-  return rarFileChunk.getStream()
-                  .then(streamToBufferPromise)
-                  .then((buffer) => {
-                    t.deepEqual(new Buffer(bufferString, 'hex'), buffer);
-                  });
+  const buffer = await streamToBufferPromise(await rarFileChunk.getStream())
+  t.deepEqual(new Buffer(bufferString, 'hex'), buffer);
 });
 
 test('RarFileChunk#getStream should return a stream with a subset stream of FileMedia', t => {
@@ -32,7 +28,7 @@ test('RarFileChunk#getStream should return a stream with a subset stream of File
                     t.deepEqual(new Buffer('56789A', 'hex'), buffer);
                   });
 });
-
+//
 test('RarFileChunk#getStream should return a stream with another subset stream of FileMedia', t => {
   t.plan(1);
   const bufferString ='123456789A';

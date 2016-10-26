@@ -9,7 +9,7 @@ import prettysize from 'prettysize';
 const directory = process.argv[2];
 
 fs.readdir(directory, (err, files) => {
-  if(err) console.error(err);
+  if (err) console.error(err);
   const fileMedias = files.map((file) => new LocalFileMedia(path.resolve(directory, file)));
 
 
@@ -19,8 +19,8 @@ fs.readdir(directory, (err, files) => {
   manifest.getFiles().then((innerFiles) => {
     innerFiles.forEach(innerFile => {
       const str = progressStream({
-          length: innerFile.size,
-          time: 100
+        length: innerFile.size,
+        time: 100
       });
       str.on('progress', (progress) => {
         process.stdout.write('\x1B[2J\x1B[0f');
@@ -28,7 +28,10 @@ fs.readdir(directory, (err, files) => {
       });
 
       const writeStream = fs.createWriteStream(path.resolve(directory, innerFile.name));
-      innerFile.createReadStream({start: 0, end: innerFile.size - 1}).pipe(str).pipe(writeStream);
+      innerFile.createReadStream({
+        start: 0,
+        end: innerFile.size - 1
+      }).pipe(str).pipe(writeStream);
     });
   });
 });
