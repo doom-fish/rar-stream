@@ -1,4 +1,9 @@
 {
-    "plugins": ["transform-runtime", "transform-flow-strip-types"],
-    "presets": ["es2015", "stage-0"]
+    "passPerPreset": true,
+    "presets": [{
+        "plugins": ["transform-runtime", "transform-flow-strip-types"]
+    }, {
+        "passPerPreset": false,
+        "presets": ["es2015", "stage-0"]
+    }]
 }
