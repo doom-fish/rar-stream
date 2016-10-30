@@ -32,3 +32,6 @@ node_modules
 
 # Coverage output
 .nyc_output
+
+# Dist
+dist/
