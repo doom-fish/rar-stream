@@ -9,7 +9,7 @@ module.exports = function (wallaby) {
     tests: [
       'src/**/__tests__/*.js',
       '!src/rar-manifest/__tests__/*.js',
-      '!node_modules/**/*.js',
+      '!node_modules/**/*.js'
     ],
 
     env: {
@@ -24,11 +24,11 @@ module.exports = function (wallaby) {
     testFramework: 'ava',
 
     setup: function (wallaby) {
-      global.isBeingRunInWallaby = true;
-      global.fixturePath = wallaby.localProjectDir + 'src/rar-manifest/__fixtures__/';
+      global.isBeingRunInWallaby = true
+      global.fixturePath = wallaby.localProjectDir + 'src/rar-manifest/__fixtures__/'
       require('babel-polyfill')
     },
 
     debug: true
-  };
-};
+  }
+}

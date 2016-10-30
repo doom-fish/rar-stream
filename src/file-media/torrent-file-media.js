@@ -1,16 +1,16 @@
-//@flow
-import FileMedia from './file-media';
-import {Readable} from 'stream';
-import type {FileInterval, FileInfo} from './file-media';
+// @flow
+import FileMedia from './file-media'
+import {Readable} from 'stream'
+import type {FileInterval} from './file-media'  // eslint-disable-line 
 
 type TorrentFileInfo = {
   name: string,
   length: number,
   createReadStream: (interval: FileInterval) => Readable
 }
+
 export default class TorrentFileMedia extends FileMedia {
-  constructor(torrentFileInfo: TorrentFileInfo) {
-    const  {name, length, createReadStream} = torrentFileInfo
-    super({name, size: length, createReadStream});
+  constructor ({name, length, createReadStream}: TorrentFileInfo) {
+    super({name, size: length, createReadStream})
   }
 }
