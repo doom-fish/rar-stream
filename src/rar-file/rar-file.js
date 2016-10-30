@@ -2,6 +2,7 @@
 import RarStream from './rar-stream'
 import RarFileChunk from './rar-file-chunk';
 import streamToBuffer from 'stream-to-buffer';
+import type {FileInterval} from '../file-media/file-media';
 
 type ChunkMapping = {
   start: number,
@@ -33,11 +34,11 @@ export default class RarFile{
       });
     });
   }
-  createReadStream(options): RarStream {
-    if(!options){
-      options = {start: 0, end: this._size};
+  createReadStream(interval: FileInterval): RarStream {
+    if(!interval){
+      interval = {start: 0, end: this._size};
     }
-    const {start, end} = options;
+    const {start, end} = interval;
 
     if(start < 0 || end > this._size){
       throw Error('Illegal start/end offset');

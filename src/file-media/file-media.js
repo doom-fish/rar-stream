@@ -1,11 +1,18 @@
 //@flow
 import {Readable} from 'stream';
+
+export type FileInterval = {start: number, end: number};
+export type FileInfo = {
+    name: string,
+    size: number,
+    createReadStream: (interval: FileInterval) => Readable
+}
 export default class FileMedia {
-   _createReadStream: (opts: Object) => Readable;
+   _createReadStream: (interval: FileInterval) => Readable;
   _name: string;
   _size: number;
-  constructor(fileInfo: Object) {
-    this._createReadStream = (opts) => fileInfo.createReadStream(opts);
+  constructor(fileInfo: FileInfo) {
+    this._createReadStream = (interval: FileInterval) => fileInfo.createReadStream(interval);
     this._name = fileInfo.name;
     this._size = fileInfo.size;
   }
@@ -15,7 +22,8 @@ export default class FileMedia {
   get size() : number {
     return this._size;
   }
-  createReadStream({start, end}) : Promise<Readable> {
+  createReadStream(interval: FileInterval): Promise<Readable> {
+    const {start, end} = interval;
     if (start > end) {
       throw Error('Invalid Arguments, start offset can not be greater than end offset');
     }

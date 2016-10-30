@@ -57,6 +57,7 @@
     "eslint-plugin-flowtype": "^2.25.0",
     "flow-bin": "^0.34.0",
     "nyc": "^8.3.0",
+    "stream-to-buffer": "^0.1.0",
     "testdouble": "^1.9.0"
   }
 }
