@@ -4,7 +4,7 @@ import test from 'ava';
 import MockFileMedia from '../../parsing/__mocks__/mock-file-media';
 import RarFileChunk from '../rar-file-chunk'
 
-const streamToBufferPromise = (stream) =>
+const streamToBufferPromise = async (stream) =>
   new Promise((resolve) =>
     streamToBuffer(stream, (err, buffer) =>
       resolve(buffer)));
@@ -13,23 +13,21 @@ test('RarFileChunk#getStream should return a stream from its FileMedia', async t
   const bufferString ='123456789A';
   const fileMedia = new MockFileMedia(bufferString);
   const rarFileChunk = new RarFileChunk(fileMedia, 0, 5);
-  const buffer = await streamToBufferPromise(await rarFileChunk.getStream())
+  const stream = await rarFileChunk.getStream();
+  const buffer = await streamToBufferPromise(stream)
   t.deepEqual(new Buffer(bufferString, 'hex'), buffer);
 });
 
-test('RarFileChunk#getStream should return a stream with a subset stream of FileMedia', t => {
-  t.plan(1);
+test('RarFileChunk#getStream should return a stream with a subset stream of FileMedia', async t => {
   const bufferString ='123456789A';
   const fileMedia = new MockFileMedia(bufferString);
   const rarFileChunk = new RarFileChunk(fileMedia, 2, 5);
-  return rarFileChunk.getStream()
-                  .then(streamToBufferPromise)
-                  .then((buffer) => {
-                    t.deepEqual(new Buffer('56789A', 'hex'), buffer);
-                  });
+  const stream = await rarFileChunk.getStream();
+  const buffer = await streamToBufferPromise(stream);
+  t.deepEqual(new Buffer('56789A', 'hex'), buffer);
 });
-//
-test('RarFileChunk#getStream should return a stream with another subset stream of FileMedia', t => {
+
+test('RarFileChunk#getStream should return a stream with another subset stream of FileMedia', async t => {
   t.plan(1);
   const bufferString ='123456789A';
   const fileMedia = new MockFileMedia(bufferString);

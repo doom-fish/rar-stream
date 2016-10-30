@@ -1,13 +1,14 @@
 {
   "name": "rar-stream",
-  "version": "0.0.4",
+  "version": "0.0.5",
   "description": "",
-  "main": "index.js",
+  "main": "dist",
   "scripts": {
     "flow": "./node_modules/.bin/flow; test $? -eq 0 -o $? -eq 2",
     "lint": "eslint .",
     "test": "./node_modules/.bin/ava",
-    "coverage": "nyc ava"
+    "coverage": "nyc ava",
+    "build": "./node_modules/.bin/babel src --out-dir dist"
   },
   "author": "1313",
   "license": "ISC",
@@ -20,9 +21,10 @@
   "dependencies": {
     "babel-runtime": "^6.18.0",
     "binary": "^0.3.0",
-    "prettysize": "0.0.3",
+    "prettysize": "^0.0.3",
     "progress-stream": "^1.2.0",
-    "stream-to-buffer": "^0.1.0"
+    "stream-to-buffer": "^0.1.0",
+    "webtorrent": "^0.97.2"
   },
   "esformatter": {
     "plugins": [
@@ -35,8 +37,9 @@
   },
   "devDependencies": {
     "ava": "^0.16.0",
+    "babel-cli": "^6.18.0",
     "babel-core": "^6.18.0",
-    "babel-eslint": "^7.0.0",
+    "babel-eslint": "^7.1.0",
     "babel-plugin-transform-async-to-generator": "^6.16.0",
     "babel-plugin-transform-flow-strip-types": "^6.18.0",
     "babel-plugin-transform-runtime": "^6.15.0",
@@ -48,11 +51,11 @@
     "esformatter-flow": "^1.0.1",
     "esformatter-quotes": "^1.1.0",
     "esformatter-semicolons": "^1.1.2",
-    "eslint": "^3.7.1",
+    "eslint": "^3.9.0",
     "eslint-plugin-babel": "^3.3.0",
     "eslint-plugin-filenames": "^1.1.0",
     "eslint-plugin-flowtype": "^2.25.0",
-    "flow-bin": "^0.33.0",
+    "flow-bin": "^0.34.0",
     "nyc": "^8.3.0",
     "testdouble": "^1.9.0"
   }

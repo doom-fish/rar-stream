@@ -96,7 +96,7 @@ export default class RarFile{
         break;
       }
     }
-    // endOffset++;
+
     selectedMap.chunk._endOffset -= Math.abs(endOffset - selectedMap.end);
 
     return rarFileChunks;

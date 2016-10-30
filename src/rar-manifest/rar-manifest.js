@@ -6,10 +6,6 @@ import MarkerHeaderParser from '../parsing/marker-header-parser';
 import AchiverHeadParser from '../parsing/archive-header-parser';
 import FileHeaderParser from '../parsing/file-header-parser';
 import TerminalHeaderParser from '../parsing/terminator-header-parser';
-import streamToBuffer from 'stream-to-buffer';
-const streamToBufferPromise = async (stream) => new Promise((resolve, reject) => streamToBuffer(stream,
-  (err, buffer) => err? reject(err) : resolve(buffer))
-);
 
 type Header = {
   offset: number,
@@ -76,13 +72,7 @@ export default class RarManifest {
                                   fileOffset,
                                   fileOffset + fileHead.size - 1)
         });
-
-      
         fileOffset += fileHead.size;
-        if(fileHead.continuesInNext) {
-          fileOffset += 13;
-        }
-
       }
 
     }
