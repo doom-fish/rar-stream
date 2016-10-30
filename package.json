@@ -1,57 +1,57 @@
 {
-    "name": "rar-stream",
-    "version": "0.2.0",
-    "description": "Rar-Stream is a module for managing rar archives as node streams",
-    "author": "Per Johansson",
-    "main": "dist",
-    "scripts": {
-        "flow": "flow; test $? -eq 0 -o $? -eq 2",
-        "lint": "standard --fix",
-        "pretest": "npm run lint && npm run flow",
-        "test": "ava",
-        "coverage": "nyc ava",
-        "prebuild": "npm run test",
-        "build": "babel src --out-dir dist",
-        "prepublish": "npm run build"
-    },
-    "license": "MIT",
-    "ava": {
-        "require": [
-            "babel-register"
-        ],
-        "babel": "inherit"
-    },
-    "dependencies": {
-        "babel-runtime": "^6.18.0",
-        "binary": "^0.3.0",
-        "stream-to-buffer": "^0.1.0"
-    },
-    "standard": {
-        "parser": "babel-eslint",
-        "plugins": [
-            "babel",
-            "flowtype",
-            "filenames"
-        ]
-    },
-    "devDependencies": {
-        "ava": "^0.16.0",
-        "babel-cli": "^6.18.0",
-        "babel-core": "^6.18.0",
-        "babel-eslint": "^7.1.0",
-        "babel-plugin-transform-async-to-generator": "^6.16.0",
-        "babel-plugin-transform-flow-strip-types": "^6.18.0",
-        "babel-plugin-transform-runtime": "^6.15.0",
-        "babel-polyfill": "^6.16.0",
-        "babel-preset-es2015": "^6.18.0",
-        "babel-preset-stage-0": "^6.16.0",
-        "eslint-plugin-babel": "^3.3.0",
-        "eslint-plugin-filenames": "^1.1.0",
-        "eslint-plugin-flowtype": "^2.25.0",
-        "flow-bin": "^0.34.0",
-        "nyc": "^8.3.0",
-        "standard": "^8.5.0",
-        "stream-to-buffer": "^0.1.0",
-        "testdouble": "^1.9.0"
-    }
+  "name": "rar-stream",
+  "version": "0.2.1",
+  "description": "Rar-Stream is a module for managing rar archives as node streams",
+  "author": "Per Johansson",
+  "main": "dist",
+  "scripts": {
+    "flow": "flow; test $? -eq 0 -o $? -eq 2",
+    "lint": "standard --fix",
+    "pretest": "npm run lint && npm run flow",
+    "test": "ava",
+    "coverage": "nyc ava",
+    "prebuild": "npm run test",
+    "build": "babel src --out-dir dist",
+    "prepublish": "npm run build"
+  },
+  "license": "MIT",
+  "ava": {
+    "require": [
+      "babel-register"
+    ],
+    "babel": "inherit"
+  },
+  "dependencies": {
+    "babel-runtime": "^6.18.0",
+    "binary": "^0.3.0",
+    "stream-to-buffer": "^0.1.0"
+  },
+  "standard": {
+    "parser": "babel-eslint",
+    "plugins": [
+      "babel",
+      "flowtype",
+      "filenames"
+    ]
+  },
+  "devDependencies": {
+    "ava": "^0.16.0",
+    "babel-cli": "^6.18.0",
+    "babel-core": "^6.18.0",
+    "babel-eslint": "^7.1.0",
+    "babel-plugin-transform-async-to-generator": "^6.16.0",
+    "babel-plugin-transform-flow-strip-types": "^6.18.0",
+    "babel-plugin-transform-runtime": "^6.15.0",
+    "babel-polyfill": "^6.16.0",
+    "babel-preset-es2015": "^6.18.0",
+    "babel-preset-stage-0": "^6.16.0",
+    "eslint-plugin-babel": "^3.3.0",
+    "eslint-plugin-filenames": "^1.1.0",
+    "eslint-plugin-flowtype": "^2.25.0",
+    "flow-bin": "^0.34.0",
+    "nyc": "^8.3.0",
+    "standard": "^8.5.0",
+    "stream-to-buffer": "^0.1.0",
+    "testdouble": "^1.9.0"
+  }
 }
