@@ -11,7 +11,8 @@
         "test": "ava",
         "coverage": "nyc ava",
         "prebuild": "npm run test",
-        "build": "babel src --out-dir dist"
+        "build": "babel src --out-dir dist",
+        "prepublish": "npm run build"
     },
     "license": "MIT",
     "ava": {
