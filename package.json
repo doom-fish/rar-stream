@@ -7,9 +7,10 @@
     "scripts": {
         "flow": "flow; test $? -eq 0 -o $? -eq 2",
         "lint": "eslint src",
+        "pretest": "npm run lint && npm run flow",
         "test": "ava",
         "coverage": "nyc ava",
-        "prebuild": "npm run lint && npm run flow && npm run test",
+        "prebuild": "npm run test",
         "build": "babel src --out-dir dist"
     },
     "license": "MIT",
