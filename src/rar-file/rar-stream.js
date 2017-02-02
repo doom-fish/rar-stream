@@ -1,28 +1,35 @@
 // @flow
-import {Readable} from 'stream'
-import RarFileChunk from './rar-file-chunk'
+import { Readable } from 'stream';
+import RarFileChunk from './rar-file-chunk';
 export default class RarStream extends Readable {
-  constructor (...rarFileChunks: RarFileChunk[]) {
-    super()
-    this._next(rarFileChunks)
-  }
-  pushData (stream: Readable, chunk: ?(Buffer | string)) : ?boolean {
-    if (!super.push(chunk)) {
-      stream.pause()
+    _rarFileChunks: RarFileChunk[];
+    _stream: Readable;
+    _index: number;
+    constructor(rarFileChunks: RarFileChunk[]) {
+        super();
+        this._rarFileChunks = rarFileChunks;
+        this._next();
     }
-  }
-  _next (rarFileChunks: RarFileChunk[]) {
-    const chunk = rarFileChunks.shift()
-    if (!chunk) {
-      this.push(null)
-    } else {
-      chunk.getStream().then((stream) => {
-        stream.on('data', (data) => this.pushData(stream, data))
-        stream.on('end', () => this._next(rarFileChunks))
-      })
+    pushData(data: Buffer) {
+        if (!this.push(data)) {
+            this._stream.pause();
+        }
     }
-  }
-  _read () {
-    this.resume()
-  }
+    _next() {
+        const chunk = this._rarFileChunks.shift();
+
+        if (!chunk) {
+            this.push(null);
+        } else {
+            this._stream = chunk.getStreamSync();
+            this._stream.on('data', data => this.pushData(data));
+            const self = this;
+            this._stream.on('end', function() {
+                self._next();
+            });
+        }
+    }
+    _read() {
+        this._stream.resume();
+    }
 }

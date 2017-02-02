@@ -1,9 +1,13 @@
 {
-    "passPerPreset": true,
-    "presets": [{
-        "plugins": ["transform-runtime", "transform-flow-strip-types"]
-    }, {
-        "passPerPreset": false,
-        "presets": ["es2015", "stage-0"]
+    "plugins": [
+      "transform-flow-strip-types",
+      ["transform-class-properties", { "spec": true }]
+    ],
+    "presets": [
+    ["env", {
+      "targets": {
+        "node": true
+      }
     }]
+  ]
 }
