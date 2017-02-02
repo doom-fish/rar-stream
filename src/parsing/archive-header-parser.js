@@ -21,7 +21,7 @@ export default class ArchiveHeaderParser extends AbstractParser {
         return ArchiveHeaderParser.bytesToRead;
     }
     parse(): Object {
-        let {vars: archiveHeader} = binary
+        let { vars: archiveHeader } = binary
             .parse(this.read())
             .word16lu('crc')
             .word8lu('type')

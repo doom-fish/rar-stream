@@ -1,16 +1,16 @@
 // @flow
 import test from 'ava';
-import {Readable} from 'stream';
+import { Readable } from 'stream';
 import FileMedia from '../../file-media/file-media';
 // eslint-disable-next-line
-import type {FileInterval} from '../../file-media/file-media';
+import type { FileInterval } from '../../file-media/file-media';
 
 import RarFileBundle from '../rar-file-bundle';
 
 const newFileMedia = name => new FileMedia({
     name,
     size: 0,
-    createReadStream: () => new Readable(),
+    createReadStream: () => new Readable()
 });
 
 test('RarFileBundle length should be 0 with an empty array as input', t => {
@@ -40,7 +40,7 @@ test(
         const sortedFileNames = ['a.rar', 'a.r00', 'a.r01', 'a.r02', 'a.r03'];
         const instanceWithUnsortedParameters = new RarFileBundle(...fileMedias);
         t.deepEqual(instanceWithUnsortedParameters.fileNames, sortedFileNames);
-    },
+    }
 );
 
 test(
@@ -52,7 +52,7 @@ test(
             'a.part03.rar',
             'a.part04.rar',
             'a.part05.rar',
-            'a.part06.rar',
+            'a.part06.rar'
         ];
 
         const unsortedFileNames = [
@@ -61,13 +61,13 @@ test(
             'a.part04.rar',
             'a.part03.rar',
             'a.part05.rar',
-            'a.part02.rar',
+            'a.part02.rar'
         ];
         const fileMedias = unsortedFileNames.map(newFileMedia);
 
         const instanceWithUnsortedParameters = new RarFileBundle(...fileMedias);
         t.deepEqual(instanceWithUnsortedParameters.fileNames, sortedFileNames);
-    },
+    }
 );
 
 test('RarFileBundle should filter out non rar files', t => {
@@ -79,7 +79,7 @@ test('RarFileBundle should filter out non rar files', t => {
         'a.jpg',
         'a.part04.rar',
         'a.nfo',
-        'a.part05.rar',
+        'a.part05.rar'
     ];
     const fileMedias = unfilteredFileNames.map(newFileMedia);
 
@@ -88,7 +88,7 @@ test('RarFileBundle should filter out non rar files', t => {
         'a.part02.rar',
         'a.part03.rar',
         'a.part04.rar',
-        'a.part05.rar',
+        'a.part05.rar'
     ];
     const unFilteredInstance = new RarFileBundle(...fileMedias);
     t.deepEqual(unFilteredInstance.fileNames, filteredFileNames);

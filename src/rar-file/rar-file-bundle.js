@@ -10,7 +10,7 @@ export default class RarFileBundle {
     _extensionType: string;
     _length: number;
 
-    constructor (...fileMedias: FileMedia[]) {
+    constructor(...fileMedias: FileMedia[]) {
         this._fileMedias = fileMedias;
         if (this._fileMedias.length > 0) {
             this._resolveFileExtension();
@@ -18,26 +18,27 @@ export default class RarFileBundle {
             this.sort();
         }
     }
-    filter () {
+    filter() {
         if (this._extensionType === 'rxx') {
             this._fileMedias = this._fileMedias.filter(
-        (file) => (file.name && file.name.match(RXX_EXTENSION))
-      );
+                file => file.name && file.name.match(RXX_EXTENSION)
+            );
         } else {
-            this._fileMedias = this._fileMedias.filter((file) => file.name.match(PARTXX_RAR_EXTENSION));
+            this._fileMedias = this._fileMedias.filter(file =>
+                file.name.match(PARTXX_RAR_EXTENSION));
         }
     }
-    sort () {
+    sort() {
         if (this._extensionType === 'rxx') {
             this._sortRxx();
         } else {
             this._sortPartxx();
         }
     }
-    _resolveFileExtension () {
-        let anyPartXXTypes = this._fileMedias.filter((file) => (
-      file.name && file.name.match(PARTXX_RAR_EXTENSION))
-    );
+    _resolveFileExtension() {
+        let anyPartXXTypes = this._fileMedias.filter(
+            file => file.name && file.name.match(PARTXX_RAR_EXTENSION)
+        );
 
         if (anyPartXXTypes.length > 0) {
             this._extensionType = 'partxx';
@@ -45,7 +46,7 @@ export default class RarFileBundle {
             this._extensionType = 'rxx';
         }
     }
-    _sortPartxx () {
+    _sortPartxx() {
         this._fileMedias.sort((first, second) => {
             let firstMatch = first.name.match(PARTXX_RAR_EXTENSION);
             let secondMatch = second.name.match(PARTXX_RAR_EXTENSION);
@@ -54,7 +55,7 @@ export default class RarFileBundle {
             return firstNumber - secondNumber;
         });
     }
-    _sortRxx () {
+    _sortRxx() {
         this._fileMedias.sort((first, second) => {
             if (first.name.match(RAR_EXTENSION)) {
                 return -1;
@@ -69,13 +70,13 @@ export default class RarFileBundle {
             }
         });
     }
-    get length (): number {
+    get length(): number {
         return this._fileMedias.length;
     }
-    get fileNames () : string[] {
+    get fileNames(): string[] {
         return this._fileMedias.map(file => file.name);
     }
-    get files () : FileMedia[] {
+    get files(): FileMedia[] {
         return this._fileMedias;
     }
 }

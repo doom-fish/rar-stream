@@ -1,8 +1,8 @@
 // @flow
 import test from 'ava';
 import MarkerHeaderParser from '../marker-header-parser';
-import bind, {newPadding, hammingWeight} from '../__mocks__/utils';
-const {newParser, parseHeader} = bind(MarkerHeaderParser, 11);
+import bind, { newPadding, hammingWeight } from '../__mocks__/utils';
+const { newParser, parseHeader } = bind(MarkerHeaderParser, 11);
 
 test('MarkerHeaderParser.bytesToRead should be 11', t => {
     t.is(newParser('00').bytesToRead, 11);

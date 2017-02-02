@@ -4,8 +4,8 @@ import AbstractParser from './abstract-parser';
 
 export default class FileHeaderParser extends AbstractParser {
     static bytesToRead = 280;
-    _parseFlags () {
-        return function (parsedVars: Object) {
+    _parseFlags() {
+        return function(parsedVars: Object) {
             parsedVars.continuesFromPrevious = (parsedVars.flags & 0x01) !== 0;
             parsedVars.continuesInNext = (parsedVars.flags & 0x02) !== 0;
             parsedVars.isEncrypted = (parsedVars.flags & 0x04) !== 0;
@@ -18,45 +18,51 @@ export default class FileHeaderParser extends AbstractParser {
             parsedVars.hasExtendedTime = (parsedVars.flags & 0x1000) !== 0;
         };
     }
-    _parseFileName () {
-        return function (parsedVars: Object) {
-            let {vars: {nameBuffer}} = this.buffer('nameBuffer', parsedVars.nameSize);
+    _parseFileName() {
+        return function(parsedVars: Object) {
+            let { vars: { nameBuffer } } = this.buffer(
+                'nameBuffer',
+                parsedVars.nameSize
+            );
             parsedVars.name = nameBuffer.toString('utf-8');
         };
     }
-    _handleHighFileSize () {
-        return function (parsedVars: Object) {
+    _handleHighFileSize() {
+        return function(parsedVars: Object) {
             if (parsedVars.hasHighSize) {
-                let {vars: {highPackSize, highUnpackSize}} = this.word32ls('highPackSize')
-                                                            .word32ls('highUnpackSize');
+                let { vars: { highPackSize, highUnpackSize } } = this
+                    .word32ls('highPackSize')
+                    .word32ls('highUnpackSize');
 
                 parsedVars.size = highPackSize * 0x100000000 + parsedVars.size;
-                parsedVars.unpackedSize = highUnpackSize * 0x100000000 + parsedVars.unpackedSize;
+                parsedVars.unpackedSize = highUnpackSize * 0x100000000 +
+                    parsedVars.unpackedSize;
             }
         };
     }
 
-    get bytesToRead () : number {
+    get bytesToRead(): number {
         return FileHeaderParser.bytesToRead;
     }
-    parse () : Object {
-        let {vars: fileHeader} = binary.parse(this.read())
-                                   .word16lu('crc')
-                                   .word8lu('type')
-                                   .word16lu('flags')
-                                   .word16lu('headSize')
-                                   .word32lu('size')
-                                   .word32lu('unpackedSize')
-                                   .word8lu('host')
-                                   .word32lu('fileCrc')
-                                   .word32lu('timestamp')
-                                   .word8lu('version')
-                                   .word8lu('method')
-                                   .word16lu('nameSize')
-                                   .word32lu('attributes')
-                                   .tap(this._parseFlags())
-                                   .tap(this._handleHighFileSize())
-                                   .tap(this._parseFileName());
+    parse(): Object {
+        let { vars: fileHeader } = binary
+            .parse(this.read())
+            .word16lu('crc')
+            .word8lu('type')
+            .word16lu('flags')
+            .word16lu('headSize')
+            .word32lu('size')
+            .word32lu('unpackedSize')
+            .word8lu('host')
+            .word32lu('fileCrc')
+            .word32lu('timestamp')
+            .word8lu('version')
+            .word8lu('method')
+            .word16lu('nameSize')
+            .word32lu('attributes')
+            .tap(this._parseFlags())
+            .tap(this._handleHighFileSize())
+            .tap(this._parseFileName());
         return fileHeader;
     }
 }

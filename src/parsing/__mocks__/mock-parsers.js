@@ -1,12 +1,12 @@
 // @flow
 export class MockEmptyParser {
-    parse () {
+    parse() {
         return {};
     }
 }
 
 export class MockFileHeaderParser {
-    parse () {
+    parse() {
         return {
             name: 'test'
         };
