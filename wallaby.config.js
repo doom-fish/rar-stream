@@ -1,3 +1,4 @@
+var which = require('which');
 module.exports = function(wallaby) {
     return {
         files: [
@@ -12,7 +13,7 @@ module.exports = function(wallaby) {
         ],
         env: {
             type: 'node',
-            runner: '/usr/local/bin/node'
+            runner: which.sync('node')
         },
         recycle: true,
         compilers: {
