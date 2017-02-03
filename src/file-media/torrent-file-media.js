@@ -9,7 +9,6 @@ type TorrentFileInfo = {
 };
 export default class TorrentFileMedia extends FileMedia {
     constructor(torrentFileInfo: TorrentFileInfo) {
-        torrentFileInfo.select();
         torrentFileInfo.size = torrentFileInfo.length;
         super(torrentFileInfo);
     }
