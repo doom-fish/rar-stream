@@ -1,4 +1,4 @@
-module.exports = wallaby => {
+module.exports = function(wallaby) {
     return {
         files: [
             'src/**/*.js',
@@ -19,7 +19,7 @@ module.exports = wallaby => {
             '**/*.js': wallaby.compilers.babel()
         },
         testFramework: 'ava',
-        setup: function(wallaby: Wallaby) {
+        setup: function(wallaby) {
             global.isBeingRunInWallaby = true;
             global.fixturePath = wallaby.localProjectDir +
                 'src/rar-manifest/__fixtures__/';
