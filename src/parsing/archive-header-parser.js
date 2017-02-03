@@ -2,10 +2,29 @@
 import binary from 'binary';
 import AbstractParser from './abstract-parser';
 
+type ArchiveHeader = {
+    hasVolumeAttributes: boolean,
+    hasComment: boolean,
+    isLocked: boolean,
+    isNewNameScheme: boolean,
+    hasSolidAttributes: boolean,
+    hasAuthInfo: boolean,
+    hasRecovery: boolean,
+    isBlockEncoded: boolean,
+    isFirstVolume: boolean,
+    flags: number,
+    crc: number,
+    size: number,
+    reserved1: number,
+    reserved2: number,
+    size: number
+};
+type FlagParser = (parsedVars: ArchiveHeader) => void;
+
 export default class ArchiveHeaderParser extends AbstractParser {
     static bytesToRead = 13;
-    _parseFlags() {
-        return function(parsedVars: Object) {
+    _parseFlags(): FlagParser {
+        return (parsedVars: ArchiveHeader) => {
             parsedVars.hasVolumeAttributes = (parsedVars.flags & 0x0001) !== 0;
             parsedVars.hasComment = (parsedVars.flags & 0x0002) !== 0;
             parsedVars.isLocked = (parsedVars.flags & 0x0004) !== 0;
@@ -20,7 +39,7 @@ export default class ArchiveHeaderParser extends AbstractParser {
     get bytesToRead(): number {
         return ArchiveHeaderParser.bytesToRead;
     }
-    parse(): Object {
+    parse(): ArchiveHeader {
         let { vars: archiveHeader } = binary
             .parse(this.read())
             .word16lu('crc')

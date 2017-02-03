@@ -10,14 +10,14 @@ export default class RarFileChunk {
         this._startOffset = startOffset;
         this._endOffset = endOffset;
     }
-    paddEnd(endPadding: number) {
+    paddEnd(endPadding: number): RarFileChunk {
         return new RarFileChunk(
             this._fileMedia,
             this._startOffset,
             this._endOffset - endPadding
         );
     }
-    paddStart(startPadding: number) {
+    paddStart(startPadding: number): RarFileChunk {
         return new RarFileChunk(
             this._fileMedia,
             this._startOffset + startPadding,

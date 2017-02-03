@@ -2,10 +2,19 @@
 import binary from 'binary';
 import AbstractParser from './abstract-parser';
 
+type MarkerHeader = {
+    crc: number,
+    type: number,
+    flags: number,
+    size: number
+};
+
+type Parser = (parsedVars: MarkerHeader) => void;
+
 export default class MarkerHeaderParser extends AbstractParser {
     static bytesToRead = 11;
-    _addSizeIfFlagIsSet() {
-        return function(parsedVars: Object) {
+    _addSizeIfFlagIsSet(): Parser {
+        return function(parsedVars: MarkerHeader) {
             if ((parsedVars.flags & 0x8000) !== 0) {
                 let { vars: { addSize } } = this.word32lu('addSize');
                 parsedVars.size += addSize || 0;
@@ -15,7 +24,7 @@ export default class MarkerHeaderParser extends AbstractParser {
     get bytesToRead(): number {
         return MarkerHeaderParser.bytesToRead;
     }
-    parse(): Object {
+    parse(): MarkerHeader {
         let { vars: markerHeader } = binary
             .parse(this.read())
             .word16lu('crc')

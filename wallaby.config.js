@@ -1,30 +1,30 @@
-module.exports = function(wallaby) {
+module.exports = wallaby => {
     return {
         files: [
             'src/**/*.js',
             '!src/**/__tests__/*.js',
-            '!node_modules/**/*.js',
+            '!node_modules/**/*.js'
         ],
         tests: [
             'src/**/__tests__/*.js',
             '!src/rar-manifest/__tests__/*.js',
-            '!node_modules/**/*.js',
+            '!node_modules/**/*.js'
         ],
         env: {
             type: 'node',
-            runner: '/usr/local/bin/node',
+            runner: '/usr/local/bin/node'
         },
         recycle: true,
         compilers: {
-            '**/*.js': wallaby.compilers.babel(),
+            '**/*.js': wallaby.compilers.babel()
         },
         testFramework: 'ava',
-        setup: function(wallaby) {
+        setup: function(wallaby: Wallaby) {
             global.isBeingRunInWallaby = true;
             global.fixturePath = wallaby.localProjectDir +
                 'src/rar-manifest/__fixtures__/';
             require('babel-polyfill');
         },
-        debug: true,
+        debug: true
     };
 };

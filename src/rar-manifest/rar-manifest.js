@@ -14,7 +14,7 @@ export default class RarManifest {
     constructor(rarFileBundle: RarFileBundle) {
         this._rarFileBundle = rarFileBundle;
     }
-    async _parseMarkerHead(fileMedia: FileMedia): Promise<Object> {
+    async _parseMarkerHead(fileMedia: FileMedia): Promise<*> {
         const interval = {
             start: 0,
             end: MarkerHeaderParser.bytesToRead
@@ -23,10 +23,7 @@ export default class RarManifest {
         const parser = new MarkerHeaderParser(stream);
         return parser.parse();
     }
-    async _parseArchiveHead(
-        offset: number,
-        fileMedia: FileMedia
-    ): Promise<Object> {
+    async _parseArchiveHead(offset: number, fileMedia: FileMedia): Promise<*> {
         const interval = {
             start: offset,
             end: AchiverHeadParser.bytesToRead
@@ -35,10 +32,7 @@ export default class RarManifest {
         const parser = new AchiverHeadParser(stream);
         return await parser.parse();
     }
-    async _parseFileHead(
-        offset: number,
-        fileMedia: FileMedia
-    ): Promise<Object> {
+    async _parseFileHead(offset: number, fileMedia: FileMedia): Promise<*> {
         const interval = {
             start: offset,
             end: offset + FileHeaderParser.bytesToRead

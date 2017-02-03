@@ -3,13 +3,17 @@ import test from 'ava';
 import { mockStreamFromString } from '../__mocks__/mock-buffer-stream';
 import MockAbstractParser from '../__mocks__/mock-abstract-parser';
 import AbstractParser from '../abstract-parser';
-
-function newMock(bufferStr, size, options) {
+type Options = readableStreamOptions;
+function newMock(
+    bufferStr: string,
+    size: number,
+    options: Options = {}
+): MockAbstractParser {
     const stream = mockStreamFromString(bufferStr, options);
     return new MockAbstractParser(stream, size);
 }
 
-function newParser(bufferStr = '00') {
+function newParser(bufferStr: string = '00'): AbstractParser {
     return new AbstractParser(mockStreamFromString(bufferStr));
 }
 

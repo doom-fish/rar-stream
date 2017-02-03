@@ -1,10 +1,11 @@
 // @flow
 import { Readable } from 'stream';
+type Options = readableStreamOptions;
 
-class MockFileStream extends Readable {
+export class MockFileStream extends Readable {
     _object: ?Buffer;
-    _options: Object;
-    constructor(object: Object, options: Object) {
+    _options: Options;
+    constructor(object: ?Buffer, options: Options) {
         super(options);
         this._options = options;
         this._object = object;
@@ -28,15 +29,15 @@ class MockFileStream extends Readable {
     }
 }
 
+// @flow-disable
 export const mockStreamFromString = (
     str: string,
-    options: Object = {},
-    variant: any = 'hex'
+    options: Options = {},
+    variant: buffer$Encoding = 'hex'
 ) => {
     if (options.size) {
-        let padding = Math.abs(options.size - str.length / 2);
+        let padding = Math.abs(+options.size - str.length / 2);
         str += Array(padding).fill().map(() => '00').join('');
     }
-
     return new MockFileStream(new Buffer(str, variant), options);
 };

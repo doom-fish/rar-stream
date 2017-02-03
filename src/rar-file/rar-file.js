@@ -39,7 +39,7 @@ export default class RarFile {
             );
         });
     }
-    getChunksToStream(start: number, end: number) {
+    getChunksToStream(start: number, end: number): RarFileChunk[] {
         const {
             index: startIndex,
             start: startOffset

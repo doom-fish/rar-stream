@@ -9,7 +9,7 @@ export default class AbstractParser {
     get bytesToRead(): number {
         throw Error('Abstract Getter, implement in sub classes');
     }
-    parse(): Object {
+    parse() {
         throw Error('Abstract Method, implement in sub classes');
     }
     read(): ?string | ?Buffer {
