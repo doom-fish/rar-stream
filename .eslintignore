@@ -1,4 +1,4 @@
 dist/
 node_modules/
 wallaby.config.js
-example/server.js
+example/webtorrent.js
