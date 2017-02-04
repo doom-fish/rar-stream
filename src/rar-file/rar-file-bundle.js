@@ -10,7 +10,7 @@ export default class RarFileBundle {
     _extensionType: string;
     _length: number;
 
-    constructor(...fileMedias: FileMedia[]) {
+    constructor(fileMedias: FileMedia[] = []) {
         this._fileMedias = fileMedias;
         if (this._fileMedias.length > 0) {
             this._resolveFileExtension();
