@@ -1,0 +1,19 @@
+{
+  "name": "webtorrent-example",
+  "version": "1.0.0",
+  "description": "",
+  "main": "webtorrent.js",
+  "scripts": {
+    "start": "node webtorrent",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "1313",
+  "license": "ISC",
+  "dependencies": {
+    "pretty-bytes": "^4.0.2",
+    "pretty-seconds": "^0.2.1",
+    "progress-stream": "^1.2.0",
+    "rar-stream": "..",
+    "webtorrent": "^0.98.5"
+  }
+}
