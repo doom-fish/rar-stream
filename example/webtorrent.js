@@ -5,7 +5,7 @@ const Webtorrent = require('webtorrent');
 const fs = require('fs');
 const progressStream = require('progress-stream');
 
-const { RarFileBundle, RarManifest } = require('rar-stream').default;
+const { RarFileBundle, RarManifest } = require('rar-stream');
 
 const TorrentFileMedia = require(
     'rar-stream/dist/file-media/torrent-file-media'
