@@ -24,7 +24,8 @@ client.add(magnetURI, torrent => {
     );
 
     const manifest = new RarManifest(bundle);
-
+    manifest.on('file-parsed', file =>
+        console.log(`Parsed file: ${file.name}`));
     const innerFiles = manifest.getFiles().then(innerFiles => {
         const innerFile = innerFiles.filter(inner => {
             return inner.name.indexOf('mkv') !== -1;
