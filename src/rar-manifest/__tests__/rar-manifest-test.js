@@ -131,6 +131,40 @@ test('single rar file with many inner files can be read as whole', async t => {
     t.deepEqual(rarFile3, splitted3);
 });
 
+test('rar manifest emits events for when parsing ends', async t => {
+    const bundle = createMultipleRarFileWithOneInnerBundle();
+    t.plan(1);
+    const manifest = new RarManifest(bundle);
+    let eventResult;
+    manifest.on('parsing-end', files => {
+        eventResult = files;
+    });
+    const files = await manifest.getFiles();
+    t.is(eventResult, files);
+});
+
+test('rar manifest emits events for when parsing starts', async t => {
+    const bundle = createMultipleRarFileWithOneInnerBundle();
+    t.plan(1);
+    const manifest = new RarManifest(bundle);
+
+    manifest.on('parsing-start', manifestBundle => {
+        t.is(manifestBundle, bundle);
+    });
+    await manifest.getFiles();
+});
+
+test('rar manifest emits events for each parsed file', async t => {
+    const bundle = createMultipleRarFileWithOneInnerBundle();
+    t.plan(bundle.length);
+    const manifest = new RarManifest(bundle);
+    let i = 0;
+    manifest.on('file-parsed', file => {
+        t.is(file, bundle.files[i++]);
+    });
+    await manifest.getFiles();
+});
+
 test('single rar file with many inner files can be read in parts', async t => {
     const bundle = createSingleRarWithManyInnerBundle();
     const interval = { start: 50, end: 200 };

@@ -1,4 +1,5 @@
 // @flow
+import { EventEmitter } from 'events';
 import RarFileBundle from '../rar-file/rar-file-bundle';
 import RarFile from '../rar-file/rar-file';
 import RarFileChunk from '../rar-file/rar-file-chunk';
@@ -11,10 +12,11 @@ import TerminalHeaderParser from '../parsing/terminator-header-parser';
 const flatten = list =>
     list.reduce((a, b) => a.concat(Array.isArray(b) ? flatten(b) : b), []);
 
-export default class RarManifest {
+export default class RarManifest extends EventEmitter {
     _rarFileBundle: RarFileBundle;
     _rarFiles: RarFile[];
     constructor(rarFileBundle: RarFileBundle) {
+        super();
         this._rarFileBundle = rarFileBundle;
     }
     async _parseMarkerHead(fileMedia: FileMedia): Promise<*> {
@@ -72,14 +74,15 @@ export default class RarManifest {
             });
             fileOffset += fileHead.size;
         }
+        this.emit('file-parsed', rarFile);
         return fileChunks;
     }
     async _parse(): Promise<RarFile[]> {
-        const fileChunks = flatten(
-            await Promise.all(
-                this._rarFileBundle.files.map(file => this._parseFile(file))
-            )
+        this.emit('parsing-start', this._rarFileBundle);
+        const parsedFileChunks = await Promise.all(
+            this._rarFileBundle.files.map(file => this._parseFile(file))
         );
+        const fileChunks = flatten(parsedFileChunks);
 
         const grouped = fileChunks.reduce(
             (file, { name, chunk }) => {
@@ -92,9 +95,11 @@ export default class RarManifest {
             {}
         );
 
-        return Object.keys(grouped).map(
+        const rarFiles = Object.keys(grouped).map(
             name => new RarFile(name, grouped[name])
         );
+        this.emit('parsing-end', rarFiles);
+        return rarFiles;
     }
     getFiles(): Promise<RarFile[]> {
         return this._parse();

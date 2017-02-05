@@ -20,9 +20,7 @@ client.add(magnetURI, torrent => {
     console.log('Client is downloading:', torrent.infoHash);
 
     const bundle = new RarFileBundle(
-        torrent.files.map(function(file) {
-            return new TorrentFileMedia(file);
-        })
+        torrent.files.map(file => new TorrentFileMedia(file))
     );
 
     const manifest = new RarManifest(bundle);
