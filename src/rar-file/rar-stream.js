@@ -1,12 +1,12 @@
 // @flow
-import { Readable } from 'stream';
+import {Readable} from 'stream';
 import RarFileChunk from './rar-file-chunk';
 export default class RarStream extends Readable {
     _rarFileChunks: RarFileChunk[];
     _stream: Readable;
     _index: number;
     constructor(rarFileChunks: RarFileChunk[]) {
-        super();
+        super({highWaterMark: 15 * 10000});
         this._rarFileChunks = rarFileChunks;
         this._next();
     }
