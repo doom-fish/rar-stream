@@ -6,7 +6,7 @@ export default class RarStream extends Readable {
     _stream: Readable;
     _index: number;
     constructor(rarFileChunks: RarFileChunk[]) {
-        super({highWaterMark: 15 * 10000});
+        super({highWaterMark: 15 * 100000});
         this._rarFileChunks = rarFileChunks;
         this._next();
     }
