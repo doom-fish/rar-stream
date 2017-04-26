@@ -15,8 +15,7 @@
     "test": "ava -tap | node_modules/.bin/tnyan",
     "coverage": "nyc ava",
     "build": "babel src --out-dir dist",
-    "prepublish": "npm run build",
-    "install": "npm run build"
+    "prepublish": "npm run build"
   },
   "license": "MIT",
   "ava": {
