@@ -11,8 +11,9 @@ const streamToBufferPromise = async stream =>
     new Promise((resolve, reject) =>
         streamToBuffer(
             stream,
-            (err, buffer) => err ? reject(err) : resolve(buffer)
-        ));
+            (err, buffer) => (err ? reject(err) : resolve(buffer))
+        )
+    );
 
 let fixturePath = path.join(__dirname, '../__fixtures__');
 if (global.isBeingRunInWallaby) {
@@ -54,21 +55,21 @@ const multiSplitted4FilePath = path.join(
 
 const createSingleFileRarBundle = () =>
     new RarFileBundle([
-        new LocalFileMedia(path.join(fixturePath, 'single/single.rar'))
+        new LocalFileMedia(path.join(fixturePath, 'single/single.rar')),
     ]);
 
 const createSingleRarWithManyInnerBundle = () =>
     new RarFileBundle([
         new LocalFileMedia(
             path.join(fixturePath, 'single-splitted/single-splitted.rar')
-        )
+        ),
     ]);
 
 const createMultipleRarFileWithOneInnerBundle = () =>
     new RarFileBundle([
         new LocalFileMedia(path.join(fixturePath, 'multi/multi.rar')),
         new LocalFileMedia(path.join(fixturePath, 'multi/multi.r01')),
-        new LocalFileMedia(path.join(fixturePath, 'multi/multi.r00'))
+        new LocalFileMedia(path.join(fixturePath, 'multi/multi.r00')),
     ]);
 
 const createMultipleRarFileWithManyInnerBundle = () =>
@@ -81,7 +82,7 @@ const createMultipleRarFileWithManyInnerBundle = () =>
         ),
         new LocalFileMedia(
             path.join(fixturePath, 'multi-splitted/multi-splitted.r01')
-        )
+        ),
     ]);
 
 const readToEnd = f => Promise.all(f.map(file => file.readToEnd()));
@@ -234,7 +235,7 @@ test('multi rar file with many inner files can be read as whole', async t => {
         rarFile1,
         rarFile2,
         rarFile3,
-        rarFile4
+        rarFile4,
     ] = await manifest.getFiles().then(readToEnd);
 
     const splitted1 = fs.readFileSync(multiSplitted1FilePath);

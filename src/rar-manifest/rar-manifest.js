@@ -1,5 +1,5 @@
 // @flow
-import { EventEmitter } from 'events';
+import EventEmitter from 'events';
 import RarFileBundle from '../rar-file/rar-file-bundle';
 import RarFile from '../rar-file/rar-file';
 import RarFileChunk from '../rar-file/rar-file-chunk';
@@ -22,7 +22,7 @@ export default class RarManifest extends EventEmitter {
     async _parseMarkerHead(fileMedia: FileMedia): Promise<*> {
         const interval = {
             start: 0,
-            end: MarkerHeaderParser.bytesToRead
+            end: MarkerHeaderParser.bytesToRead,
         };
         const stream = await fileMedia.createReadStream(interval);
         const parser = new MarkerHeaderParser(stream);
@@ -31,7 +31,7 @@ export default class RarManifest extends EventEmitter {
     async _parseArchiveHead(offset: number, fileMedia: FileMedia): Promise<*> {
         const interval = {
             start: offset,
-            end: AchiverHeadParser.bytesToRead
+            end: AchiverHeadParser.bytesToRead,
         };
         const stream = await fileMedia.createReadStream(interval);
         const parser = new AchiverHeadParser(stream);
@@ -40,7 +40,7 @@ export default class RarManifest extends EventEmitter {
     async _parseFileHead(offset: number, fileMedia: FileMedia): Promise<*> {
         const interval = {
             start: offset,
-            end: offset + FileHeaderParser.bytesToRead
+            end: offset + FileHeaderParser.bytesToRead,
         };
 
         const fileStream = await fileMedia.createReadStream(interval);
@@ -66,11 +66,12 @@ export default class RarManifest extends EventEmitter {
 
             fileChunks.push({
                 name: fileHead.name,
+                fileHead,
                 chunk: new RarFileChunk(
                     rarFile,
                     fileOffset,
                     fileOffset + fileHead.size - 1
-                )
+                ),
             });
             fileOffset += fileHead.size;
         }
@@ -79,21 +80,49 @@ export default class RarManifest extends EventEmitter {
     }
     async _parse(): Promise<RarFile[]> {
         this.emit('parsing-start', this._rarFileBundle);
-        const parsedFileChunks = await Promise.all(
-            this._rarFileBundle.files.map(file => this._parseFile(file))
-        );
+        const parsedFileChunks = [];
+        const { files } = this._rarFileBundle;
+        for (let i = 0; i < files.length; ++i) {
+            const file = files[i];
+
+            const chunks = await this._parseFile(file);
+            const { fileHead, chunk } = chunks[chunks.length - 1];
+            const chunkSize = chunk._endOffset - chunk._startOffset + 1;
+            let innerFileSize = fileHead.unpackedSize;
+
+            if (fileHead.continuesInNext) {
+                parsedFileChunks.push(chunks);
+                while (innerFileSize - chunkSize > chunkSize) {
+                    const nextFile = files[++i];
+
+                    parsedFileChunks.push([
+                        {
+                            name: fileHead.name,
+                            chunk: new RarFileChunk(
+                                nextFile,
+                                chunk._startOffset,
+                                chunk._endOffset
+                            ),
+                        },
+                    ]);
+                    this.emit('file-parsed', nextFile);
+                    innerFileSize -= chunkSize;
+                }
+            } else {
+                parsedFileChunks.push(chunks);
+            }
+        }
+
         const fileChunks = flatten(parsedFileChunks);
 
-        const grouped = fileChunks.reduce(
-            (file, { name, chunk }) => {
-                if (!file[name]) {
-                    file[name] = [];
-                }
-                file[name].push(chunk);
-                return file;
-            },
-            {}
-        );
+        const grouped = fileChunks.reduce((file, { name, chunk }) => {
+            if (!file[name]) {
+                file[name] = [];
+            }
+
+            file[name].push(chunk);
+            return file;
+        }, {});
 
         const rarFiles = Object.keys(grouped).map(
             name => new RarFile(name, grouped[name])

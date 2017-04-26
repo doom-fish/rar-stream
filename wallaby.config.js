@@ -8,7 +8,6 @@ module.exports = function(wallaby) {
         ],
         tests: [
             'src/**/__tests__/*.js',
-            '!src/rar-manifest/__tests__/*.js',
             '!node_modules/**/*.js'
         ],
         env: {
