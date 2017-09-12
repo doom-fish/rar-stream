@@ -1,48 +1,36 @@
-// @flow
-import { Readable } from 'stream';
-import FileMedia from '../file-media/file-media';
-export default class RarFileChunk {
-    _fileMedia: FileMedia;
-    _startOffset: number;
-    _endOffset: number;
-    constructor(fileMedia: FileMedia, startOffset: number, endOffset: number) {
+module.exports = class RarFileChunk {
+    constructor(fileMedia, startOffset, endOffset) {
         this._fileMedia = fileMedia;
         this._startOffset = startOffset;
         this._endOffset = endOffset;
     }
-    paddEnd(endPadding: number): RarFileChunk {
+    paddEnd(endPadding) {
         return new RarFileChunk(
             this._fileMedia,
             this._startOffset,
             this._endOffset - endPadding
         );
     }
-    paddStart(startPadding: number): RarFileChunk {
+    paddStart(startPadding) {
         return new RarFileChunk(
             this._fileMedia,
             this._startOffset + startPadding,
             this._endOffset
         );
     }
-    set startOffset(value: number) {
+    set startOffset(value) {
         this._startOffset = value;
     }
-    set endOffset(value: number) {
+    set endOffset(value) {
         this._endOffset = value;
     }
-    get length(): number {
+    get length() {
         return Math.abs(this._endOffset - this._startOffset);
     }
-    getStreamSync(): Readable {
-        return this._fileMedia.createReadStreamSync({
-            start: this._startOffset,
-            end: this._endOffset
-        });
-    }
-    getStream(): Promise<Readable> {
+    getStream() {
         return this._fileMedia.createReadStream({
             start: this._startOffset,
-            end: this._endOffset
+            end: this._endOffset,
         });
     }
-}
+};

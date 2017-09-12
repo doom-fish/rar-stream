@@ -1,43 +1,39 @@
-// @flow
-import { Readable } from 'stream';
-type Options = readableStreamOptions;
+const { Readable } = require('stream');
 
-export class MockFileStream extends Readable {
-    _object: ?Buffer;
-    _options: Options;
-    constructor(object: ?Buffer, options: Options) {
+class MockFileStream extends Readable {
+    constructor(object, options) {
         super(options);
-        this._options = options;
-        this._object = object;
+        this.options = options;
+        this.object = object;
     }
     _read() {
         if (
-            !!this._object &&
-                typeof this._options.start === 'number' &&
-                typeof this._options.end === 'number'
+            !!this.object &&
+            typeof this.options.start === 'number' &&
+            typeof this.options.end === 'number'
         ) {
-            const buffer = this._object.slice(
-                this._options.start,
-                this._options.end
+            const buffer = this.object.slice(
+                this.options.start,
+                this.options.end
             );
             this.push(buffer);
-            this._object = null;
+            this.object = null;
         } else {
-            this.push(this._object);
-            this._object = null;
+            this.push(this.object);
+            this.object = null;
         }
     }
 }
 
-// @flow-disable
-export const mockStreamFromString = (
-    str: string,
-    options: Options = {},
-    variant: buffer$Encoding = 'hex'
-) => {
+MockFileStream.mockStreamFromString = (str, options = {}, variant = 'hex') => {
     if (options.size) {
         let padding = Math.abs(+options.size - str.length / 2);
-        str += Array(padding).fill().map(() => '00').join('');
+        str += Array(padding)
+            .fill()
+            .map(() => '00')
+            .join('');
     }
     return new MockFileStream(new Buffer(str, variant), options);
 };
+
+module.exports = MockFileStream;

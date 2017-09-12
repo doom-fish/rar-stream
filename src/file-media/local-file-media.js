@@ -1,22 +1,23 @@
-// @flow
-import FileMedia from './file-media';
-import fs from 'fs';
+const { basename } = require('path');
+const { statSync, createReadStream } = require('fs');
 
-export default class LocalFileMedia extends FileMedia {
-    constructor(localFilePath: string) {
-        if (typeof localFilePath !== 'string') {
+module.exports = class LocalFileMedia {
+    constructor(path) {
+        if (typeof path !== 'string') {
             throw new Error(
-                'Invalid Arguments, localFilePath' +
+                'Invalid Arguments, path' +
                     'need to be passed to the constructor as a string'
             );
         }
-        let nameParts = localFilePath.split('/');
-        let fileInfo = {
-            name: nameParts[nameParts.length - 1],
-            size: fs.statSync(localFilePath).size,
-            createReadStream: options =>
-                fs.createReadStream(localFilePath, options)
-        };
-        super(fileInfo);
+        this.path = path;
+        this.name = basename(path);
+        this.size = statSync(path).size;
     }
-}
+    createReadStream(interval) {
+        const stream = createReadStream(this.path, interval);
+        return new Promise((resolve, reject) => {
+            stream.once('readable', () => resolve(stream));
+            stream.on('error', reject);
+        });
+    }
+};

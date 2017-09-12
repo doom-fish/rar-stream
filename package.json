@@ -7,49 +7,20 @@
     "type": "git",
     "url": "https://github.com/1313/rar-stream.git"
   },
-  "main": "dist",
+  "main": "src",
   "scripts": {
-    "flow": "flow; test $? -eq 0 -o $? -eq 2",
-    "lint": "eslint --fix .",
-    "pretest": "rimraf ./dist &&npm run lint && npm run flow",
     "test": "ava -tap | node_modules/.bin/tnyan",
-    "coverage": "nyc ava",
-    "build": "babel src --out-dir dist",
-    "prepublish": "npm run build"
+    "coverage": "nyc ava"
   },
   "license": "MIT",
-  "ava": {
-    "require": [
-      "babel-register"
-    ],
-    "babel": "inherit"
-  },
   "dependencies": {
     "binary": "^0.3.0",
     "stream-to-buffer": "^0.1.0"
   },
   "devDependencies": {
-    "ava": "^0.19.1",
-    "babel-cli": "^6.24.1",
-    "babel-core": "^6.24.1",
-    "babel-eslint": "^7.2.3",
-    "babel-plugin-transform-class-properties": "^6.24.1",
-    "babel-plugin-transform-flow-strip-types": "^6.22.0",
-    "babel-preset-env": "^1.4.0",
-    "eslint": "^3.19.0",
-    "eslint-plugin-ava": "^4.2.0",
-    "eslint-plugin-babel": "^4.1.1",
-    "eslint-plugin-filenames": "^1.2.0",
-    "eslint-plugin-flowtype": "^2.32.1",
-    "eslint-plugin-import": "^2.2.0",
-    "eslint-plugin-prettier": "^2.0.1",
-    "flow-bin": "^0.44.2",
-    "nyc": "^10.2.0",
-    "prettier": "^1.2.2",
-    "rimraf": "^2.6.1",
-    "stream-to-buffer": "^0.1.0",
+    "ava": "^0.22.0",
+    "nyc": "^11.2.1",
     "tap-nyan": "^1.1.0",
-    "testdouble": "^2.1.2",
-    "which": "^1.2.14"
+    "testdouble": "^3.2.5"
   }
 }

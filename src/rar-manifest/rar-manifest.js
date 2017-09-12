@@ -1,64 +1,49 @@
-// @flow
-import EventEmitter from 'events';
-import RarFileBundle from '../rar-file/rar-file-bundle';
-import RarFile from '../rar-file/rar-file';
-import RarFileChunk from '../rar-file/rar-file-chunk';
-import FileMedia from '../file-media/file-media';
-import MarkerHeaderParser from '../parsing/marker-header-parser';
-import AchiverHeadParser from '../parsing/archive-header-parser';
-import FileHeaderParser from '../parsing/file-header-parser';
-import TerminalHeaderParser from '../parsing/terminator-header-parser';
+const { EventEmitter } = require('events');
+const RarFileBundle = require('../rar-file/rar-file-bundle');
+const RarFile = require('../rar-file/rar-file');
+const RarFileChunk = require('../rar-file/rar-file-chunk');
+
+const MarkerHeaderParser = require('../parsing/marker-header-parser');
+const ArchiveHeaderParser = require('../parsing/archive-header-parser');
+const FileHeaderParser = require('../parsing/file-header-parser');
+const TerminalHeaderParser = require('../parsing/terminator-header-parser');
 
 const flatten = list =>
     list.reduce((a, b) => a.concat(Array.isArray(b) ? flatten(b) : b), []);
 
-export default class RarManifest extends EventEmitter {
-    _rarFileBundle: RarFileBundle;
-    _rarFiles: RarFile[];
-    constructor(rarFileBundle: RarFileBundle) {
+const parseHeader = async (Parser, fileMedia, offset = 0) => {
+    const stream = await fileMedia.createReadStream({
+        start: offset,
+        end: offset + Parser.HEADER_SIZE,
+    });
+    const parser = new Parser(stream);
+    return parser.parse();
+};
+
+module.exports = class RarManifest extends EventEmitter {
+    constructor(rarFileBundle) {
         super();
-        this._rarFileBundle = rarFileBundle;
+        this.rarFileBundle = rarFileBundle;
     }
-    async _parseMarkerHead(fileMedia: FileMedia): Promise<*> {
-        const interval = {
-            start: 0,
-            end: MarkerHeaderParser.bytesToRead,
-        };
-        const stream = await fileMedia.createReadStream(interval);
-        const parser = new MarkerHeaderParser(stream);
-        return parser.parse();
-    }
-    async _parseArchiveHead(offset: number, fileMedia: FileMedia): Promise<*> {
-        const interval = {
-            start: offset,
-            end: AchiverHeadParser.bytesToRead,
-        };
-        const stream = await fileMedia.createReadStream(interval);
-        const parser = new AchiverHeadParser(stream);
-        return await parser.parse();
-    }
-    async _parseFileHead(offset: number, fileMedia: FileMedia): Promise<*> {
-        const interval = {
-            start: offset,
-            end: offset + FileHeaderParser.bytesToRead,
-        };
-
-        const fileStream = await fileMedia.createReadStream(interval);
-
-        const parser = new FileHeaderParser(fileStream);
-        return parser.parse();
-    }
-    async _parseFile(rarFile: FileMedia): Promise<[]> {
+    async parseFile(rarFile) {
         const fileChunks = [];
         let fileOffset = 0;
-        const markerHead = await this._parseMarkerHead(rarFile);
+        const markerHead = await parseHeader(MarkerHeaderParser, rarFile);
         fileOffset += markerHead.size;
 
-        const archiveHeader = await this._parseArchiveHead(fileOffset, rarFile);
+        const archiveHeader = await parseHeader(
+            ArchiveHeaderParser,
+            rarFile,
+            fileOffset
+        );
         fileOffset += archiveHeader.size;
 
-        while (fileOffset < rarFile.size - TerminalHeaderParser.bytesToRead) {
-            const fileHead = await this._parseFileHead(fileOffset, rarFile);
+        while (fileOffset < rarFile.size - TerminalHeaderParser.HEADER_SIZE) {
+            const fileHead = await parseHeader(
+                FileHeaderParser,
+                rarFile,
+                fileOffset
+            );
             if (fileHead.type !== 116) {
                 break;
             }
@@ -78,16 +63,16 @@ export default class RarManifest extends EventEmitter {
         this.emit('file-parsed', rarFile);
         return fileChunks;
     }
-    async _parse(): Promise<RarFile[]> {
-        this.emit('parsing-start', this._rarFileBundle);
+    async getFiles() {
+        this.emit('parsing-start', this.rarFileBundle);
         const parsedFileChunks = [];
-        const { files } = this._rarFileBundle;
+        const { files } = this.rarFileBundle;
         for (let i = 0; i < files.length; ++i) {
             const file = files[i];
 
-            const chunks = await this._parseFile(file);
+            const chunks = await this.parseFile(file);
             const { fileHead, chunk } = chunks[chunks.length - 1];
-            const chunkSize = chunk._endOffset - chunk._startOffset + 1;
+            const chunkSize = chunk.endOffset - chunk.startOffset + 1;
             let innerFileSize = fileHead.unpackedSize;
 
             if (fileHead.continuesInNext) {
@@ -100,8 +85,8 @@ export default class RarManifest extends EventEmitter {
                             name: fileHead.name,
                             chunk: new RarFileChunk(
                                 nextFile,
-                                chunk._startOffset,
-                                chunk._endOffset
+                                chunk.startOffset,
+                                chunk.endOffset
                             ),
                         },
                     ]);
@@ -130,7 +115,4 @@ export default class RarManifest extends EventEmitter {
         this.emit('parsing-end', rarFiles);
         return rarFiles;
     }
-    getFiles(): Promise<RarFile[]> {
-        return this._parse();
-    }
-}
+};

@@ -1,28 +1,23 @@
-// @flow
-import binary from 'binary';
-import AbstractParser from './abstract-parser';
-
-type TerminatorHeader = {
-    crc: number,
-    type: number,
-    flags: number,
-    size: number
-};
-
-export default class TerminatorHeaderParser extends AbstractParser {
-    static bytesToRead = 7;
-    static endOfArchivePadding = 20;
-    get bytesToRead(): number {
-        return TerminatorHeaderParser.bytesToRead;
+const binary = require('binary');
+class TerminatorHeaderParser {
+    constructor(stream) {
+        this.stream = stream;
     }
-    parse(): TerminatorHeader {
-        let { vars: terminatorHeader } = binary
-            .parse(this.read())
+    parse() {
+        const terminatorHeaderBuffer = this.stream.read(
+            TerminatorHeaderParser.HEADER_SIZE
+        );
+        const { vars } = binary
+            .parse(terminatorHeaderBuffer)
             .word16lu('crc')
             .word8lu('type')
             .word16lu('flags')
             .word16lu('size');
 
-        return terminatorHeader;
+        return vars;
     }
 }
+
+TerminatorHeaderParser.HEADER_SIZE = 7;
+TerminatorHeaderParser.END_OF_ARCHIVE_PADDING = 20;
+module.exports = TerminatorHeaderParser;

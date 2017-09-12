@@ -1,21 +1,21 @@
-// @flow
-import { mockStreamFromString } from './mock-buffer-stream';
-import FileMedia from '../../file-media/file-media';
+const { mockStreamFromString } = require('./mock-buffer-stream');
 
-export default class MockFileMedia extends FileMedia {
-    constructor(stringData: string, name: ?string) {
-        stringData = stringData.replace(/\s/g, '');
+module.exports = class MockFileMedia {
+    constructor(stringData, name = 'MockStream') {
+        this.stringData = stringData.replace(/\s/g, '');
         const byteLength = stringData.length;
-        super({
-            name: name || 'MockStream',
-            size: byteLength / 2,
-            createReadStream: ({ start, end }) => {
-                return mockStreamFromString(stringData, {
-                    start,
-                    end,
-                    byteLength
-                });
-            }
+        this.name = name;
+        this.size = byteLength / 2;
+    }
+    async createReadStream({ start, end }) {
+        const stream = mockStreamFromString(this.stringData, {
+            start,
+            end,
+        });
+
+        return new Promise((resolve, reject) => {
+            stream.once('readable', () => resolve(stream));
+            stream.on('error', reject);
         });
     }
-}
+};

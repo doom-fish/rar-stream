@@ -12,7 +12,7 @@
   "dependencies": {
     "pretty-bytes": "^4.0.2",
     "pretty-seconds": "^0.2.1",
-    "progress-stream": "^1.2.0",
+    "progress-stream": "^2.0.0",
     "rar-stream": "..",
     "webtorrent": "^0.98.8"
   }

@@ -1,13 +1,8 @@
-// @flow
-import test from 'ava';
-import ArchiveHeaderParser from '../archive-header-parser';
-import bind, {hammingWeight, btoh} from '../__mocks__/utils';
-const {newParser, parseHeader} = bind(ArchiveHeaderParser, 13);
-
-test('ArchiveHeaderParser.bytesToRead', t => {
-    const parser = newParser('00');
-    t.is(parser.bytesToRead, 13);
-});
+//
+const test = require('ava');
+const ArchiveHeaderParser = require('../archive-header-parser');
+const { bind, hammingWeight, btoh } = require('../__mocks__/utils');
+const { newParser, parseHeader } = bind(ArchiveHeaderParser, 13);
 
 test('ArchiveHeaderParser.parse should parse CRC as 2 bytes', t => {
     t.is(hammingWeight(parseHeader('crc', 'ffff00ffff')), 16);
@@ -64,23 +59,23 @@ test('ArchiveHeaderParser.parse should parse reserved1 as little endian', t => {
 test('ArchiveHeaderParser.parse should parse reserved2 as 4 bytes', t => {
     t.is(
         hammingWeight(parseHeader('reserved2', 'ffffffffffffffff00ffffffffff')),
-        32,
+        32
     );
     t.is(
         hammingWeight(parseHeader('reserved2', 'ffffffffffffffff00ffffff00ff')),
-        24,
+        24
     );
     t.is(
         hammingWeight(parseHeader('reserved2', 'ffffffffffffffff00ffff0000ff')),
-        16,
+        16
     );
     t.is(
         hammingWeight(parseHeader('reserved2', 'ffffffffffffffff00ff000000ff')),
-        8,
+        8
     );
     t.is(
         hammingWeight(parseHeader('reserved2', 'ffffffffffffffff0000000000ff')),
-        0,
+        0
     );
 });
 
@@ -91,10 +86,10 @@ test('ArchiveHeaderParser.parse should parse reserved2 as little endian', t => {
 
 test('ArchiveHeaderParser.parse should parse hasVolumeAttributes flag', t => {
     t.truthy(
-        parseHeader('hasVolumeAttributes', btoh(0b100000000000000000000000001)),
+        parseHeader('hasVolumeAttributes', btoh(0b100000000000000000000000001))
     );
     t.falsy(
-        parseHeader('hasVolumeAttributes', btoh(0b100000000000000000000000000)),
+        parseHeader('hasVolumeAttributes', btoh(0b100000000000000000000000000))
     );
 });
 
@@ -110,19 +105,19 @@ test('ArchiveHeaderParser.parse should parse isLocked flag', t => {
 
 test('ArchiveHeaderParser.parse should parse hasSolidAttributes flag', t => {
     t.truthy(
-        parseHeader('hasSolidAttributes', btoh(0b100000000000000000000001000)),
+        parseHeader('hasSolidAttributes', btoh(0b100000000000000000000001000))
     );
     t.falsy(
-        parseHeader('hasSolidAttributes', btoh(0b100000000000000000000000000)),
+        parseHeader('hasSolidAttributes', btoh(0b100000000000000000000000000))
     );
 });
 
 test('ArchiveHeaderParser.parse should parse isNewNameScheme flag', t => {
     t.truthy(
-        parseHeader('isNewNameScheme', btoh(0b100000000000000000000010000)),
+        parseHeader('isNewNameScheme', btoh(0b100000000000000000000010000))
     );
     t.falsy(
-        parseHeader('isNewNameScheme', btoh(0b100000000000000000000000000)),
+        parseHeader('isNewNameScheme', btoh(0b100000000000000000000000000))
     );
 });
 
@@ -138,16 +133,16 @@ test('ArchiveHeaderParser.parse should parse hasRecovery flag', t => {
 
 test('ArchiveHeaderParser.parse should parse isBlockEncoded flag', t => {
     t.truthy(
-        parseHeader('isBlockEncoded', btoh(0b100000000000000000010000000)),
+        parseHeader('isBlockEncoded', btoh(0b100000000000000000010000000))
     );
     t.falsy(parseHeader('isBlockEncoded', btoh(0b100000000000000000000000000)));
 });
 
 test('ArchiveHeaderParser.parse should parse isFirstVolume flag', t => {
     t.truthy(
-        parseHeader('isFirstVolume', btoh(0b100000000000000000000000000000001)),
+        parseHeader('isFirstVolume', btoh(0b100000000000000000000000000000001))
     );
     t.falsy(
-        parseHeader('isFirstVolume', btoh(0b100000000000000000000000000000000)),
+        parseHeader('isFirstVolume', btoh(0b100000000000000000000000000000000))
     );
 });

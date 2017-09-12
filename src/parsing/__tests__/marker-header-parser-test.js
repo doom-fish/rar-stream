@@ -1,12 +1,7 @@
-// @flow
-import test from 'ava';
-import MarkerHeaderParser from '../marker-header-parser';
-import bind, { newPadding, hammingWeight } from '../__mocks__/utils';
+const test = require('ava');
+const MarkerHeaderParser = require('../marker-header-parser');
+const { bind, newPadding, hammingWeight } = require('../__mocks__/utils');
 const { newParser, parseHeader } = bind(MarkerHeaderParser, 11);
-
-test('MarkerHeaderParser.bytesToRead should be 11', t => {
-    t.is(newParser('00').bytesToRead, 11);
-});
 
 test('MarkerHeaderParser.parse should parse crc as 2 bytes', t => {
     t.is(hammingWeight(parseHeader('crc', 'ffff')), 16);

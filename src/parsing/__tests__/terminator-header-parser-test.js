@@ -1,12 +1,7 @@
-// @flow
-import test from 'ava';
-import TerminatorHeaderParser from '../terminator-header-parser';
-import bind, { hammingWeight } from '../__mocks__/utils';
+const test = require('ava');
+const TerminatorHeaderParser = require('../terminator-header-parser');
+const { bind, hammingWeight } = require('../__mocks__/utils');
 const { newParser, parseHeader } = bind(TerminatorHeaderParser, 7);
-
-test('TerminatorHeaderParser.bytesToRead should be 7', t => {
-    t.is(newParser('00').bytesToRead, 7);
-});
 
 test('TerminatorHeaderParser.parse should parse 2 first bytes as crc', t => {
     t.is(hammingWeight(parseHeader('crc', 'ffffAB')), 16);

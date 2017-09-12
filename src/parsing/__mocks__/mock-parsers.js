@@ -1,15 +1,13 @@
-// @flow
-type Empty = {};
-export class MockEmptyParser {
-    parse(): Empty {
+//
+module.exports.MockEmptyParser = class {
+    parse() {
         return {};
     }
-}
-type MockFileHeader = { name: string };
-export class MockFileHeaderParser {
-    parse(): MockFileHeader {
+};
+module.exports.MockFileHeaderParser = class {
+    parse() {
         return {
-            name: 'test'
+            name: 'test',
         };
     }
-}
+};

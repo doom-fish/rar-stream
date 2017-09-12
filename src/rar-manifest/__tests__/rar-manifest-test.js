@@ -1,11 +1,11 @@
-// @flow
-import test from 'ava';
-import path from 'path';
-import fs from 'fs';
-import RarManifest from '../rar-manifest';
-import RarFileBundle from '../../rar-file/rar-file-bundle';
-import LocalFileMedia from '../../file-media/local-file-media';
-import streamToBuffer from 'stream-to-buffer';
+//
+const test = require('ava');
+const path = require('path');
+const fs = require('fs');
+const RarManifest = require('../rar-manifest');
+const makeRarFileBundle = require('../../rar-file/rar-file-bundle');
+const LocalFileMedia = require('../../file-media/local-file-media');
+const streamToBuffer = require('stream-to-buffer');
 
 const streamToBufferPromise = async stream =>
     new Promise((resolve, reject) =>
@@ -54,26 +54,26 @@ const multiSplitted4FilePath = path.join(
 );
 
 const createSingleFileRarBundle = () =>
-    new RarFileBundle([
+    makeRarFileBundle([
         new LocalFileMedia(path.join(fixturePath, 'single/single.rar')),
     ]);
 
 const createSingleRarWithManyInnerBundle = () =>
-    new RarFileBundle([
+    makeRarFileBundle([
         new LocalFileMedia(
             path.join(fixturePath, 'single-splitted/single-splitted.rar')
         ),
     ]);
 
 const createMultipleRarFileWithOneInnerBundle = () =>
-    new RarFileBundle([
+    makeRarFileBundle([
         new LocalFileMedia(path.join(fixturePath, 'multi/multi.rar')),
         new LocalFileMedia(path.join(fixturePath, 'multi/multi.r01')),
         new LocalFileMedia(path.join(fixturePath, 'multi/multi.r00')),
     ]);
 
 const createMultipleRarFileWithManyInnerBundle = () =>
-    new RarFileBundle([
+    makeRarFileBundle([
         new LocalFileMedia(
             path.join(fixturePath, 'multi-splitted/multi-splitted.rar')
         ),

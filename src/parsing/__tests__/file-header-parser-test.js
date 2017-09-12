@@ -1,12 +1,7 @@
-// @flow
-import test from 'ava';
-import FileHeaderParser from '../file-header-parser';
-import bind, { newPadding, hammingWeight, btoh } from '../__mocks__/utils';
-const {newParser, parseHeader} = bind(FileHeaderParser, 280);
-
-test('FileHeaderParser.bytesToRead should return 280', t => {
-    t.is(newParser('00').bytesToRead, 280);
-});
+const test = require('ava');
+const FileHeaderParser = require('../file-header-parser');
+const { bind, newPadding, hammingWeight, btoh } = require('../__mocks__/utils');
+const { newParser, parseHeader } = bind(FileHeaderParser, 280);
 
 test('FileHeaderParser.parse should parse crc as 2 bytes', t => {
     t.is(hammingWeight(parseHeader('crc', 'ffff')), 16);
@@ -232,9 +227,10 @@ test('FileHeaderParser.parse should parse hasExtendedTime flag', t => {
 });
 
 test('FileHeaderParser.parse should handle high file size', t => {
-    const data = 'D97774111111115C1000005C10000003C5A6D2158A5' +
-               '95B4714300A00A4810000040000000400000061636B6' +
-               'E6F772E74787400C0';
+    const data =
+        'D97774111111115C1000005C10000003C5A6D2158A5' +
+        '95B4714300A00A4810000040000000400000061636B6' +
+        'E6F772E74787400C0';
 
     t.truthy(parseHeader('hasHighSize', data));
     t.is(parseHeader('size', data), 0x40000105c);
@@ -242,8 +238,9 @@ test('FileHeaderParser.parse should handle high file size', t => {
 });
 
 test('FileHeaderParser.parse should parse name properly', t => {
-    const data = 'D97774111111115C1000005C10000003C5A6D2158A5' +
-               '95B4714300A00A4810000040000000400000061636B6' +
-               'E6F772E74787400C0';
+    const data =
+        'D97774111111115C1000005C10000003C5A6D2158A5' +
+        '95B4714300A00A4810000040000000400000061636B6' +
+        'E6F772E74787400C0';
     t.is(parseHeader('name', data), 'acknow.txt');
 });
