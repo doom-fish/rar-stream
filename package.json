@@ -1,6 +1,6 @@
 {
   "name": "rar-stream",
-  "version": "0.6.2",
+  "version": "0.6.3",
   "description": "Rar-Stream is a module for managing rar archives as node streams",
   "author": "Per Johansson",
   "repository": {
