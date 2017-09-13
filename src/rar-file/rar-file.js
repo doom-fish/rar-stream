@@ -1,5 +1,5 @@
 const RarStream = require('./rar-stream');
-const streamToBuffer = require('stream-to-buffer');
+const { streamToBuffer } = require('../stream-utils');
 
 module.exports = class RarFile {
     constructor(name, rarFileChunks) {
@@ -11,19 +11,10 @@ module.exports = class RarFile {
         );
         this.name = name;
     }
-    async readToEnd() {
-        return new Promise((resolve, reject) => {
-            streamToBuffer(
-                this.createReadStream({ start: 0, end: this.size }),
-                (err, buffer) => {
-                    if (err) {
-                        reject(err);
-                    } else {
-                        resolve(buffer);
-                    }
-                }
-            );
-        });
+    readToEnd() {
+        return streamToBuffer(
+            this.createReadStream({ start: 0, end: this.size })
+        );
     }
     getChunksToStream(start, end) {
         const { index: startIndex, start: startOffset } = this.findMappedChunk(

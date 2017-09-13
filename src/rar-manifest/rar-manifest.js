@@ -2,7 +2,7 @@ const { EventEmitter } = require('events');
 const RarFileBundle = require('../rar-file/rar-file-bundle');
 const RarFile = require('../rar-file/rar-file');
 const RarFileChunk = require('../rar-file/rar-file-chunk');
-
+const { streamToBuffer } = require('../stream-utils');
 const MarkerHeaderParser = require('../parsing/marker-header-parser');
 const ArchiveHeaderParser = require('../parsing/archive-header-parser');
 const FileHeaderParser = require('../parsing/file-header-parser');
@@ -12,11 +12,12 @@ const flatten = list =>
     list.reduce((a, b) => a.concat(Array.isArray(b) ? flatten(b) : b), []);
 
 const parseHeader = async (Parser, fileMedia, offset = 0) => {
-    const stream = await fileMedia.createReadStream({
+    const stream = fileMedia.createReadStream({
         start: offset,
         end: offset + Parser.HEADER_SIZE,
     });
-    const parser = new Parser(stream);
+    const headerBuffer = await streamToBuffer(stream);
+    const parser = new Parser(headerBuffer);
     return parser.parse();
 };
 

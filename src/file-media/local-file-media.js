@@ -14,10 +14,6 @@ module.exports = class LocalFileMedia {
         this.size = statSync(path).size;
     }
     createReadStream(interval) {
-        const stream = createReadStream(this.path, interval);
-        return new Promise((resolve, reject) => {
-            stream.once('readable', () => resolve(stream));
-            stream.on('error', reject);
-        });
+        return createReadStream(this.path, interval);
     }
 };

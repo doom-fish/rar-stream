@@ -1,4 +1,11 @@
-import RarFileBundle from './rar-file/rar-file-bundle';
-import RarManifest from './rar-manifest/rar-manifest';
+const makeFileBundle = require('./rar-file/rar-file-bundle');
+const RarManifest = require('./rar-manifest/rar-manifest');
+const TorrentFileMedia = require('./file-media/torrent-file-media');
+const LocalFileMedia = require('./file-media/local-file-media');
 
-export { RarFileBundle, RarManifest };
+module.exports = {
+    makeFileBundle,
+    LocalFileMedia,
+    TorrentFileMedia,
+    RarManifest,
+};

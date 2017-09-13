@@ -4,15 +4,7 @@ const RarStream = require('../rar-stream');
 const RarFileChunk = require('../rar-file-chunk');
 
 const MockFileMedia = require('../../parsing/__mocks__/mock-file-media');
-const streamToBuffer = require('stream-to-buffer');
-
-const streamToBufferPromise = stream =>
-    new Promise((resolve, reject) =>
-        streamToBuffer(
-            stream,
-            (err, buffer) => (err ? reject(err) : resolve(buffer))
-        )
-    );
+const { streamToBuffer } = require('../../stream-utils');
 
 test('rar stream should stream over list of file chunks', async t => {
     const bufferString = '123456789ABC';
@@ -22,7 +14,7 @@ test('rar stream should stream over list of file chunks', async t => {
         new RarFileChunk(fileMedia, 0, 2),
         new RarFileChunk(fileMedia, 2, 6),
     ]);
-    const buffer = await streamToBufferPromise(rarStream);
+    const buffer = await streamToBuffer(rarStream);
     t.deepEqual(buffer, new Buffer(bufferString, 'hex'));
 });
 
@@ -35,7 +27,7 @@ test('rar stream should stream over list of file chunks that are fragmented', as
         new RarFileChunk(fileMedia, 1, 2),
         new RarFileChunk(fileMedia, 4, 6),
     ]);
-    const buffer = await streamToBufferPromise(rarStream);
+    const buffer = await streamToBuffer(rarStream);
     t.deepEqual(buffer, new Buffer(fragmentedResult, 'hex'));
 });
 
@@ -49,6 +41,6 @@ test('rar stream should stream over longer list of file chunks', async t => {
         new RarFileChunk(fileMedia, 4, 6),
     ]);
 
-    const buffer = await streamToBufferPromise(rarStream);
+    const buffer = await streamToBuffer(rarStream);
     t.deepEqual(buffer, new Buffer(bufferString, 'hex'));
 });

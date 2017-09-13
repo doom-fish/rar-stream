@@ -13,20 +13,19 @@ module.exports = class RarStream extends Readable {
     get isStarted() {
         return !!this.stream;
     }
-    async next() {
+    next() {
         const chunk = this.rarFileChunks.shift();
         if (!chunk) {
             this.push(null);
         } else {
-            this.stream = await chunk.getStream();
+            this.stream = chunk.getStream();
             this.stream.on('data', data => this.pushData(data));
             this.stream.on('end', () => this.next());
         }
     }
-    async _read() {
+    _read() {
         if (!this.isStarted) {
-            await this.next();
-            this.stream.resume();
+            this.next();
         } else {
             this.stream.resume();
         }

@@ -12,15 +12,12 @@ function parseFlags(parsedVars) {
     parsedVars.isFirstVolume = (parsedVars.flags & 0x0100) !== 0;
 }
 class ArchiveHeaderParser {
-    constructor(stream) {
-        this.stream = stream;
+    constructor(headerBuffer) {
+        this.headerBuffer = headerBuffer;
     }
-
     parse() {
-        const headerBuffer = this.stream.read(ArchiveHeaderParser.HEADER_SIZE);
-
         const { vars } = binary
-            .parse(headerBuffer)
+            .parse(this.headerBuffer)
             .word16lu('crc')
             .word8lu('type')
             .word16lu('flags')

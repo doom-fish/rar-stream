@@ -1,14 +1,11 @@
 const binary = require('binary');
 class TerminatorHeaderParser {
-    constructor(stream) {
-        this.stream = stream;
+    constructor(headerBuffer) {
+        this.headerBuffer = headerBuffer;
     }
     parse() {
-        const terminatorHeaderBuffer = this.stream.read(
-            TerminatorHeaderParser.HEADER_SIZE
-        );
         const { vars } = binary
-            .parse(terminatorHeaderBuffer)
+            .parse(this.headerBuffer)
             .word16lu('crc')
             .word8lu('type')
             .word16lu('flags')

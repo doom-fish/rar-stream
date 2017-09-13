@@ -27,13 +27,12 @@ function handleHighFileSize(parsedVars) {
 }
 
 class FileHeaderParser {
-    constructor(stream) {
-        this.stream = stream;
+    constructor(headerBuffer) {
+        this.headerBuffer = headerBuffer;
     }
     parse() {
-        const fileHeaderBuffer = this.stream.read(FileHeaderParser.HEADER_SIZE);
         const { vars } = binary
-            .parse(fileHeaderBuffer)
+            .parse(this.headerBuffer)
             .word16lu('crc')
             .word8lu('type')
             .word16lu('flags')

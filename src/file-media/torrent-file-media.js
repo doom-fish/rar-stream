@@ -1,13 +1,10 @@
 module.exports = class TorrentFileMedia {
-    constructor(torrentFileInfo) {
-        this.size = torrentFileInfo.length;
-        this.name = torrentFileInfo.name;
+    constructor(torrentFile) {
+        this.size = torrentFile.length;
+        this.name = torrentFile.name;
+        this.torrentFile = torrentFile;
     }
     createReadStream(interval) {
-        const stream = createReadStream(interval);
-        return new Promise((resolve, reject) => {
-            stream.once('readable', () => resolve(stream));
-            stream.on('error', reject);
-        });
+        return this.torrentFile.createReadStream(interval);
     }
 };

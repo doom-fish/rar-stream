@@ -5,17 +5,10 @@ const fs = require('fs');
 const RarManifest = require('../rar-manifest');
 const makeRarFileBundle = require('../../rar-file/rar-file-bundle');
 const LocalFileMedia = require('../../file-media/local-file-media');
-const streamToBuffer = require('stream-to-buffer');
-
-const streamToBufferPromise = async stream =>
-    new Promise((resolve, reject) =>
-        streamToBuffer(
-            stream,
-            (err, buffer) => (err ? reject(err) : resolve(buffer))
-        )
-    );
+const { streamToBuffer } = require('../../stream-utils');
 
 let fixturePath = path.join(__dirname, '../__fixtures__');
+
 if (global.isBeingRunInWallaby) {
     fixturePath = global.fixturePath;
 }
@@ -87,12 +80,13 @@ const createMultipleRarFileWithManyInnerBundle = () =>
 
 const readToEnd = f => Promise.all(f.map(file => file.readToEnd()));
 
-test('single rar file with one inner files can be read as whole', async t => {
+test('single rar file with one inner file can be read as whole', async t => {
     const bundle = createSingleFileRarBundle();
     const manifest = new RarManifest(bundle);
     const files = await manifest.getFiles();
     const [rarFileContent] = await readToEnd(files);
     const singleFileContent = fs.readFileSync(singleFilePath);
+
     t.is(rarFileContent.length, singleFileContent.length);
     t.deepEqual(rarFileContent, singleFileContent);
 });
@@ -105,8 +99,8 @@ test('single rar file with one inner files can be read in parts', async t => {
     const [file] = await manifest.getFiles();
     const rarFileInterval = file.createReadStream(interval);
     const singleFileInterval = fs.createReadStream(singleFilePath, interval);
-    const rarFileBuffer = await streamToBufferPromise(rarFileInterval);
-    const singleFileBuffer = await streamToBufferPromise(singleFileInterval);
+    const rarFileBuffer = await streamToBuffer(rarFileInterval);
+    const singleFileBuffer = await streamToBuffer(singleFileInterval);
 
     t.is(rarFileBuffer.length, singleFileBuffer.length);
     t.deepEqual(rarFileBuffer, singleFileBuffer);
@@ -173,23 +167,23 @@ test('single rar file with many inner files can be read in parts', async t => {
 
     const [rarFile1, rarFile2, rarFile3] = await manifest.getFiles();
 
-    const rarFile1Buffer = await streamToBufferPromise(
+    const rarFile1Buffer = await streamToBuffer(
         rarFile1.createReadStream(interval)
     );
-    const rarFile2Buffer = await streamToBufferPromise(
+    const rarFile2Buffer = await streamToBuffer(
         rarFile2.createReadStream(interval)
     );
-    const rarFile3Buffer = await streamToBufferPromise(
+    const rarFile3Buffer = await streamToBuffer(
         rarFile3.createReadStream(interval)
     );
 
-    const splittedFile1Buffer = await streamToBufferPromise(
+    const splittedFile1Buffer = await streamToBuffer(
         fs.createReadStream(singleSplitted1FilePath, interval)
     );
-    const splittedFile2Buffer = await streamToBufferPromise(
+    const splittedFile2Buffer = await streamToBuffer(
         fs.createReadStream(singleSplitted2FilePath, interval)
     );
-    const splittedFile3Buffer = await streamToBufferPromise(
+    const splittedFile3Buffer = await streamToBuffer(
         fs.createReadStream(singleSplitted3FilePath, interval)
     );
 
@@ -217,10 +211,8 @@ test('multiple rar file with one inner can be read as in parts', async t => {
     const manifest = new RarManifest(bundle);
 
     const [file] = await manifest.getFiles();
-    const rarFileBuffer = await streamToBufferPromise(
-        file.createReadStream(interval)
-    );
-    const multiFileBuffer = await streamToBufferPromise(
+    const rarFileBuffer = await streamToBuffer(file.createReadStream(interval));
+    const multiFileBuffer = await streamToBuffer(
         fs.createReadStream(multiFilePath, interval)
     );
 
@@ -256,29 +248,29 @@ test('multi rar file with many inner files can be read in parts', async t => {
 
     const [rarFile1, rarFile2, rarFile3, rarFile4] = await manifest.getFiles();
 
-    const rarFile1Buffer = await streamToBufferPromise(
+    const rarFile1Buffer = await streamToBuffer(
         rarFile1.createReadStream(interval)
     );
-    const rarFile2Buffer = await streamToBufferPromise(
+    const rarFile2Buffer = await streamToBuffer(
         rarFile2.createReadStream(interval)
     );
-    const rarFile3Buffer = await streamToBufferPromise(
+    const rarFile3Buffer = await streamToBuffer(
         rarFile3.createReadStream(interval)
     );
-    const rarFile4Buffer = await streamToBufferPromise(
+    const rarFile4Buffer = await streamToBuffer(
         rarFile4.createReadStream(interval)
     );
 
-    const splittedFile1Buffer = await streamToBufferPromise(
+    const splittedFile1Buffer = await streamToBuffer(
         fs.createReadStream(multiSplitted1FilePath, interval)
     );
-    const splittedFile2Buffer = await streamToBufferPromise(
+    const splittedFile2Buffer = await streamToBuffer(
         fs.createReadStream(multiSplitted2FilePath, interval)
     );
-    const splittedFile3Buffer = await streamToBufferPromise(
+    const splittedFile3Buffer = await streamToBuffer(
         fs.createReadStream(multiSplitted3FilePath, interval)
     );
-    const splittedFile4Buffer = await streamToBufferPromise(
+    const splittedFile4Buffer = await streamToBuffer(
         fs.createReadStream(multiSplitted4FilePath, interval)
     );
 
