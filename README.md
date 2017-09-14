@@ -104,24 +104,24 @@ Should have the following shape:
 ```
 
 
-### Development
+## Development
 
-## Running the tests
+### Running the tests
 
 Run tests with:
 ```
 npm test
 ```
 
-## Built With
+### Built With
 
 * [binary](https://www.npmjs.com/package/binary) - For parsing rar headers.
 
-## Contributing
+### Contributing
 
 Post a new issue if you'd like to contribute in any way.
 
-## Versioning
+### Versioning
 
 We use [SemVer](http://semver.org/) for versioning. For the versions available, see the [tags on this repository](https://github.com/1313/rar-stream/tags). 
 
