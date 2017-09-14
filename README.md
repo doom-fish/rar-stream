@@ -26,7 +26,7 @@ const localRarFiles = [
 const rarFilesPackage = new RarFilesPackage(localRarFiles);
 
 async function writeInnerRarFilesToDisk() {
-    const innerFiles = await rarFilesPackage.getFiles();
+    const innerFiles = await rarFilesPackage.parse();
     for(const innerFile of innerFiles) {
       innerFile
         .createReadStream({ start: 0, end: innerFile.length - 1})
