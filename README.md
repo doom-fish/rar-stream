@@ -36,7 +36,7 @@ async function writeInnerRarFilesToDisk() {
 writeInnerRarFilesToDisk();
 
 ```
-See [example/webtorrent.js](examples/webtorrent.js) for a more advanced example.
+See [example/webtorrent.js](example/webtorrent.js) for a more advanced example.
 
 ### Installing
 
@@ -62,18 +62,18 @@ const innerFiles = await rarFilesPackage.parse();
 #### Methods:
 Method | Description
 ------|------------
-_constructor_ | Takes an array of local file paths as strings or instances that satifies the [#filemedia-interface](`FileMedia`) api mentioned below.
+_constructor_ | Takes an array of local file paths as strings or instances that satifies the [`FileMedia`](#filemedia-interface) api mentioned below.
 parse | Parses all rar files and returns a Promise with `InnerFile`s.
 
 #### Events:
 Event | Description
 ------|------------
 parsing-start | Emitted when the parsing is started, happens when you call `parse`. Event args are a bundle represntation of all the rar files passed to the constructor.
-file-parsed | Emitted each time a new inner file is parsed success fully. The event argument is the [#innerfile-api](`InnerFile`) parsed.
-parsing-complete | Emitted when the parsing is completed. The event argument is an array of all the parsed [#innerfile-api](`InnerFile`)s.
+file-parsed | Emitted each time a new inner file is parsed success fully. The event argument is the [`InnerFile`](#innerfile-api) parsed.
+parsing-complete | Emitted when the parsing is completed. The event argument is an array of all the parsed [`InnerFile`](#innerfile-api)s.
 
 ### InnerFile Api
-Implements the [#filemedia-interface](`FileMedia`) api.
+Implements the [`FileMedia`](#filemedia-interface) api.
 ```
 // example
 const innerFiles = await rarStreamPackage.parse();
