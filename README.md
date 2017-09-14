@@ -63,18 +63,18 @@ const innerFiles = await rarFilesPackage.parse();
 #### Methods:
 Method | Description
 ------|------------
-_constructor_ | Takes an array of local file paths as strings or instances that satifies the `FileMedia` api mentioned below.
+_constructor_ | Takes an array of local file paths as strings or instances that satifies the [#filemedia-interface](`FileMedia`) api mentioned below.
 parse | Parses all rar files and returns a Promise with `InnerFile`s.
 
 #### Events:
 Event | Description
 ------|------------
 parsing-start | Emitted when the parsing is started, happens when you call `parse`. Event args are a bundle represntation of all the rar files passed to the constructor.
-file-parsed | Emitted each time a new inner file is parsed success fully. The event argument is the `InnerFile` parsed.
-parsing-complete | Emitted when the parsing is completed. The event argument is an array of all the parsed `InnerFile`s.
+file-parsed | Emitted each time a new inner file is parsed success fully. The event argument is the [#innerfile-api](`InnerFile`) parsed.
+parsing-complete | Emitted when the parsing is completed. The event argument is an array of all the parsed [#innerfile-api](`InnerFile`)s.
 
 ### InnerFile Api
-Implements the `FileMedia` api.
+Implements the [#filemedia-interface](`FileMedia`) api.
 ```
 // example
 const innerFiles = await rarStreamPackage.parse();
@@ -92,7 +92,7 @@ Property | Description
 name | The name of the file
 length | Returns the number of bytes
 
-### FileMedia Interface
+### _FileMedia Interface_
 This is loosely enforced interface that makes this module interoptable with other node modules such as `torrent-stream` or `webtorrent`. 
 
 Should have the following shape:
