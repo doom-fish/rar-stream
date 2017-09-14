@@ -67,7 +67,7 @@ parsing-complete | Emitted when the parsing is completed. The event argument is 
 ```
 const rarFilesPackage = new RarFilesPackage(localRarFiles);
 rarFilesPackage.on('parsing-start', rarFiles => console.log(rarFiles))
-rarFilesPackage.on('file-parsed', innerFile => console.log(innerFile.name))
+rarFilesPackage.on('file-parsed', rarFile => console.log(rarFile.name))
 rarFilesPackage.on('parsing-end', innerFiles => console.log(innerFiles))
 const innerFiles = await rarFilesPackage.parse();
 ```
