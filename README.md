@@ -2,7 +2,9 @@
 [![Build Status](https://api.travis-ci.org/1313/rar-stream.svg)](https://travis-ci.org/1313/rar-stream)
 
 Library for reading rar files as node Readable streams.
-__Note: Requires node version >= 8.0.0
+
+__Note: Requires node version >= 8.0.0__
+
 __Note: Uncompression is not implemented at the moment__
 
 ## Getting Started
@@ -55,27 +57,27 @@ const rarFilesPackage = new RarFilesPackage(localRarFiles);
 rarFilesPackage.on('parsing-start', rarFiles => console.log(rarFiles))
 rarFilesPackage.on('file-parsed', innerFile => console.log(innerFile.name))
 rarFilesPackage.on('parsing-end', innerFiles => console.log(innerFiles))
-const innerFiles = await rarFilesPackage.getFiles();
+const innerFiles = await rarFilesPackage.parse();
 ```
 
 #### Methods:
 Method | Description
 ------|------------
 _constructor_ | Takes an array of local file paths as strings or instances that satifies the `FileMedia` api mentioned below.
-getFiles | Parses all rar files and returns a Promise with `InnerFile`s.
+parse | Parses all rar files and returns a Promise with `InnerFile`s.
 
 #### Events:
 Event | Description
 ------|------------
-parsing-start | Emitted when the parsing is started, happens when you call `getFiles`. Event args are a bundle represntation of all the rar files passed to the constructor.
+parsing-start | Emitted when the parsing is started, happens when you call `parse`. Event args are a bundle represntation of all the rar files passed to the constructor.
 file-parsed | Emitted each time a new inner file is parsed success fully. The event argument is the `InnerFile` parsed.
-parsing-end | Emitted when the parsing is completed. The event argument is an array of all the parsed `InnerFile`s.
+parsing-complete | Emitted when the parsing is completed. The event argument is an array of all the parsed `InnerFile`s.
 
 ### InnerFile Api
 Implements the `FileMedia` api.
 ```
 // example
-const innerFiles = await rarStreamPackage.getFiles();
+const innerFiles = await rarStreamPackage.parse();
 const innerFileStream = innerFiles[0].createReadStream(0, 10);
 ```
 #### Methods:
