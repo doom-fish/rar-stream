@@ -73,7 +73,7 @@ file-parsed | Emitted each time a new inner file is parsed success fully. The ev
 parsing-complete | Emitted when the parsing is completed. The event argument is an array of all the parsed [`InnerFile`](#innerfile-api)s.
 
 ### InnerFile Api
-Implements the [`FileMedia`](#filemedia-interface) api.
+Implements the [`FileMedia`](#filemedia-interface) interface.
 ```
 // example
 const innerFiles = await rarStreamPackage.parse();
@@ -92,7 +92,7 @@ name | The name of the file
 length | Returns the number of bytes
 
 ### _FileMedia Interface_
-This is loosely enforced interface that makes this module interoptable with other node modules such as `torrent-stream` or `webtorrent`. 
+This is loosely enforced interface that makes this module interoptable with other node modules such as [`torrent-stream`](https://www.npmjs.com/package/torrent-stream) or [`webtorrent`](https://www.npmjs.com/package/webtorrent). 
 
 Should have the following shape:
 ```javascript
