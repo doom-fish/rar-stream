@@ -53,7 +53,7 @@ npm i rar-stream
 #### Methods:
 Method | Description
 ------|------------
-_constructor_ | Takes an array of local file paths as strings or instances that satifies the [`FileMedia`](#filemedia-interface) api mentioned below.
+_constructor_ | Takes an array of local file paths as strings or instances that satifies the [`FileMedia`](#filemedia-interface) interface mentioned below.
 parse | Parses all rar files and returns a Promise with [`InnerFile`](#innerfile-api)s.
 
 #### Events:
