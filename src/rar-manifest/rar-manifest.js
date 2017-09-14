@@ -7,7 +7,7 @@ const MarkerHeaderParser = require('../parsing/marker-header-parser');
 const ArchiveHeaderParser = require('../parsing/archive-header-parser');
 const FileHeaderParser = require('../parsing/file-header-parser');
 const TerminalHeaderParser = require('../parsing/terminator-header-parser');
-
+const makeRarFileBundle = require('../rar-file/rar-file-bundle');
 const flatten = list =>
   list.reduce((a, b) => a.concat(Array.isArray(b) ? flatten(b) : b), []);
 
@@ -22,9 +22,9 @@ const parseHeader = async (Parser, fileMedia, offset = 0) => {
 };
 
 module.exports = class RarManifest extends EventEmitter {
-  constructor(rarFileBundle) {
+  constructor(fileMedias) {
     super();
-    this.rarFileBundle = rarFileBundle;
+    this.rarFileBundle = makeRarFileBundle(fileMedias);
   }
   async parseFile(rarFile) {
     const fileChunks = [];

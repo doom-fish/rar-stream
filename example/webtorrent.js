@@ -5,7 +5,7 @@ const Webtorrent = require('webtorrent');
 const fs = require('fs');
 const progressStream = require('progress-stream');
 
-const { makeRarFileBundle, RarManifest } = require('rar-stream');
+const RarStreamPackage = require('rar-stream');
 
 const client = new Webtorrent();
 
@@ -15,11 +15,13 @@ client.add(magnetURI, torrent => {
   // Got torrent metadata!
   console.log('Client is downloading:', torrent.infoHash);
 
-  const bundle = makeRarFileBundle(torrent.files);
+  const rarStreamPackage = new RarStreamPackage(torrent.files);
 
-  const manifest = new RarManifest(bundle);
-  manifest.on('file-parsed', file => console.log(`Parsed file: ${file.name}`));
-  const innerFiles = manifest.getFiles().then(innerFiles => {
+  rarStreamPackage.on('file-parsed', file =>
+    console.log(`Parsed file: ${file.name}`)
+  );
+
+  const innerFiles = rarStreamPackage.getFiles().then(innerFiles => {
     const [innerFile] = innerFiles.filter(
       inner => inner.name.indexOf('mkv') !== -1
     );
@@ -29,7 +31,7 @@ client.add(magnetURI, torrent => {
       time: 100,
     });
     streamProgress.on('progress', ({ percentage, speed, eta }) => {
-      // console.log('\x1b[2J\x1b[0f\u001b[0;0H');
+      console.log('\x1b[2J\x1b[0f\u001b[0;0H');
       console.log('Downloading', innerFile.name);
       console.log(
         Math.round(percentage) + '%',
@@ -37,9 +39,14 @@ client.add(magnetURI, torrent => {
         prettySeconds(eta) + ' left'
       );
     });
-    innerFile
-      .createReadStream({ start: 0, end: innerFile.length - 1 })
+    const fileStream = innerFile
+      .createReadStream({
+        start: 0,
+        end: innerFile.length - 1,
+      })
       .pipe(streamProgress)
-      .pipe(fs.createWriteStream('outstream.mkv'));
+      .pipe(fs.createWriteStream(innerFile.name));
+
+    fileStream.on('close', () => process.exit());
   });
 });
