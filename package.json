@@ -2,7 +2,7 @@
   "name": "rar-stream",
   "version": "1.3.2",
   "description": "Rar-Stream is a module for managing rar archives as node streams",
-  "author": "Per Johansson",
+  "author": "1313",
   "repository": {
     "type": "git",
     "url": "https://github.com/1313/rar-stream.git"
@@ -22,7 +22,6 @@
   "devDependencies": {
     "ava": "^0.22.0",
     "nyc": "^11.2.1",
-    "tap-nyan": "^1.1.0",
-    "testdouble": "^3.2.5"
+    "tap-nyan": "^1.1.0"
   }
 }
