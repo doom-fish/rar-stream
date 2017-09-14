@@ -1,6 +1,7 @@
 const RXX_EXTENSION = /\.R(\d\d)$|.RAR$/i;
 const RAR_EXTENSION = /.RAR$/i;
 const PARTXX_RAR_EXTENSION = /.PART(\d\d).RAR/i;
+const LocalFileMedia = require('../file-media/local-file-media');
 
 const isPartXXExtension = (fileMedias = []) => {
   let anyPartXXTypes = fileMedias.filter(
@@ -88,7 +89,20 @@ class PartXXRarBundle {
   }
 }
 
-module.exports = (fileMedias = []) =>
-  isPartXXExtension(fileMedias)
+const parseFileMedias = (fileMedias = []) => {
+  const localFileMedias = fileMedias
+    .filter(fileMedia => typeof fileMedia === 'string')
+    .map(path => new LocalFileMedia(path));
+  const otherFileMedias = fileMedias.filter(
+    fileMedia => typeof fileMedia !== 'string'
+  );
+  return [...localFileMedias, ...otherFileMedias];
+};
+
+module.exports = (fileMedias = []) => {
+  fileMedias = parseFileMedias(fileMedias);
+
+  return isPartXXExtension(fileMedias)
     ? new PartXXRarBundle(fileMedias)
     : new NumericRarFileBundle(fileMedias);
+};
