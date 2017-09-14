@@ -82,7 +82,7 @@ const innerFileStream = innerFiles[0].createReadStream(0, 10);
 #### Methods:
 Method | Description
 ------|------------
-createReadStream(start: number, end: number) | Returns a `Readable` stream. The start and end interval is inclusive.
+createReadStream({start: number, end: number}) | Returns a `Readable` stream. The start and end interval is inclusive.
 readToEnd | Returns a Promise with a Buffer containing all the content of the file.
 
 #### Properties:
@@ -96,10 +96,18 @@ This is loosely enforced interface that makes this module interoptable with othe
 
 Should have the following shape:
 ```javascript
+ // FileMedia
  {
-  createReadStream(start: number, end: number): Readable, // start and end interval should be inclusive.
+  createReadStream(interval: Interval): Readable,
   name: string,
   length: number // Length or size of the file in bytes
+ }
+ 
+ // Interval
+ // start and end should be inclusive.
+ {
+  start: number,
+  end: number
  }
 ```
 
