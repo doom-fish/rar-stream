@@ -98,8 +98,8 @@ Should have the following shape:
 ```javascript
  {
   createReadStream(start: number, end: number): Readable, // start and end interval should be inclusive.
-  name: string, // Name of the file
-  length: number // Length of the file
+  name: string,
+  length: number // Length or size of the file in bytes
  }
 ```
 
