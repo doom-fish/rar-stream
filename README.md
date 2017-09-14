@@ -1,7 +1,7 @@
 # rar-stream
 [![Build Status](https://api.travis-ci.org/1313/rar-stream.svg)](https://travis-ci.org/1313/rar-stream)
 
-Library for reading rar files as node Readable streams.
+Library for _"unpacking"_ and reading files inside rar archives as node Readable streams.
 
 __Note: Requires node version >= 8.0.0__
 
