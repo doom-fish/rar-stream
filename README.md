@@ -8,8 +8,7 @@ __Note: Requires node version >= 8.0.0__
 __Note: Uncompression is not implemented at the moment__
 
 ## Getting Started
-
-Include the main class by requiring it it as: 
+Below example shows howto unpack local rar files by piping the inner files to the file system.
 
 ```javascript
 const fs = require('fs');
