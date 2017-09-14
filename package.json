@@ -7,6 +7,9 @@
     "type": "git",
     "url": "https://github.com/1313/rar-stream.git"
   },
+  "engines": {
+    "node": ">=8.0.0"
+  },
   "main": "src",
   "scripts": {
     "test": "ava",
