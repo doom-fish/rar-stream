@@ -4,35 +4,40 @@ const { streamToBuffer } = require('../stream-utils');
 module.exports = class RarFile {
   constructor(name, rarFileChunks) {
     this.rarFileChunks = rarFileChunks;
-    this.chunkMap = this.calculateChunkMap(rarFileChunks);
     this.length = this.rarFileChunks.reduce(
       (length, chunk) => length + chunk.length,
       0
     );
+    this.chunkMap = this.calculateChunkMap(rarFileChunks);
+
     this.name = name;
   }
   readToEnd() {
     return streamToBuffer(
-      this.createReadStream({ start: 0, end: this.length })
+      this.createReadStream({ start: 0, end: this.length - 1 })
     );
   }
-  getChunksToStream(start, end) {
+  getChunksToStream(fileStart, fileEnd) {
     const { index: startIndex, start: startOffset } = this.findMappedChunk(
-      start
+      fileStart
     );
-
-    const { index: endIndex, end: endOffset } = this.findMappedChunk(end);
+    let { index: endIndex, end: endOffset } = this.findMappedChunk(fileEnd);
 
     const chunksToStream = this.rarFileChunks.slice(startIndex, endIndex + 1);
 
     const last = chunksToStream.length - 1;
-    chunksToStream[0] = chunksToStream[0].paddStart(
-      Math.abs(startOffset - start)
+    const first = 0;
+    chunksToStream[first] = chunksToStream[first].paddStart(
+      Math.abs(startOffset - fileStart)
     );
 
-    chunksToStream[last] = chunksToStream[last].paddEnd(
-      Math.abs(endOffset - end)
-    );
+    let diff = Math.abs(endOffset - fileEnd);
+    if (diff === this.rarFileChunks.length) {
+      diff = 0;
+    }
+    if (diff !== 0) {
+      chunksToStream[last] = chunksToStream[last].paddEnd(diff);
+    }
 
     return chunksToStream;
   }
@@ -40,9 +45,9 @@ module.exports = class RarFile {
     if (!interval) {
       interval = { start: 0, end: this.length };
     }
-    const { start, end } = interval;
+    let { start, end } = interval;
 
-    if (start < 0 || end > this.length) {
+    if (start < 0 || end >= this.length) {
       throw Error('Illegal start/end offset');
     }
 
@@ -51,10 +56,12 @@ module.exports = class RarFile {
   calculateChunkMap(rarFileChunks) {
     const chunkMap = [];
     let index = 0;
+    let fileOffset = 0;
     for (const chunk of rarFileChunks) {
-      const previousChunk = chunkMap[chunkMap.length - 1];
-      const start = (previousChunk && previousChunk.end) || 0;
-      const end = start + chunk.length;
+      const start = fileOffset;
+      const end = fileOffset + chunk.length;
+      fileOffset = end + 1;
+
       chunkMap.push({ index, start, end, chunk });
       index++;
     }
@@ -63,9 +70,9 @@ module.exports = class RarFile {
   }
   findMappedChunk(offset) {
     let selectedMap = this.chunkMap[0];
-    for (const map of this.chunkMap) {
-      if (offset >= map.start && offset <= map.end) {
-        selectedMap = map;
+    for (const chunkMapping of this.chunkMap) {
+      if (offset >= chunkMapping.start && offset <= chunkMapping.end) {
+        selectedMap = chunkMapping;
         break;
       }
     }

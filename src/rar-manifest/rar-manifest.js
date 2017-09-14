@@ -69,12 +69,12 @@ module.exports = class RarManifest extends EventEmitter {
 
       const chunks = await this.parseFile(file);
       const { fileHead, chunk } = chunks[chunks.length - 1];
-      const chunkSize = chunk.endOffset - chunk.startOffset + 1;
+      const chunkSize = Math.abs(chunk.endOffset - chunk.startOffset);
       let innerFileSize = fileHead.unpackedSize;
+      parsedFileChunks.push(chunks);
 
       if (fileHead.continuesInNext) {
-        parsedFileChunks.push(chunks);
-        while (innerFileSize - chunkSize > chunkSize) {
+        while (Math.abs(innerFileSize - chunkSize) >= chunkSize) {
           const nextFile = files[++i];
 
           parsedFileChunks.push([
@@ -90,8 +90,6 @@ module.exports = class RarManifest extends EventEmitter {
           this.emit('file-parsed', nextFile);
           innerFileSize -= chunkSize;
         }
-      } else {
-        parsedFileChunks.push(chunks);
       }
     }
 
@@ -109,6 +107,7 @@ module.exports = class RarManifest extends EventEmitter {
     const rarFiles = Object.keys(grouped).map(
       name => new RarFile(name, grouped[name])
     );
+
     this.emit('parsing-end', rarFiles);
     return rarFiles;
   }

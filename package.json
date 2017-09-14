@@ -9,7 +9,7 @@
   },
   "main": "src",
   "scripts": {
-    "test": "ava -tap | node_modules/.bin/tnyan",
+    "test": "ava",
     "coverage": "nyc ava"
   },
   "license": "MIT",
