@@ -63,8 +63,8 @@ parsing-start | Emitted when the parsing is started, happens when you call `pars
 file-parsed | Emitted each time a rar file is parsed. The event argument is the RarFile just parsed, i.e `.rxx` in the chain.
 parsing-complete | Emitted when the parsing is completed. The event argument is an array of all the parsed [`InnerFile`](#innerfile-api)s.
 
+#### Example
 ```
-// example
 const rarFilesPackage = new RarFilesPackage(localRarFiles);
 rarFilesPackage.on('parsing-start', rarFiles => console.log(rarFiles))
 rarFilesPackage.on('file-parsed', innerFile => console.log(innerFile.name))
@@ -87,8 +87,8 @@ Property | Description
 name | The name of the file
 length | Returns the number of bytes
 
+#### Example
 ```
-// example
 const innerFiles = await rarStreamPackage.parse();
 const innerFileStream = innerFiles[0].createReadStream({ start: 0, end: 30});
 ```
