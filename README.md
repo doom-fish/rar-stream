@@ -69,7 +69,7 @@ parse | Parses all rar files and returns a Promise with `InnerFile`s.
 Event | Description
 ------|------------
 parsing-start | Emitted when the parsing is started, happens when you call `parse`. Event args are a bundle represntation of all the rar files passed to the constructor.
-file-parsed | Emitted each time a new inner file is parsed success fully. The event argument is the [`InnerFile`](#innerfile-api) parsed.
+file-parsed | Emitted each time a rar file is parsed. The event argument is the RarFile just parsed, i.e `.rxx` in the chain.
 parsing-complete | Emitted when the parsing is completed. The event argument is an array of all the parsed [`InnerFile`](#innerfile-api)s.
 
 ### InnerFile Api
