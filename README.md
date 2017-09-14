@@ -85,7 +85,7 @@ readToEnd | Returns a Promise with a Buffer containing all the content of the fi
 Property | Description
 ------|------------
 name | The name of the file
-length | Returns the number of bytes
+length | Returns the total number of bytes of the file
 
 #### Example
 ```
