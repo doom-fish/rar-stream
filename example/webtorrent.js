@@ -4,7 +4,7 @@ const prettyBytes = require('pretty-bytes');
 const Webtorrent = require('webtorrent');
 const fs = require('fs');
 const progressStream = require('progress-stream');
-const RarStreamPackage = require('rar-stream');
+const { RarFilesPackage } = require('rar-stream');
 
 const client = new Webtorrent();
 const magnetURI = process.argv[2];
@@ -13,13 +13,13 @@ client.add(magnetURI, async torrent => {
   // Got torrent metadata!
   console.log('Client is downloading:', torrent.infoHash);
 
-  const rarStreamPackage = new RarStreamPackage(torrent.files);
+  const rarStreamPackage = new RarFilesPackage(torrent.files);
 
   rarStreamPackage.on('file-parsed', file =>
     console.log(`Parsed file: ${file.name}`)
   );
 
-  const innerFiles = await rarStreamPackage.getFiles();
+  const innerFiles = await rarStreamPackage.parse();
 
   const [innerFile] = innerFiles.filter(
     inner => inner.name.indexOf('mkv') !== -1

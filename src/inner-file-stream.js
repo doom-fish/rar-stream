@@ -1,6 +1,6 @@
 const { Readable } = require('stream');
 
-module.exports = class RarStream extends Readable {
+module.exports = class InnerFileStream extends Readable {
   constructor(rarFileChunks, options) {
     super(options);
     this.rarFileChunks = rarFileChunks;

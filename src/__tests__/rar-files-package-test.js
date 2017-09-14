@@ -2,10 +2,10 @@
 const test = require('ava');
 const path = require('path');
 const fs = require('fs');
-const RarManifest = require('../rar-manifest');
+const RarFilesPackage = require('../rar-files-package');
+const { streamToBuffer } = require('../stream-utils');
+const makeRarFileBundle = require('../rar-file-bundle');
 
-const { streamToBuffer } = require('../../stream-utils');
-const makeRarFileBundle = require('../../rar-file/rar-file-bundle');
 const fixturePath = path.resolve(__dirname, '../__fixtures__');
 
 const singleFilePath = path.resolve(fixturePath, 'single/single.txt');
@@ -64,41 +64,42 @@ const multipleRarFileWithManyInnerFiles = [
 
 const readToEnd = f => Promise.all(f.map(file => file.readToEnd()));
 
-test('rar manifest emits events for when parsing ends', async t => {
+test('rar package emits events for when parsing ends', async t => {
   t.plan(1);
-  const manifest = new RarManifest(multipleRarFileWithOneInnerFile);
+  const rarPackage = new RarFilesPackage(multipleRarFileWithOneInnerFile);
   let eventResult;
-  manifest.on('parsing-end', files => {
+  rarPackage.on('parsing-complete', files => {
     eventResult = files;
   });
-  const files = await manifest.getFiles();
+  const files = await rarPackage.parse();
   t.is(eventResult, files);
 });
 
-test('rar manifest emits events for when parsing starts', async t => {
+test('rar package emits events for when parsing starts', async t => {
   t.plan(1);
-  const manifest = new RarManifest(multipleRarFileWithOneInnerFile);
 
-  manifest.on('parsing-start', manifest => {
-    t.deepEqual(manifest, manifest);
-  });
-  await manifest.getFiles();
+  const rarPackage = new RarFilesPackage(multipleRarFileWithOneInnerFile);
+  const bundle = makeRarFileBundle(multipleRarFileWithOneInnerFile);
+  rarPackage.on('parsing-start', sentBundle =>
+    t.deepEqual(bundle.fileNames, bundle.fileNames)
+  );
+  await rarPackage.parse();
 });
 
-test('rar manifest emits events for each parsed file', async t => {
+test('rar package emits events for each parsed file', async t => {
   const bundle = makeRarFileBundle(multipleRarFileWithOneInnerFile);
   t.plan(bundle.length);
-  const manifest = new RarManifest(multipleRarFileWithOneInnerFile);
+  const rarPackage = new RarFilesPackage(multipleRarFileWithOneInnerFile);
   let i = 0;
-  manifest.on('file-parsed', file => {
+  rarPackage.on('file-parsed', file => {
     t.is(file.name, bundle.fileNames[i++]);
   });
-  await manifest.getFiles();
+  await rarPackage.parse();
 });
 
 test('single rar file with one inner file can be read as whole', async t => {
-  const manifest = new RarManifest(singleFileRarWithOneInnerFile);
-  const files = await manifest.getFiles();
+  const rarPackage = new RarFilesPackage(singleFileRarWithOneInnerFile);
+  const files = await rarPackage.parse();
   const [rarFileContent] = await readToEnd(files);
   const singleFileContent = fs.readFileSync(singleFilePath);
 
@@ -109,9 +110,9 @@ test('single rar file with one inner file can be read as whole', async t => {
 test('single rar file with one inner files can be read in parts', async t => {
   const interval = { start: 53, end: 1000 };
 
-  const manifest = new RarManifest(singleFileRarWithOneInnerFile);
+  const rarPackage = new RarFilesPackage(singleFileRarWithOneInnerFile);
 
-  const [file] = await manifest.getFiles();
+  const [file] = await rarPackage.parse();
   const rarFileInterval = file.createReadStream(interval);
   const singleFileInterval = fs.createReadStream(singleFilePath, interval);
   const rarFileBuffer = await streamToBuffer(rarFileInterval);
@@ -122,9 +123,10 @@ test('single rar file with one inner files can be read in parts', async t => {
 });
 
 test('single rar file with many inner files can be read as whole', async t => {
-  const manifest = new RarManifest(singleRarWithManyInnerFiles);
-  const [rarFile1, rarFile2, rarFile3] = await manifest
-    .getFiles()
+  const rarPackage = new RarFilesPackage(singleRarWithManyInnerFiles);
+
+  const [rarFile1, rarFile2, rarFile3] = await rarPackage
+    .parse()
     .then(readToEnd);
 
   const splitted1 = fs.readFileSync(singleSplitted1FilePath);
@@ -142,9 +144,9 @@ test('single rar file with many inner files can be read as whole', async t => {
 
 test('single rar file with many inner files can be read in parts', async t => {
   const interval = { start: 50, end: 200 };
-  const manifest = new RarManifest(singleRarWithManyInnerFiles);
+  const rarPackage = new RarFilesPackage(singleRarWithManyInnerFiles);
 
-  const [rarFile1, rarFile2, rarFile3] = await manifest.getFiles();
+  const [rarFile1, rarFile2, rarFile3] = await rarPackage.parse();
 
   const rarFile1Buffer = await streamToBuffer(
     rarFile1.createReadStream(interval)
@@ -176,8 +178,8 @@ test('single rar file with many inner files can be read in parts', async t => {
 });
 //
 test('multiple rar file with one inner can be read as a whole', async t => {
-  const manifest = new RarManifest(multipleRarFileWithOneInnerFile);
-  const [rarFileBuffer] = await manifest.getFiles().then(readToEnd);
+  const rarPackage = new RarFilesPackage(multipleRarFileWithOneInnerFile);
+  const [rarFileBuffer] = await rarPackage.parse().then(readToEnd);
   const multiFile = fs.readFileSync(multiFilePath);
   t.is(rarFileBuffer.length, multiFile.length);
   t.deepEqual(rarFileBuffer, multiFile);
@@ -186,9 +188,9 @@ test('multiple rar file with one inner can be read as a whole', async t => {
 test('multiple rar file with one inner can be read as in parts', async t => {
   const interval = { start: 0, end: 100 };
 
-  const manifest = new RarManifest(multipleRarFileWithOneInnerFile);
+  const rarPackage = new RarFilesPackage(multipleRarFileWithOneInnerFile);
 
-  const [file] = await manifest.getFiles();
+  const [file] = await rarPackage.parse();
   const rarFileBuffer = await streamToBuffer(file.createReadStream(interval));
   const multiFileBuffer = await streamToBuffer(
     fs.createReadStream(multiFilePath, interval)
@@ -199,13 +201,13 @@ test('multiple rar file with one inner can be read as in parts', async t => {
 });
 
 test('multi rar file with many inner files can be read as whole', async t => {
-  const manifest = new RarManifest(multipleRarFileWithManyInnerFiles);
+  const rarPackage = new RarFilesPackage(multipleRarFileWithManyInnerFiles);
   const [
     rarFile1,
     rarFile2,
     rarFile3,
     rarFile4,
-  ] = await manifest.getFiles().then(readToEnd);
+  ] = await rarPackage.parse().then(readToEnd);
 
   const splitted1 = fs.readFileSync(multiSplitted1FilePath);
   const splitted2 = fs.readFileSync(multiSplitted2FilePath);
@@ -220,9 +222,9 @@ test('multi rar file with many inner files can be read as whole', async t => {
 
 test('multi rar file with many inner files can be read in parts', async t => {
   const interval = { start: 56, end: 200 };
-  const manifest = new RarManifest(multipleRarFileWithManyInnerFiles);
+  const rarPackage = new RarFilesPackage(multipleRarFileWithManyInnerFiles);
 
-  const [rarFile1, rarFile2, rarFile3, rarFile4] = await manifest.getFiles();
+  const [rarFile1, rarFile2, rarFile3, rarFile4] = await rarPackage.parse();
 
   const rarFile1Buffer = await streamToBuffer(
     rarFile1.createReadStream(interval)

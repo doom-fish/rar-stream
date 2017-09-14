@@ -1,1 +1,3 @@
-module.exports = require('./rar-manifest/rar-manifest');
+module.exports = {
+  RarFilesPackage: require('./rar-files-package'),
+};

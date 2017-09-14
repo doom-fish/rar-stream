@@ -1,7 +1,7 @@
 const RXX_EXTENSION = /\.R(\d\d)$|.RAR$/i;
 const RAR_EXTENSION = /.RAR$/i;
 const PARTXX_RAR_EXTENSION = /.PART(\d\d).RAR/i;
-const LocalFileMedia = require('../file-media/local-file-media');
+const LocalFileMedia = require('./local-file-media');
 
 const isPartXXExtension = (fileMedias = []) => {
   let anyPartXXTypes = fileMedias.filter(

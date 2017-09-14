@@ -1,13 +1,16 @@
 const { EventEmitter } = require('events');
-const RarFileBundle = require('../rar-file/rar-file-bundle');
-const RarFile = require('../rar-file/rar-file');
-const RarFileChunk = require('../rar-file/rar-file-chunk');
-const { streamToBuffer } = require('../stream-utils');
-const MarkerHeaderParser = require('../parsing/marker-header-parser');
-const ArchiveHeaderParser = require('../parsing/archive-header-parser');
-const FileHeaderParser = require('../parsing/file-header-parser');
-const TerminalHeaderParser = require('../parsing/terminator-header-parser');
-const makeRarFileBundle = require('../rar-file/rar-file-bundle');
+const makeRarFileBundle = require('./rar-file-bundle');
+const RarFileChunk = require('./rar-file-chunk');
+
+const InnerFile = require('./inner-file');
+
+const MarkerHeaderParser = require('./parsing/marker-header-parser');
+const ArchiveHeaderParser = require('./parsing/archive-header-parser');
+const FileHeaderParser = require('./parsing/file-header-parser');
+const TerminalHeaderParser = require('./parsing/terminator-header-parser');
+
+const { streamToBuffer } = require('./stream-utils');
+
 const flatten = list =>
   list.reduce((a, b) => a.concat(Array.isArray(b) ? flatten(b) : b), []);
 
@@ -21,7 +24,7 @@ const parseHeader = async (Parser, fileMedia, offset = 0) => {
   return parser.parse();
 };
 
-module.exports = class RarManifest extends EventEmitter {
+module.exports = class RarFilesPackage extends EventEmitter {
   constructor(fileMedias) {
     super();
     this.rarFileBundle = makeRarFileBundle(fileMedias);
@@ -60,7 +63,7 @@ module.exports = class RarManifest extends EventEmitter {
     this.emit('file-parsed', rarFile);
     return fileChunks;
   }
-  async getFiles() {
+  async parse() {
     this.emit('parsing-start', this.rarFileBundle);
     const parsedFileChunks = [];
     const { files } = this.rarFileBundle;
@@ -104,11 +107,11 @@ module.exports = class RarManifest extends EventEmitter {
       return file;
     }, {});
 
-    const rarFiles = Object.keys(grouped).map(
-      name => new RarFile(name, grouped[name])
+    const innerFiles = Object.keys(grouped).map(
+      name => new InnerFile(name, grouped[name])
     );
 
-    this.emit('parsing-end', rarFiles);
-    return rarFiles;
+    this.emit('parsing-complete', innerFiles);
+    return innerFiles;
   }
 };

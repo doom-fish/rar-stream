@@ -1,7 +1,7 @@
-const RarStream = require('./rar-stream');
-const { streamToBuffer } = require('../stream-utils');
+const InnerFileStream = require('./inner-file-stream');
+const { streamToBuffer } = require('./stream-utils');
 
-module.exports = class RarFile {
+module.exports = class InnerFile {
   constructor(name, rarFileChunks) {
     this.rarFileChunks = rarFileChunks;
     this.length = this.rarFileChunks.reduce(
@@ -51,7 +51,7 @@ module.exports = class RarFile {
       throw Error('Illegal start/end offset');
     }
 
-    return new RarStream(this.getChunksToStream(start, end));
+    return new InnerFileStream(this.getChunksToStream(start, end));
   }
   calculateChunkMap(rarFileChunks) {
     const chunkMap = [];
