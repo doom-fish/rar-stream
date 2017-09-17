@@ -42,10 +42,16 @@ module.exports = class RarFilesPackage extends EventEmitter {
     );
     fileOffset += archiveHeader.size;
 
-    while (fileOffset < rarFile.length - TerminalHeaderParser.HEADER_SIZE) {
+    while (
+      fileOffset <
+      rarFile.length - TerminalHeaderParser.HEADER_SIZE - 20
+    ) {
       const fileHead = await parseHeader(FileHeaderParser, rarFile, fileOffset);
       if (fileHead.type !== 116) {
         break;
+      }
+      if (fileHead.method !== 0x30) {
+        throw new Error('Uncompression is not implemented');
       }
       fileOffset += fileHead.headSize;
 
