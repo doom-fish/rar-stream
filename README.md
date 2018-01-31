@@ -5,7 +5,7 @@ Library for _"unpacking"_ and reading files inside rar archives as node Readable
 
 __Note: Requires node version >= 8.0.0__
 
-__Note: Uncompression is not implemented at the moment__
+__Note: Decompression is not implemented at the moment__
 
 ## Getting Started
 Below example shows howto unpack local rar files by piping the inner files to the file system.
