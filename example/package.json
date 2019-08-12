@@ -10,10 +10,10 @@
   "author": "1313",
   "license": "ISC",
   "dependencies": {
-    "pretty-bytes": "^4.0.2",
+    "pretty-bytes": "^5.3.0",
     "pretty-seconds": "^0.2.1",
     "progress-stream": "^2.0.0",
     "rar-stream": "..",
-    "webtorrent": "^0.98.19"
+    "webtorrent": "^0.107.3"
   }
 }
