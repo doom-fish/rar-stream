@@ -43,7 +43,7 @@ module.exports = class InnerFile {
   }
   createReadStream(interval) {
     if (!interval) {
-      interval = { start: 0, end: this.length };
+      interval = { start: 0, end: this.length - 1 };
     }
     let { start, end } = interval;
 
