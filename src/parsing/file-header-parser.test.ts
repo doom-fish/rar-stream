@@ -1,6 +1,6 @@
 import { expect, test } from "vitest";
-import { FileHeaderParser } from "./file-header-parser.js";
-import { bind, newPadding, hammingWeight, btoh } from "./__mocks__/utils.js";
+import { FileHeaderParser } from "./file-header-parser";
+import { bind, newPadding, hammingWeight, btoh } from "./__mocks__/utils";
 const { parseHeader } = bind(FileHeaderParser);
 
 test("FileHeaderParser.parse should parse crc as 2 bytes", () => {
@@ -268,5 +268,5 @@ test("FileHeaderParser.parse should parse name properly", () => {
     "D97774111111115C1000005C10000003C5A6D2158A5" +
     "95B4714300A00A4810000040000000400000061636B6" +
     "E6F772E74787400C0";
-  expect(parseHeader("name", data), "ackno).toBe(txt");
+  expect(parseHeader("name", data)).toBe("acknow.txt");
 });

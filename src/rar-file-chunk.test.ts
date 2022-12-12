@@ -1,7 +1,7 @@
 import { expect, test } from "vitest";
-import { streamToBuffer } from "./stream-utils.js";
-import { MockFileMedia } from "./parsing/__mocks__/mock-file-media.js";
-import { RarFileChunk } from "./rar-file-chunk.js";
+import { streamToBuffer } from "./stream-utils";
+import { MockFileMedia } from "./parsing/__mocks__/mock-file-media";
+import { RarFileChunk } from "./rar-file-chunk";
 
 test("RarFileChunk#getStream should return a stream from its FileMedia", async () => {
   const bufferString = "123456789A";

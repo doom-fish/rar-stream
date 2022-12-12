@@ -1,6 +1,6 @@
 import { expect, test } from "vitest";
-import { MarkerHeaderParser } from "./marker-header-parser.js";
-import { bind, newPadding, hammingWeight } from "./__mocks__/utils.js";
+import { MarkerHeaderParser } from "./marker-header-parser";
+import { bind, newPadding, hammingWeight } from "./__mocks__/utils";
 const { parseHeader } = bind(MarkerHeaderParser);
 
 test("MarkerHeaderParser.parse should parse crc as 2 bytes", () => {

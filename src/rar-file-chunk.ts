@@ -1,10 +1,12 @@
+import { IFileMedia } from "./interfaces";
+
 export class RarFileChunk {
-  constructor(fileMedia, startOffset, endOffset) {
-    this.fileMedia = fileMedia;
-    this.startOffset = startOffset;
-    this.endOffset = endOffset;
-  }
-  padEnd(endPadding) {
+  constructor(
+    private fileMedia: IFileMedia,
+    public startOffset: number,
+    public endOffset: number
+  ) {}
+  padEnd(endPadding: number) {
     return new RarFileChunk(
       this.fileMedia,
       this.startOffset,

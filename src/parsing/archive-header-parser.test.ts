@@ -1,7 +1,7 @@
 import { expect, test } from "vitest";
 
-import { ArchiveHeaderParser } from "./archive-header-parser.js";
-import { bind, hammingWeight, btoh } from "./__mocks__/utils.js";
+import { ArchiveHeaderParser } from "./archive-header-parser";
+import { bind, hammingWeight, btoh } from "./__mocks__/utils";
 const { parseHeader } = bind(ArchiveHeaderParser);
 
 test("ArchiveHeaderParser.parse should parse CRC as 2 bytes", () => {
@@ -17,10 +17,10 @@ test("ArchiveHeaderParser.parse should parse CRC as little endian", () => {
 });
 
 test("ArchiveHeaderParser.parse should parse type as 1 byte", () => {
-  expect(parseHeader("crc", "FF")).toBe(0xff);
-  expect(parseHeader("crc", "AB")).toBe(0xab);
-  expect(parseHeader("crc", "00")).toBe(0x00);
-  expect(parseHeader("crc", "0F")).toBe(0x0f);
+  expect(parseHeader("type", "0000FF")).toBe(0xff);
+  expect(parseHeader("type", "0000AB")).toBe(0xab);
+  expect(parseHeader("type", "000000")).toBe(0x00);
+  expect(parseHeader("type", "00000F")).toBe(0x0f);
 });
 
 test("ArchiveHeaderParser.parse should parse flags as 2 bytes", () => {
@@ -36,10 +36,10 @@ test("ArchiveHeaderParser.parse should parse flags as little endian", () => {
   expect(parseHeader("flags", "ffffff3412")).toBe(0x1234);
 });
 
-test("ArchiveHeaderParser.parse should parse size as 1 byte", () => {
+test("ArchiveHeaderParser.parse should parse size as 2 byte", () => {
   expect(parseHeader("size", "ffffffff00ff")).toBe(0xff);
   expect(parseHeader("size", "ffffffff000f")).toBe(0x0f);
-  expect(parseHeader("size", "ffffffff0000")).toBe(0x0d);
+  expect(parseHeader("size", "ffffffff0000")).toBe(0x00);
   expect(parseHeader("size", "ffffffff00AB")).toBe(0xab);
 });
 

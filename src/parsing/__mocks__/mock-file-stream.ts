@@ -1,10 +1,9 @@
-import { Readable } from "stream";
+import { Readable, ReadableOptions } from "stream";
+import { IReadInterval } from "../../interfaces";
 
 export class MockFileStream extends Readable {
-  constructor(object, options) {
-    super(options);
-    this.options = options;
-    this.object = object;
+  constructor(private object: Buffer | null, private options: IReadInterval) {
+    super(options as ReadableOptions);
   }
   _read() {
     if (

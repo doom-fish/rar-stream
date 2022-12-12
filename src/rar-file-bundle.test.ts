@@ -1,12 +1,14 @@
 import { expect, test } from "vitest";
+import { IFileMedia } from "./interfaces";
+import { Readable } from "stream";
+import { makeRarFileBundle } from "./rar-file-bundle";
 
-import { makeRarFileBundle } from "./rar-file-bundle.js";
-
-const newFileMedia = (name) => ({
-  name,
-  size: 0,
-  createReadStream: void 0,
-});
+const newFileMedia = (name: string) =>
+  ({
+    name,
+    length: 0,
+    createReadStream: (i) => new Readable(),
+  } satisfies IFileMedia);
 
 test("RarFileBundle length should be 0 with an empty array as input", () => {
   const emptyInstance = makeRarFileBundle();

@@ -12,15 +12,12 @@
   "engines": {
     "node": ">=18.0.0"
   },
-  "main": "src/index.js",
+  "main": "src/index",
   "scripts": {
     "test": "vitest",
     "coverage": "vitest --coverage"
   },
   "license": "MIT",
-  "dependencies": {
-    "binary": "^0.3.0"
-  },
   "devDependencies": {
     "vitest": "^0.25.7"
   }

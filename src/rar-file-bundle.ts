@@ -1,9 +1,10 @@
 const RXX_EXTENSION = /\.R(\d\d)$|.RAR$/i;
 const RAR_EXTENSION = /.RAR$/i;
 const PARTXX_RAR_EXTENSION = /.PART(\d\d).RAR/i;
-import { LocalFileMedia } from "./local-file-media.js";
+import { IFileMedia } from "./interfaces";
+import { LocalFileMedia } from "./local-file-media";
 
-const isPartXXExtension = (fileMedias = []) => {
+const isPartXXExtension = (fileMedias: IFileMedia[] = []) => {
   let anyPartXXTypes = fileMedias.filter(
     (file) => file.name && file.name.match(PARTXX_RAR_EXTENSION)
   );
@@ -16,8 +17,7 @@ const isPartXXExtension = (fileMedias = []) => {
 };
 
 class NumericRarFileBundle {
-  constructor(fileMedias = []) {
-    this.fileMedias = fileMedias;
+  constructor(private fileMedias: IFileMedia[] = []) {
     if (this.fileMedias.length > 0) {
       this.filter();
       this.sort();
@@ -56,8 +56,7 @@ class NumericRarFileBundle {
 }
 
 class PartXXRarBundle {
-  constructor(fileMedias = []) {
-    this.fileMedias = fileMedias;
+  constructor(private fileMedias: IFileMedia[] = []) {
     if (this.fileMedias.length > 0) {
       this.filter();
       this.sort();
@@ -89,20 +88,29 @@ class PartXXRarBundle {
   }
 }
 
-const parseFileMedias = (fileMedias = []) => {
-  const localFileMedias = fileMedias
-    .filter((fileMedia) => typeof fileMedia === "string")
-    .map((path) => new LocalFileMedia(path));
+const parseFileMedias = (
+  fileMedias: (IFileMedia | string)[] = []
+): IFileMedia[] => {
+  const localFileMediaPaths = fileMedias.filter(
+    (fileMedia) => typeof fileMedia === "string"
+  ) as string[];
+  const localFileMedias = localFileMediaPaths.map(
+    (path: string) => new LocalFileMedia(path)
+  );
+
   const otherFileMedias = fileMedias.filter(
     (fileMedia) => typeof fileMedia !== "string"
-  );
+  ) as IFileMedia[];
   return [...localFileMedias, ...otherFileMedias];
 };
 
-export const makeRarFileBundle = (fileMedias = []) => {
-  fileMedias = parseFileMedias(fileMedias);
+export type RarFileBundle = PartXXRarBundle | NumericRarFileBundle;
+export const makeRarFileBundle = (
+  fileMedias: (IFileMedia | string)[] = []
+): RarFileBundle => {
+  const parsedFileMedias = parseFileMedias(fileMedias);
 
-  return isPartXXExtension(fileMedias)
-    ? new PartXXRarBundle(fileMedias)
-    : new NumericRarFileBundle(fileMedias);
+  return isPartXXExtension(parsedFileMedias)
+    ? new PartXXRarBundle(parsedFileMedias)
+    : new NumericRarFileBundle(parsedFileMedias);
 };
