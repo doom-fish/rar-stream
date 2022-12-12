@@ -19,7 +19,7 @@ export class RarFileChunk {
     );
   }
   get length() {
-    return Math.max(0, this.endOffset - this.startOffset + 1);
+    return Math.max(0, this.endOffset - this.startOffset);
   }
   getStream() {
     return this.fileMedia.createReadStream({
