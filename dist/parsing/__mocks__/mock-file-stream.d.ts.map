@@ -1,1 +1,0 @@
-{"version":3,"file":"mock-file-stream.d.ts","sourceRoot":"","sources":["../../../src/parsing/__mocks__/mock-file-stream.ts"],"names":[],"mappings":";;AAAA,OAAO,EAAE,QAAQ,EAAmB,MAAM,QAAQ,CAAC;AACnD,OAAO,EAAE,aAAa,EAAE,MAAM,qBAAqB,CAAC;AAEpD,qBAAa,cAAe,SAAQ,QAAQ;IAC9B,OAAO,CAAC,MAAM;IAAiB,OAAO,CAAC,OAAO;gBAAtC,MAAM,EAAE,MAAM,GAAG,IAAI,EAAU,OAAO,EAAE,aAAa;IAGhE,KAAK;CAcf"}

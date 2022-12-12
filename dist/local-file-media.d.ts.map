@@ -1,1 +1,0 @@
-{"version":3,"file":"local-file-media.d.ts","sourceRoot":"","sources":["../src/local-file-media.ts"],"names":[],"mappings":";AAEA,OAAO,EAAE,UAAU,EAAE,aAAa,EAAE,MAAM,iBAAiB,CAAC;AAE5D,qBAAa,cAAe,YAAW,UAAU;IAGnC,OAAO,CAAC,IAAI;IAFxB,IAAI,EAAE,MAAM,CAAC;IACb,MAAM,EAAE,MAAM,CAAC;gBACK,IAAI,EAAE,MAAM;IAIhC,gBAAgB,CAAC,QAAQ,EAAE,aAAa;CAGzC"}
