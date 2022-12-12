@@ -1,6 +1,6 @@
 # rar-stream
 
-![tests workflow](https://github.com/1313/aoc22/actions/workflows/test.yml/badge.svg)
+[![TESTS](https://github.com/1313/rar-stream/actions/workflows/test.yml/badge.svg)](https://github.com/1313/rar-stream/actions/workflows/test.yml)
 
 Library for _"unpacking"_ and reading files inside rar archives as node Readable streams.
 
