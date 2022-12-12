@@ -8,6 +8,7 @@
     "url": "https://github.com/1313/rar-stream.git"
   },
   "type": "module",
+  "packageManager": "pnpm@7.18.2",
   "engines": {
     "node": ">=18.0.0"
   },
