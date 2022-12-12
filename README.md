@@ -1,6 +1,6 @@
 # rar-stream
 
-[![Build Status](https://app.travis-ci.com/1313/rar-stream.svg?branch=master)](https://app.travis-ci.com/1313/rar-stream)
+![tests workflow](https://github.com/1313/aoc22/actions/workflows/test.yml/badge.svg)
 
 Library for _"unpacking"_ and reading files inside rar archives as node Readable streams.
 
