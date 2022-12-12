@@ -2,9 +2,10 @@
   "name": "webtorrent-example",
   "version": "1.0.0",
   "private": true,
+  "type": "module",
   "main": "webtorrent.js",
   "scripts": {
-    "start": "node webtorrent"
+    "start": "node --es-module-specifier-resolution=node webtorrent"
   },
   "author": "1313",
   "license": "MIT",

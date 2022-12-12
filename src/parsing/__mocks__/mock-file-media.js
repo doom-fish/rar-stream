@@ -1,5 +1,5 @@
-import { bufferFromString } from "./utils";
-import { MockFileStream } from "./mock-file-stream";
+import { bufferFromString } from "./utils.js";
+import { MockFileStream } from "./mock-file-stream.js";
 export class MockFileMedia {
   constructor(stringData, name = "MockStream") {
     this.buffer = bufferFromString(stringData.replace(/\s/g, ""));

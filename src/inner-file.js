@@ -1,5 +1,5 @@
-import { InnerFileStream } from "./inner-file-stream";
-import { streamToBuffer } from "./stream-utils";
+import { InnerFileStream } from "./inner-file-stream.js";
+import { streamToBuffer } from "./stream-utils.js";
 
 export class InnerFile {
   constructor(name, rarFileChunks) {

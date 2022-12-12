@@ -1,7 +1,7 @@
 const RXX_EXTENSION = /\.R(\d\d)$|.RAR$/i;
 const RAR_EXTENSION = /.RAR$/i;
 const PARTXX_RAR_EXTENSION = /.PART(\d\d).RAR/i;
-import { LocalFileMedia } from "./local-file-media";
+import { LocalFileMedia } from "./local-file-media.js";
 
 const isPartXXExtension = (fileMedias = []) => {
   let anyPartXXTypes = fileMedias.filter(

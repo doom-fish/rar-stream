@@ -1,1 +1,1 @@
-export { RarFilesPackage } from "./rar-files-package";
+export { RarFilesPackage } from "./rar-files-package.js";

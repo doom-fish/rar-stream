@@ -1,4 +1,4 @@
-const { Readable } = require("stream");
+import { Readable } from "stream";
 
 export class MockFileStream extends Readable {
   constructor(object, options) {

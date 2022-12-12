@@ -1,6 +1,6 @@
 import { expect, test } from "vitest";
 import { Duplex } from "stream";
-import { streamToBuffer, bufferToStream } from "./stream-utils";
+import { streamToBuffer, bufferToStream } from "./stream-utils.js";
 
 test("streamToBuffer is a function", () =>
   expect(

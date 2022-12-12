@@ -3,9 +3,9 @@ import { expect, test } from "vitest";
 import path from "path";
 import fs from "fs";
 
-import { RarFilesPackage } from "./rar-files-package";
-import { streamToBuffer } from "./stream-utils";
-import { makeRarFileBundle } from "./rar-file-bundle";
+import { RarFilesPackage } from "./rar-files-package.js";
+import { streamToBuffer } from "./stream-utils.js";
+import { makeRarFileBundle } from "./rar-file-bundle.js";
 
 const fixturePath = path.resolve(__dirname, "./__fixtures__");
 

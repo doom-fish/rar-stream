@@ -1,14 +1,14 @@
 import { EventEmitter } from "events";
-import { makeRarFileBundle } from "./rar-file-bundle";
-import { RarFileChunk } from "./rar-file-chunk";
-import { InnerFile } from "./inner-file";
+import { makeRarFileBundle } from "./rar-file-bundle.js";
+import { RarFileChunk } from "./rar-file-chunk.js";
+import { InnerFile } from "./inner-file.js";
 
-import { MarkerHeaderParser } from "./parsing/marker-header-parser";
-import { ArchiveHeaderParser } from "./parsing/archive-header-parser";
-import { FileHeaderParser } from "./parsing/file-header-parser";
-import { TerminatorHeaderParser } from "./parsing/terminator-header-parser";
+import { MarkerHeaderParser } from "./parsing/marker-header-parser.js";
+import { ArchiveHeaderParser } from "./parsing/archive-header-parser.js";
+import { FileHeaderParser } from "./parsing/file-header-parser.js";
+import { TerminatorHeaderParser } from "./parsing/terminator-header-parser.js";
 
-import { streamToBuffer } from "./stream-utils";
+import { streamToBuffer } from "./stream-utils.js";
 
 const flatten = (list) =>
   list.reduce((a, b) => a.concat(Array.isArray(b) ? flatten(b) : b), []);

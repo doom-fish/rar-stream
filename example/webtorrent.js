@@ -1,9 +1,6 @@
-require("events").prototype.setMaxListeners(Infinity);
-
-const Webtorrent = require("webtorrent");
-const fs = require("fs");
-
-const { RarFilesPackage } = require("rar-stream");
+import Webtorrent from "webtorrent";
+import fs from "fs";
+import { RarFilesPackage } from "rar-stream";
 
 const client = new Webtorrent();
 const magnetURI = process.argv[2];

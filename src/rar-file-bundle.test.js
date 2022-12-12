@@ -1,6 +1,6 @@
 import { expect, test } from "vitest";
 
-import { makeRarFileBundle } from "./rar-file-bundle";
+import { makeRarFileBundle } from "./rar-file-bundle.js";
 
 const newFileMedia = (name) => ({
   name,

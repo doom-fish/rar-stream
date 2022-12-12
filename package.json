@@ -11,7 +11,7 @@
   "engines": {
     "node": ">=16.0.0"
   },
-  "main": "src",
+  "main": "src/index.js",
   "scripts": {
     "test": "vitest",
     "coverage": "vitest --coverage"
