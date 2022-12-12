@@ -1,6 +1,6 @@
 # rar-stream
 
-[![Build Status](https://api.travis-ci.org/1313/rar-stream.svg)](https://travis-ci.org/1313/rar-stream)
+[![Build Status](https://app.travis-ci.com/1313/rar-stream.svg?branch=master)](https://app.travis-ci.com/1313/rar-stream)
 
 Library for _"unpacking"_ and reading files inside rar archives as node Readable streams.
 
