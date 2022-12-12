@@ -17,7 +17,6 @@
     "test": "vitest",
     "build": "tsc -p .",
     "coverage": "vitest --coverage",
-    "prebuild": "test",
     "prepublish": "build"
   },
   "license": "MIT",
