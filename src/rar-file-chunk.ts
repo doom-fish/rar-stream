@@ -1,4 +1,4 @@
-import { IFileMedia } from "./interfaces";
+import { IFileMedia } from "./interfaces.js";
 
 export class RarFileChunk {
   constructor(
@@ -13,7 +13,7 @@ export class RarFileChunk {
       this.endOffset - endPadding
     );
   }
-  padStart(startPadding) {
+  padStart(startPadding: number) {
     return new RarFileChunk(
       this.fileMedia,
       this.startOffset + startPadding,

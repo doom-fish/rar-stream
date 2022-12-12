@@ -12,13 +12,19 @@
   "engines": {
     "node": ">=18.0.0"
   },
-  "main": "src/index",
+  "main": "dist/index.js",
   "scripts": {
     "test": "vitest",
-    "coverage": "vitest --coverage"
+    "build": "tsc -p .",
+    "coverage": "vitest --coverage",
+    "prebuild": "test",
+    "prepublish": "build"
   },
   "license": "MIT",
   "devDependencies": {
     "vitest": "^0.25.7"
+  },
+  "dependencies": {
+    "typescript": "^4.9.4"
   }
 }

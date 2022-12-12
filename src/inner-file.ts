@@ -1,7 +1,7 @@
-import { IFileMedia, IReadInterval } from "./interfaces";
-import { InnerFileStream } from "./inner-file-stream";
-import { RarFileChunk } from "./rar-file-chunk";
-import { streamToBuffer } from "./stream-utils";
+import { IFileMedia, IReadInterval } from "./interfaces.js";
+import { InnerFileStream } from "./inner-file-stream.js";
+import { RarFileChunk } from "./rar-file-chunk.js";
+import { streamToBuffer } from "./stream-utils.js";
 type ChunkMapEntry = {
   index: number;
   start: number;
@@ -27,7 +27,7 @@ export class InnerFile implements IFileMedia {
       this.createReadStream({ start: 0, end: this.length - 1 })
     );
   }
-  getChunksToStream(fileStart, fileEnd) {
+  getChunksToStream(fileStart: number, fileEnd: number) {
     const { index: startIndex, start: startOffset } =
       this.findMappedChunk(fileStart);
     let { index: endIndex, end: endOffset } = this.findMappedChunk(fileEnd);
@@ -36,7 +36,7 @@ export class InnerFile implements IFileMedia {
 
     const last = chunksToStream.length - 1;
     const first = 0;
-    chunksToStream[first] = chunksToStream[first].padStart(
+    chunksToStream[first] = chunksToStream[first]!.padStart(
       Math.abs(startOffset - fileStart)
     );
 
@@ -45,7 +45,7 @@ export class InnerFile implements IFileMedia {
       diff = 0;
     }
     if (diff !== 0) {
-      chunksToStream[last] = chunksToStream[last].padEnd(diff);
+      chunksToStream[last] = chunksToStream[last]!.padEnd(diff);
     }
 
     return chunksToStream;
@@ -62,7 +62,7 @@ export class InnerFile implements IFileMedia {
 
     return new InnerFileStream(this.getChunksToStream(start, end));
   }
-  calculateChunkMap(rarFileChunks) {
+  calculateChunkMap(rarFileChunks: RarFileChunk[]) {
     const chunkMap: ChunkMapEntry[] = [];
     let index = 0;
     let fileOffset = 0;
@@ -77,8 +77,8 @@ export class InnerFile implements IFileMedia {
 
     return chunkMap;
   }
-  findMappedChunk(offset) {
-    let selectedMap = this.chunkMap[0];
+  findMappedChunk(offset: number) {
+    let selectedMap = this.chunkMap[0]!;
     for (const chunkMapping of this.chunkMap) {
       if (offset >= chunkMapping.start && offset <= chunkMapping.end) {
         selectedMap = chunkMapping;

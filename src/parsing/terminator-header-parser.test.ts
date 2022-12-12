@@ -1,6 +1,6 @@
 import { expect, test } from "vitest";
-import { TerminatorHeaderParser } from "./terminator-header-parser";
-import { bind, hammingWeight } from "./__mocks__/utils";
+import { TerminatorHeaderParser } from "./terminator-header-parser.js";
+import { bind, hammingWeight } from "./__mocks__/utils.js";
 const { parseHeader } = bind(TerminatorHeaderParser);
 
 test("TerminatorHeaderParser.parse should parse 2 first bytes as crc", () => {

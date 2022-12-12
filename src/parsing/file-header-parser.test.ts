@@ -1,6 +1,6 @@
 import { expect, test } from "vitest";
-import { FileHeaderParser } from "./file-header-parser";
-import { bind, newPadding, hammingWeight, btoh } from "./__mocks__/utils";
+import { FileHeaderParser } from "./file-header-parser.js";
+import { bind, newPadding, hammingWeight, btoh } from "./__mocks__/utils.js";
 const { parseHeader } = bind(FileHeaderParser);
 
 test("FileHeaderParser.parse should parse crc as 2 bytes", () => {

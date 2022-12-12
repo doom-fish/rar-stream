@@ -1,6 +1,6 @@
 import { expect, test } from "vitest";
 
-import { streamToBuffer, bufferToStream } from "./stream-utils";
+import { streamToBuffer, bufferToStream } from "./stream-utils.js";
 
 test("stream to buffer conversion works both ways", async () => {
   const bufferContent = "bufferString1234";

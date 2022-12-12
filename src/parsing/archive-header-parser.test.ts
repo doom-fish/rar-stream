@@ -1,7 +1,7 @@
 import { expect, test } from "vitest";
 
-import { ArchiveHeaderParser } from "./archive-header-parser";
-import { bind, hammingWeight, btoh } from "./__mocks__/utils";
+import { ArchiveHeaderParser } from "./archive-header-parser.js";
+import { bind, hammingWeight, btoh } from "./__mocks__/utils.js";
 const { parseHeader } = bind(ArchiveHeaderParser);
 
 test("ArchiveHeaderParser.parse should parse CRC as 2 bytes", () => {

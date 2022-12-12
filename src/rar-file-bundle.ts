@@ -1,8 +1,7 @@
 const RXX_EXTENSION = /\.R(\d\d)$|.RAR$/i;
 const RAR_EXTENSION = /.RAR$/i;
 const PARTXX_RAR_EXTENSION = /.PART(\d\d).RAR/i;
-import { IFileMedia } from "./interfaces";
-import { LocalFileMedia } from "./local-file-media";
+import { IFileMedia } from "./interfaces.js";
 
 const isPartXXExtension = (fileMedias: IFileMedia[] = []) => {
   let anyPartXXTypes = fileMedias.filter(
@@ -88,29 +87,11 @@ class PartXXRarBundle {
   }
 }
 
-const parseFileMedias = (
-  fileMedias: (IFileMedia | string)[] = []
-): IFileMedia[] => {
-  const localFileMediaPaths = fileMedias.filter(
-    (fileMedia) => typeof fileMedia === "string"
-  ) as string[];
-  const localFileMedias = localFileMediaPaths.map(
-    (path: string) => new LocalFileMedia(path)
-  );
-
-  const otherFileMedias = fileMedias.filter(
-    (fileMedia) => typeof fileMedia !== "string"
-  ) as IFileMedia[];
-  return [...localFileMedias, ...otherFileMedias];
-};
-
 export type RarFileBundle = PartXXRarBundle | NumericRarFileBundle;
 export const makeRarFileBundle = (
-  fileMedias: (IFileMedia | string)[] = []
+  fileMedias: IFileMedia[] = []
 ): RarFileBundle => {
-  const parsedFileMedias = parseFileMedias(fileMedias);
-
-  return isPartXXExtension(parsedFileMedias)
-    ? new PartXXRarBundle(parsedFileMedias)
-    : new NumericRarFileBundle(parsedFileMedias);
+  return isPartXXExtension(fileMedias)
+    ? new PartXXRarBundle(fileMedias)
+    : new NumericRarFileBundle(fileMedias);
 };
