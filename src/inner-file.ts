@@ -1,10 +1,20 @@
-import { InnerFileStream } from "./inner-file-stream.js";
-import { streamToBuffer } from "./stream-utils.js";
+import { IFileMedia, IReadInterval } from "./interfaces";
+import { InnerFileStream } from "./inner-file-stream";
+import { RarFileChunk } from "./rar-file-chunk";
+import { streamToBuffer } from "./stream-utils";
+type ChunkMapEntry = {
+  index: number;
+  start: number;
+  end: number;
+  chunk: RarFileChunk;
+};
 
-export class InnerFile {
-  constructor(name, rarFileChunks) {
-    this.rarFileChunks = rarFileChunks;
-    this.length = this.rarFileChunks.reduce(
+export class InnerFile implements IFileMedia {
+  length: number;
+
+  chunkMap: ChunkMapEntry[];
+  constructor(public name: string, private rarFileChunks: RarFileChunk[]) {
+    this.length = rarFileChunks.reduce(
       (length, chunk) => length + chunk.length,
       0
     );
@@ -40,7 +50,7 @@ export class InnerFile {
 
     return chunksToStream;
   }
-  createReadStream(interval) {
+  createReadStream(interval: IReadInterval) {
     if (!interval) {
       interval = { start: 0, end: this.length - 1 };
     }
@@ -53,7 +63,7 @@ export class InnerFile {
     return new InnerFileStream(this.getChunksToStream(start, end));
   }
   calculateChunkMap(rarFileChunks) {
-    const chunkMap = [];
+    const chunkMap: ChunkMapEntry[] = [];
     let index = 0;
     let fileOffset = 0;
     for (const chunk of rarFileChunks) {

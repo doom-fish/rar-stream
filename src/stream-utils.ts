@@ -1,14 +1,14 @@
-import { Duplex } from "stream";
+import { Stream, Duplex } from "stream";
 
-export const streamToBuffer = (stream) =>
+export const streamToBuffer = async (stream: Stream): Promise<Buffer> =>
   new Promise((resolve, reject) => {
-    const buffers = [];
+    const buffers: Uint8Array[] = [];
     stream.on("error", reject);
     stream.on("data", (data) => buffers.push(data));
     stream.on("end", () => resolve(Buffer.concat(buffers)));
   });
 
-export const bufferToStream = (buffer) => {
+export const bufferToStream = (buffer: Buffer): Stream => {
   const stream = new Duplex();
   stream.push(buffer);
   stream.push(null);

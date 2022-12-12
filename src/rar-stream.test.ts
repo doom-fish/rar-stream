@@ -1,10 +1,10 @@
 //
 import { expect, test } from "vitest";
-import { InnerFileStream } from "./inner-file-stream.js";
-import { RarFileChunk } from "./rar-file-chunk.js";
+import { InnerFileStream } from "./inner-file-stream";
+import { RarFileChunk } from "./rar-file-chunk";
 
-import { MockFileMedia } from "./parsing/__mocks__/mock-file-media.js";
-import { streamToBuffer } from "./stream-utils.js";
+import { MockFileMedia } from "./parsing/__mocks__/mock-file-media";
+import { streamToBuffer } from "./stream-utils";
 
 test("inner file stream should stream over list of file chunks", async () => {
   const bufferString = "123456789ABC";

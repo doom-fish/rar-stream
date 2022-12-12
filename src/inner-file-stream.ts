@@ -1,9 +1,13 @@
-import { Readable } from "stream";
+import { Readable, ReadableOptions } from "stream";
+import { RarFileChunk } from "./rar-file-chunk";
 
 export class InnerFileStream extends Readable {
-  constructor(rarFileChunks, options) {
+  stream: Readable;
+  constructor(
+    private rarFileChunks: RarFileChunk[],
+    options?: ReadableOptions
+  ) {
     super(options);
-    this.rarFileChunks = rarFileChunks;
   }
   pushData(data) {
     if (!this.push(data)) {
