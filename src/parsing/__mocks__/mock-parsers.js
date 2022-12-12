@@ -1,13 +1,12 @@
-//
-module.exports.MockEmptyParser = class {
-    parse() {
-        return {};
-    }
-};
-module.exports.MockFileHeaderParser = class {
-    parse() {
-        return {
-            name: 'test',
-        };
-    }
-};
+export class MockEmptyParser {
+  parse() {
+    return {};
+  }
+}
+export class MockFileHeaderParser {
+  parse() {
+    return {
+      name: "test",
+    };
+  }
+}

@@ -1,17 +1,16 @@
-const { EventEmitter } = require('events');
-const makeRarFileBundle = require('./rar-file-bundle');
-const RarFileChunk = require('./rar-file-chunk');
+import { EventEmitter } from "events";
+import { makeRarFileBundle } from "./rar-file-bundle";
+import { RarFileChunk } from "./rar-file-chunk";
+import { InnerFile } from "./inner-file";
 
-const InnerFile = require('./inner-file');
+import { MarkerHeaderParser } from "./parsing/marker-header-parser";
+import { ArchiveHeaderParser } from "./parsing/archive-header-parser";
+import { FileHeaderParser } from "./parsing/file-header-parser";
+import { TerminatorHeaderParser } from "./parsing/terminator-header-parser";
 
-const MarkerHeaderParser = require('./parsing/marker-header-parser');
-const ArchiveHeaderParser = require('./parsing/archive-header-parser');
-const FileHeaderParser = require('./parsing/file-header-parser');
-const TerminalHeaderParser = require('./parsing/terminator-header-parser');
+import { streamToBuffer } from "./stream-utils";
 
-const { streamToBuffer } = require('./stream-utils');
-
-const flatten = list =>
+const flatten = (list) =>
   list.reduce((a, b) => a.concat(Array.isArray(b) ? flatten(b) : b), []);
 
 const parseHeader = async (Parser, fileMedia, offset = 0) => {
@@ -24,7 +23,7 @@ const parseHeader = async (Parser, fileMedia, offset = 0) => {
   return parser.parse();
 };
 
-module.exports = class RarFilesPackage extends EventEmitter {
+export class RarFilesPackage extends EventEmitter {
   constructor(fileMedias) {
     super();
     this.rarFileBundle = makeRarFileBundle(fileMedias);
@@ -44,14 +43,14 @@ module.exports = class RarFilesPackage extends EventEmitter {
 
     while (
       fileOffset <
-      rarFile.length - TerminalHeaderParser.HEADER_SIZE - 20
+      rarFile.length - TerminatorHeaderParser.HEADER_SIZE - 20
     ) {
       const fileHead = await parseHeader(FileHeaderParser, rarFile, fileOffset);
       if (fileHead.type !== 116) {
         break;
       }
       if (fileHead.method !== 0x30) {
-        throw new Error('Uncompression is not implemented');
+        throw new Error("Decompression is not implemented");
       }
       fileOffset += fileHead.headSize;
 
@@ -66,11 +65,11 @@ module.exports = class RarFilesPackage extends EventEmitter {
       });
       fileOffset += fileHead.size;
     }
-    this.emit('file-parsed', rarFile);
+    this.emit("file-parsed", rarFile);
     return fileChunks;
   }
   async parse() {
-    this.emit('parsing-start', this.rarFileBundle);
+    this.emit("parsing-start", this.rarFileBundle);
     const parsedFileChunks = [];
     const { files } = this.rarFileBundle;
     for (let i = 0; i < files.length; ++i) {
@@ -96,7 +95,7 @@ module.exports = class RarFilesPackage extends EventEmitter {
               ),
             },
           ]);
-          this.emit('file-parsed', nextFile);
+          this.emit("file-parsed", nextFile);
           innerFileSize -= chunkSize;
         }
       }
@@ -114,10 +113,10 @@ module.exports = class RarFilesPackage extends EventEmitter {
     }, {});
 
     const innerFiles = Object.keys(grouped).map(
-      name => new InnerFile(name, grouped[name])
+      (name) => new InnerFile(name, grouped[name])
     );
 
-    this.emit('parsing-complete', innerFiles);
+    this.emit("parsing-complete", innerFiles);
     return innerFiles;
   }
-};
+}

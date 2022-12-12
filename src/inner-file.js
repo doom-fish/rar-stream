@@ -1,7 +1,7 @@
-const InnerFileStream = require('./inner-file-stream');
-const { streamToBuffer } = require('./stream-utils');
+import { InnerFileStream } from "./inner-file-stream";
+import { streamToBuffer } from "./stream-utils";
 
-module.exports = class InnerFile {
+export class InnerFile {
   constructor(name, rarFileChunks) {
     this.rarFileChunks = rarFileChunks;
     this.length = this.rarFileChunks.reduce(
@@ -18,16 +18,15 @@ module.exports = class InnerFile {
     );
   }
   getChunksToStream(fileStart, fileEnd) {
-    const { index: startIndex, start: startOffset } = this.findMappedChunk(
-      fileStart
-    );
+    const { index: startIndex, start: startOffset } =
+      this.findMappedChunk(fileStart);
     let { index: endIndex, end: endOffset } = this.findMappedChunk(fileEnd);
 
     const chunksToStream = this.rarFileChunks.slice(startIndex, endIndex + 1);
 
     const last = chunksToStream.length - 1;
     const first = 0;
-    chunksToStream[first] = chunksToStream[first].paddStart(
+    chunksToStream[first] = chunksToStream[first].padStart(
       Math.abs(startOffset - fileStart)
     );
 
@@ -36,7 +35,7 @@ module.exports = class InnerFile {
       diff = 0;
     }
     if (diff !== 0) {
-      chunksToStream[last] = chunksToStream[last].paddEnd(diff);
+      chunksToStream[last] = chunksToStream[last].padEnd(diff);
     }
 
     return chunksToStream;
@@ -48,7 +47,7 @@ module.exports = class InnerFile {
     let { start, end } = interval;
 
     if (start < 0 || end >= this.length) {
-      throw Error('Illegal start/end offset');
+      throw Error("Illegal start/end offset");
     }
 
     return new InnerFileStream(this.getChunksToStream(start, end));
@@ -78,4 +77,4 @@ module.exports = class InnerFile {
     }
     return selectedMap;
   }
-};
+}

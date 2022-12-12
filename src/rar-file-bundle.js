@@ -1,11 +1,11 @@
 const RXX_EXTENSION = /\.R(\d\d)$|.RAR$/i;
 const RAR_EXTENSION = /.RAR$/i;
 const PARTXX_RAR_EXTENSION = /.PART(\d\d).RAR/i;
-const LocalFileMedia = require('./local-file-media');
+import { LocalFileMedia } from "./local-file-media";
 
 const isPartXXExtension = (fileMedias = []) => {
   let anyPartXXTypes = fileMedias.filter(
-    file => file.name && file.name.match(PARTXX_RAR_EXTENSION)
+    (file) => file.name && file.name.match(PARTXX_RAR_EXTENSION)
   );
 
   if (anyPartXXTypes.length > 0) {
@@ -25,7 +25,7 @@ class NumericRarFileBundle {
   }
   filter() {
     this.fileMedias = this.fileMedias.filter(
-      file => file.name && file.name.match(RXX_EXTENSION)
+      (file) => file.name && file.name.match(RXX_EXTENSION)
     );
   }
   sort() {
@@ -48,7 +48,7 @@ class NumericRarFileBundle {
     return this.fileMedias.length;
   }
   get fileNames() {
-    return this.fileMedias.map(file => file.name);
+    return this.fileMedias.map((file) => file.name);
   }
   get files() {
     return this.fileMedias;
@@ -64,7 +64,7 @@ class PartXXRarBundle {
     }
   }
   filter() {
-    this.fileMedias = this.fileMedias.filter(file =>
+    this.fileMedias = this.fileMedias.filter((file) =>
       file.name.match(PARTXX_RAR_EXTENSION)
     );
   }
@@ -82,7 +82,7 @@ class PartXXRarBundle {
     return this.fileMedias.length;
   }
   get fileNames() {
-    return this.fileMedias.map(file => file.name);
+    return this.fileMedias.map((file) => file.name);
   }
   get files() {
     return this.fileMedias;
@@ -91,15 +91,15 @@ class PartXXRarBundle {
 
 const parseFileMedias = (fileMedias = []) => {
   const localFileMedias = fileMedias
-    .filter(fileMedia => typeof fileMedia === 'string')
-    .map(path => new LocalFileMedia(path));
+    .filter((fileMedia) => typeof fileMedia === "string")
+    .map((path) => new LocalFileMedia(path));
   const otherFileMedias = fileMedias.filter(
-    fileMedia => typeof fileMedia !== 'string'
+    (fileMedia) => typeof fileMedia !== "string"
   );
   return [...localFileMedias, ...otherFileMedias];
 };
 
-module.exports = (fileMedias = []) => {
+export const makeRarFileBundle = (fileMedias = []) => {
   fileMedias = parseFileMedias(fileMedias);
 
   return isPartXXExtension(fileMedias)

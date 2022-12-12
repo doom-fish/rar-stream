@@ -1,6 +1,6 @@
-const { Readable } = require('stream');
+const { Readable } = require("stream");
 
-module.exports = class InnerFileStream extends Readable {
+export class InnerFileStream extends Readable {
   constructor(rarFileChunks, options) {
     super(options);
     this.rarFileChunks = rarFileChunks;
@@ -20,8 +20,8 @@ module.exports = class InnerFileStream extends Readable {
       this.push(null);
     } else {
       this.stream = chunk.getStream();
-      this.stream.on('data', data => this.pushData(data));
-      this.stream.on('end', () => this.next());
+      this.stream.on("data", (data) => this.pushData(data));
+      this.stream.on("end", () => this.next());
     }
   }
   _read() {
@@ -31,4 +31,4 @@ module.exports = class InnerFileStream extends Readable {
       this.stream.resume();
     }
   }
-};
+}

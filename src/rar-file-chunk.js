@@ -1,17 +1,17 @@
-module.exports = class RarFileChunk {
+export class RarFileChunk {
   constructor(fileMedia, startOffset, endOffset) {
     this.fileMedia = fileMedia;
     this.startOffset = startOffset;
     this.endOffset = endOffset;
   }
-  paddEnd(endPadding) {
+  padEnd(endPadding) {
     return new RarFileChunk(
       this.fileMedia,
       this.startOffset,
       this.endOffset - endPadding
     );
   }
-  paddStart(startPadding) {
+  padStart(startPadding) {
     return new RarFileChunk(
       this.fileMedia,
       this.startOffset + startPadding,
@@ -27,4 +27,4 @@ module.exports = class RarFileChunk {
       end: this.endOffset,
     });
   }
-};
+}

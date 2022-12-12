@@ -1,3 +1,1 @@
-module.exports = {
-  RarFilesPackage: require('./rar-files-package'),
-};
+export { RarFilesPackage } from "./rar-files-package";

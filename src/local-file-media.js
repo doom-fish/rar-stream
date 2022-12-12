@@ -1,12 +1,12 @@
-const { basename } = require('path');
-const { statSync, createReadStream } = require('fs');
+import { basename } from "path";
+import { statSync, createReadStream } from "fs";
 
-module.exports = class LocalFileMedia {
+export class LocalFileMedia {
   constructor(path) {
-    if (typeof path !== 'string') {
+    if (typeof path !== "string") {
       throw new Error(
-        'Invalid Arguments, path' +
-          'need to be passed to the constructor as a string'
+        "Invalid Arguments, path" +
+          "need to be passed to the constructor as a string"
       );
     }
     this.path = path;
@@ -16,4 +16,4 @@ module.exports = class LocalFileMedia {
   createReadStream(interval) {
     return createReadStream(this.path, interval);
   }
-};
+}

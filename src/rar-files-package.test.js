@@ -1,113 +1,111 @@
 //
-const test = require('ava');
-const path = require('path');
-const fs = require('fs');
-const RarFilesPackage = require('../rar-files-package');
-const { streamToBuffer } = require('../stream-utils');
-const makeRarFileBundle = require('../rar-file-bundle');
+import { expect, test } from "vitest";
+import path from "path";
+import fs from "fs";
 
-const fixturePath = path.resolve(__dirname, '../__fixtures__');
+import { RarFilesPackage } from "./rar-files-package";
+import { streamToBuffer } from "./stream-utils";
+import { makeRarFileBundle } from "./rar-file-bundle";
 
-const singleFilePath = path.resolve(fixturePath, 'single/single.txt');
-const multiFilePath = path.resolve(fixturePath, 'multi/multi.txt');
+const fixturePath = path.resolve(__dirname, "./__fixtures__");
+
+const singleFilePath = path.resolve(fixturePath, "single/single.txt");
+const multiFilePath = path.resolve(fixturePath, "multi/multi.txt");
 const singleSplitted1FilePath = path.resolve(
   fixturePath,
-  'single-splitted/splitted1.txt'
+  "single-splitted/splitted1.txt"
 );
 
 const singleSplitted2FilePath = path.resolve(
   fixturePath,
-  'single-splitted/splitted2.txt'
+  "single-splitted/splitted2.txt"
 );
 
 const singleSplitted3FilePath = path.resolve(
   fixturePath,
-  'single-splitted/splitted3.txt'
+  "single-splitted/splitted3.txt"
 );
 
 const multiSplitted1FilePath = path.resolve(
   fixturePath,
-  'multi-splitted/splitted1.txt'
+  "multi-splitted/splitted1.txt"
 );
 
 const multiSplitted2FilePath = path.resolve(
   fixturePath,
-  'multi-splitted/splitted2.txt'
+  "multi-splitted/splitted2.txt"
 );
 
 const multiSplitted3FilePath = path.resolve(
   fixturePath,
-  'multi-splitted/splitted3.txt'
+  "multi-splitted/splitted3.txt"
 );
 
 const multiSplitted4FilePath = path.resolve(
   fixturePath,
-  'multi-splitted/splitted4.txt'
+  "multi-splitted/splitted4.txt"
 );
 
 const singleFileRarWithOneInnerFile = [
-  path.resolve(fixturePath, 'single/single.rar'),
+  path.resolve(fixturePath, "single/single.rar"),
 ];
 const singleRarWithManyInnerFiles = [
-  path.resolve(fixturePath, 'single-splitted/single-splitted.rar'),
+  path.resolve(fixturePath, "single-splitted/single-splitted.rar"),
 ];
 const multipleRarFileWithOneInnerFile = [
-  path.resolve(fixturePath, 'multi/multi.rar'),
-  path.resolve(fixturePath, 'multi/multi.r01'),
-  path.resolve(fixturePath, 'multi/multi.r00'),
+  path.resolve(fixturePath, "multi/multi.rar"),
+  path.resolve(fixturePath, "multi/multi.r01"),
+  path.resolve(fixturePath, "multi/multi.r00"),
 ];
 const multipleRarFileWithManyInnerFiles = [
-  path.resolve(fixturePath, 'multi-splitted/multi-splitted.rar'),
-  path.resolve(fixturePath, 'multi-splitted/multi-splitted.r00'),
-  path.resolve(fixturePath, 'multi-splitted/multi-splitted.r01'),
+  path.resolve(fixturePath, "multi-splitted/multi-splitted.rar"),
+  path.resolve(fixturePath, "multi-splitted/multi-splitted.r00"),
+  path.resolve(fixturePath, "multi-splitted/multi-splitted.r01"),
 ];
 
-const readToEnd = f => Promise.all(f.map(file => file.readToEnd()));
+const readToEnd = (f) => Promise.all(f.map((file) => file.readToEnd()));
 
-test('rar package emits events for when parsing ends', async t => {
-  t.plan(1);
+test("rar package emits events for when parsing ends", async () => {
   const rarPackage = new RarFilesPackage(multipleRarFileWithOneInnerFile);
   let eventResult;
-  rarPackage.on('parsing-complete', files => {
+  rarPackage.on("parsing-complete", (files) => {
     eventResult = files;
   });
   const files = await rarPackage.parse();
-  t.is(eventResult, files);
+  expect(eventResult).toBe(files);
 });
 
-test('rar package emits events for when parsing starts', async t => {
-  t.plan(1);
-
+test("rar package emits events for when parsing starts", async () => {
   const rarPackage = new RarFilesPackage(multipleRarFileWithOneInnerFile);
   const bundle = makeRarFileBundle(multipleRarFileWithOneInnerFile);
-  rarPackage.on('parsing-start', sentBundle =>
-    t.deepEqual(bundle.fileNames, bundle.fileNames)
+  rarPackage.on("parsing-start", (sentBundle) =>
+    expect(bundle.fileNames).toEqual(bundle.fileNames)
   );
   await rarPackage.parse();
 });
 
-test('rar package emits events for each parsed file', async t => {
+test("rar package emits events for each parsed file", async () => {
   const bundle = makeRarFileBundle(multipleRarFileWithOneInnerFile);
-  t.plan(bundle.length);
+
   const rarPackage = new RarFilesPackage(multipleRarFileWithOneInnerFile);
   let i = 0;
-  rarPackage.on('file-parsed', file => {
-    t.is(file.name, bundle.fileNames[i++]);
+  rarPackage.on("file-parsed", (file) => {
+    expect(file.name).toBe(bundle.fileNames[i++]);
   });
   await rarPackage.parse();
 });
 
-test('single rar file with one inner file can be read as whole', async t => {
+test("single rar file with one inner file can be read as whole", async () => {
   const rarPackage = new RarFilesPackage(singleFileRarWithOneInnerFile);
   const files = await rarPackage.parse();
   const [rarFileContent] = await readToEnd(files);
   const singleFileContent = fs.readFileSync(singleFilePath);
 
-  t.is(rarFileContent.length, singleFileContent.length);
-  t.deepEqual(rarFileContent, singleFileContent);
+  expect(rarFileContent.length).toBe(singleFileContent.length);
+  expect(rarFileContent).toEqual(singleFileContent);
 });
 
-test('single rar file with one inner files can be read in parts', async t => {
+test("single rar file with one inner files can be read in parts", async () => {
   const interval = { start: 53, end: 1000 };
 
   const rarPackage = new RarFilesPackage(singleFileRarWithOneInnerFile);
@@ -118,11 +116,11 @@ test('single rar file with one inner files can be read in parts', async t => {
   const rarFileBuffer = await streamToBuffer(rarFileInterval);
   const singleFileBuffer = await streamToBuffer(singleFileInterval);
 
-  t.is(rarFileBuffer.length, singleFileBuffer.length);
-  t.deepEqual(rarFileBuffer, singleFileBuffer);
+  expect(rarFileBuffer.length).toBe(singleFileBuffer.length);
+  expect(rarFileBuffer).toEqual(singleFileBuffer);
 });
 
-test('single rar file with many inner files can be read as whole', async t => {
+test("single rar file with many inner files can be read as whole", async () => {
   const rarPackage = new RarFilesPackage(singleRarWithManyInnerFiles);
 
   const [rarFile1, rarFile2, rarFile3] = await rarPackage
@@ -133,16 +131,16 @@ test('single rar file with many inner files can be read as whole', async t => {
   const splitted2 = fs.readFileSync(singleSplitted2FilePath);
   const splitted3 = fs.readFileSync(singleSplitted3FilePath);
 
-  t.is(rarFile1.length, splitted1.length);
-  t.is(rarFile2.length, splitted2.length);
-  t.is(rarFile3.length, splitted3.length);
+  expect(rarFile1.length).toBe(splitted1.length);
+  expect(rarFile2.length).toBe(splitted2.length);
+  expect(rarFile3.length).toBe(splitted3.length);
 
-  t.deepEqual(rarFile1, splitted1);
-  t.deepEqual(rarFile2, splitted2);
-  t.deepEqual(rarFile3, splitted3);
+  expect(rarFile1).toEqual(splitted1);
+  expect(rarFile2).toEqual(splitted2);
+  expect(rarFile3).toEqual(splitted3);
 });
 
-test('single rar file with many inner files can be read in parts', async t => {
+test("single rar file with many inner files can be read in parts", async () => {
   const interval = { start: 50, end: 200 };
   const rarPackage = new RarFilesPackage(singleRarWithManyInnerFiles);
 
@@ -168,24 +166,24 @@ test('single rar file with many inner files can be read in parts', async t => {
     fs.createReadStream(singleSplitted3FilePath, interval)
   );
 
-  t.is(rarFile1Buffer.length, splittedFile1Buffer.length);
-  t.is(rarFile2Buffer.length, splittedFile2Buffer.length);
-  t.is(rarFile3Buffer.length, splittedFile3Buffer.length);
+  expect(rarFile1Buffer.length).toBe(splittedFile1Buffer.length);
+  expect(rarFile2Buffer.length).toBe(splittedFile2Buffer.length);
+  expect(rarFile3Buffer.length).toBe(splittedFile3Buffer.length);
 
-  t.deepEqual(rarFile1Buffer, splittedFile1Buffer);
-  t.deepEqual(rarFile2Buffer, splittedFile2Buffer);
-  t.deepEqual(rarFile3Buffer, splittedFile3Buffer);
+  expect(rarFile1Buffer).toEqual(splittedFile1Buffer);
+  expect(rarFile2Buffer).toEqual(splittedFile2Buffer);
+  expect(rarFile3Buffer).toEqual(splittedFile3Buffer);
 });
 //
-test('multiple rar file with one inner can be read as a whole', async t => {
+test("multiple rar file with one inner can be read as a whole", async () => {
   const rarPackage = new RarFilesPackage(multipleRarFileWithOneInnerFile);
   const [rarFileBuffer] = await rarPackage.parse().then(readToEnd);
   const multiFile = fs.readFileSync(multiFilePath);
-  t.is(rarFileBuffer.length, multiFile.length);
-  t.deepEqual(rarFileBuffer, multiFile);
+  expect(rarFileBuffer.length).toBe(multiFile.length);
+  expect(rarFileBuffer).toEqual(multiFile);
 });
 
-test('multiple rar file with one inner can be read as in parts', async t => {
+test("multiple rar file with one inner can be read as in parts", async () => {
   const interval = { start: 0, end: 100 };
 
   const rarPackage = new RarFilesPackage(multipleRarFileWithOneInnerFile);
@@ -196,31 +194,28 @@ test('multiple rar file with one inner can be read as in parts', async t => {
     fs.createReadStream(multiFilePath, interval)
   );
 
-  t.is(rarFileBuffer.length, multiFileBuffer.length);
-  t.deepEqual(rarFileBuffer, multiFileBuffer);
+  expect(rarFileBuffer.length).toBe(multiFileBuffer.length);
+  expect(rarFileBuffer).toEqual(multiFileBuffer);
 });
 
-test('multi rar file with many inner files can be read as whole', async t => {
+test("multi rar file with many inner files can be read as whole", async () => {
   const rarPackage = new RarFilesPackage(multipleRarFileWithManyInnerFiles);
-  const [
-    rarFile1,
-    rarFile2,
-    rarFile3,
-    rarFile4,
-  ] = await rarPackage.parse().then(readToEnd);
+  const [rarFile1, rarFile2, rarFile3, rarFile4] = await rarPackage
+    .parse()
+    .then(readToEnd);
 
   const splitted1 = fs.readFileSync(multiSplitted1FilePath);
   const splitted2 = fs.readFileSync(multiSplitted2FilePath);
   const splitted3 = fs.readFileSync(multiSplitted3FilePath);
   const splitted4 = fs.readFileSync(multiSplitted4FilePath);
 
-  t.is(rarFile1.length, splitted1.length);
-  t.is(rarFile2.length, splitted2.length);
-  t.is(rarFile3.length, splitted3.length);
-  t.is(rarFile4.length, splitted4.length);
+  expect(rarFile1.length).toBe(splitted1.length);
+  expect(rarFile2.length).toBe(splitted2.length);
+  expect(rarFile3.length).toBe(splitted3.length);
+  expect(rarFile4.length).toBe(splitted4.length);
 });
 
-test('multi rar file with many inner files can be read in parts', async t => {
+test("multi rar file with many inner files can be read in parts", async () => {
   const interval = { start: 56, end: 200 };
   const rarPackage = new RarFilesPackage(multipleRarFileWithManyInnerFiles);
 
@@ -252,13 +247,13 @@ test('multi rar file with many inner files can be read in parts', async t => {
     fs.createReadStream(multiSplitted4FilePath, interval)
   );
 
-  t.is(rarFile1Buffer.length, splittedFile1Buffer.length);
-  t.is(rarFile2Buffer.length, splittedFile2Buffer.length);
-  t.is(rarFile3Buffer.length, splittedFile3Buffer.length);
-  t.is(rarFile4Buffer.length, splittedFile4Buffer.length);
+  expect(rarFile1Buffer.length).toBe(splittedFile1Buffer.length);
+  expect(rarFile2Buffer.length).toBe(splittedFile2Buffer.length);
+  expect(rarFile3Buffer.length).toBe(splittedFile3Buffer.length);
+  expect(rarFile4Buffer.length).toBe(splittedFile4Buffer.length);
 
-  t.deepEqual(rarFile1Buffer, splittedFile1Buffer);
-  t.deepEqual(rarFile2Buffer, splittedFile2Buffer);
-  t.deepEqual(rarFile3Buffer, splittedFile3Buffer);
-  t.deepEqual(rarFile4Buffer, splittedFile4Buffer);
+  expect(rarFile1Buffer).toEqual(splittedFile1Buffer);
+  expect(rarFile2Buffer).toEqual(splittedFile2Buffer);
+  expect(rarFile3Buffer).toEqual(splittedFile3Buffer);
+  expect(rarFile4Buffer).toEqual(splittedFile4Buffer);
 });
