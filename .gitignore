@@ -38,3 +38,5 @@ node_modules
 .nyc_output
 
 wallaby.config.js
+
+dist/
