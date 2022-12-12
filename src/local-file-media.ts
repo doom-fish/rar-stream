@@ -1,6 +1,6 @@
 import { basename } from "path";
 import { statSync, createReadStream } from "fs";
-import { IFileMedia } from "./interfaces";
+import { IFileMedia, IReadInterval } from "./interfaces.js";
 
 export class LocalFileMedia implements IFileMedia {
   name: string;
@@ -9,7 +9,7 @@ export class LocalFileMedia implements IFileMedia {
     this.name = basename(path);
     this.length = statSync(path).size;
   }
-  createReadStream(interval) {
+  createReadStream(interval: IReadInterval) {
     return createReadStream(this.path, interval);
   }
 }

@@ -1,7 +1,6 @@
-import { Stream } from "stream";
-import { bufferFromString } from "./utils";
-import { MockFileStream } from "./mock-file-stream";
-import { IFileMedia, IReadInterval } from "../../interfaces";
+import { bufferFromString } from "./utils.js";
+import { MockFileStream } from "./mock-file-stream.js";
+import { IFileMedia, IReadInterval } from "../../interfaces.js";
 export class MockFileMedia implements IFileMedia {
   buffer: Buffer;
   constructor(stringData: string, name: string = "MockStream") {

@@ -1,17 +1,17 @@
 import { Readable, ReadableOptions } from "stream";
-import { RarFileChunk } from "./rar-file-chunk";
+import { RarFileChunk } from "./rar-file-chunk.js";
 
 export class InnerFileStream extends Readable {
-  stream: Readable;
+  stream?: NodeJS.ReadableStream;
   constructor(
     private rarFileChunks: RarFileChunk[],
     options?: ReadableOptions
   ) {
     super(options);
   }
-  pushData(data) {
+  pushData(data: Uint16Array) {
     if (!this.push(data)) {
-      this.stream.pause();
+      this.stream?.pause();
     }
   }
   get isStarted() {
@@ -24,15 +24,15 @@ export class InnerFileStream extends Readable {
       this.push(null);
     } else {
       this.stream = chunk.getStream();
-      this.stream.on("data", (data) => this.pushData(data));
-      this.stream.on("end", () => this.next());
+      this.stream?.on("data", (data) => this.pushData(data));
+      this.stream?.on("end", () => this.next());
     }
   }
-  _read() {
+  override _read() {
     if (!this.isStarted) {
       this.next();
     } else {
-      this.stream.resume();
+      this.stream?.resume();
     }
   }
 }

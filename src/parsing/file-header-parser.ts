@@ -44,7 +44,7 @@ export class FileHeaderParser {
         highUnpackSize * 0x100000000 + parsedVars.unpackedSize;
     }
   }
-  private parseFileName(parsedVars) {
+  private parseFileName(parsedVars: IFileHeaderRaw) {
     parsedVars.name = this.buffer
       .subarray(this.offset, this.offset + parsedVars.nameSize)
       .toString("utf-8");

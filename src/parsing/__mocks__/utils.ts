@@ -1,13 +1,10 @@
-import { ArchiveHeaderParser } from "../archive-header-parser";
-import { FileHeaderParser } from "../file-header-parser";
-import { MarkerHeaderParser } from "../marker-header-parser";
-import { TerminatorHeaderParser } from "../terminator-header-parser";
+import { IParser, IParsers } from "../../interfaces.js";
 
 export const bufferFromString = (
   str: string,
   size?: number,
   variant: BufferEncoding = "hex"
-) => {
+): Buffer => {
   if (size) {
     let padding = Math.abs(+size - str.length / 2);
     str += Array(padding).fill("00").join("");
@@ -15,18 +12,12 @@ export const bufferFromString = (
 
   return Buffer.from(str, variant);
 };
-export const bind = (Parser: {
-  HEADER_SIZE: number;
-  new (buffer: Buffer):
-    | ArchiveHeaderParser
-    | FileHeaderParser
-    | MarkerHeaderParser
-    | TerminatorHeaderParser;
-}) => ({
-  parseHeader(field, binaryStr) {
-    return new Parser(bufferFromString(binaryStr, Parser.HEADER_SIZE)).parse()[
-      field
-    ];
+export const bind = <T extends IParsers>(Parser: IParser<T>) => ({
+  parseHeader(field: any, binaryStr: string) {
+    const p = new Parser(bufferFromString(binaryStr, Parser.HEADER_SIZE));
+    const parsed = p.parse();
+    // @ts-ignore
+    return parsed[field];
   },
 });
 

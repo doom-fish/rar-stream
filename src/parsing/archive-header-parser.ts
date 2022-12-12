@@ -1,4 +1,13 @@
-function parseFlags(parsedVars) {
+interface IArchiveHeader {
+  crc: number;
+  type: number;
+  flags: number;
+  size: number;
+  reserved1: number;
+  reserved2: number;
+}
+
+function parseFlags(parsedVars: IArchiveHeader) {
   return {
     hasVolumeAttributes: (parsedVars.flags & 0x0001) !== 0,
     hasComment: (parsedVars.flags & 0x0002) !== 0,

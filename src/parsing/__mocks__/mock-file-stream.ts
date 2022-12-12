@@ -1,11 +1,11 @@
 import { Readable, ReadableOptions } from "stream";
-import { IReadInterval } from "../../interfaces";
+import { IReadInterval } from "../../interfaces.js";
 
 export class MockFileStream extends Readable {
   constructor(private object: Buffer | null, private options: IReadInterval) {
     super(options as ReadableOptions);
   }
-  _read() {
+  override _read() {
     if (
       !!this.object &&
       typeof this.options.start === "number" &&

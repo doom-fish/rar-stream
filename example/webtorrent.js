@@ -1,5 +1,6 @@
 import Webtorrent from "webtorrent";
 import fs from "fs";
+// @ts-ignore
 import { RarFilesPackage } from "rar-stream";
 
 const client = new Webtorrent();
