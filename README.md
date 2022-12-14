@@ -4,7 +4,7 @@
 
 Library for _"unpacking"_ and reading files inside rar archives as node Readable streams.
 
-**Note: Requires node version >= 8.0.0**
+**Note: Requires node version >= 18.0.0**
 
 **Note: Decompression is not implemented at the moment**
 
@@ -13,16 +13,17 @@ Library for _"unpacking"_ and reading files inside rar archives as node Readable
 Below example shows how to unpack local rar files by piping the inner files to the file system.
 
 ```javascript
-const fs = require("fs");
-const path = require("path");
-const { RarFilesPackage } = require("rar-stream");
+import fs from "fs";
+import path from "path";
+import { RarFilesPackage, LocalFileMedia } from "rar-stream";
 const CWD = process.cwd();
+
 const localRarFiles = [
   path.resolve(CWD, "./file.r00"),
   path.resolve(CWD, "./file.r01"),
   path.resolve(CWD, "./file.r02"),
   path.resolve(CWD, "./file.rar"),
-];
+].map((p) => new LocalFileMedia(p));
 
 const rarFilesPackage = new RarFilesPackage(localRarFiles);
 
@@ -35,7 +36,7 @@ async function writeInnerRarFilesToDisk() {
   }
 }
 
-writeInnerRarFilesToDisk();
+await writeInnerRarFilesToDisk();
 ```
 
 See [example/webtorrent.js](example/webtorrent.js) for a more advanced example.
@@ -133,10 +134,6 @@ Run tests with:
 ```
 npm test
 ```
-
-### Built With
-
-- [binary](https://www.npmjs.com/package/binary) - For parsing rar headers.
 
 ### Contributing
 

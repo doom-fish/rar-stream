@@ -10,6 +10,7 @@ import { TerminatorHeaderParser } from "./parsing/terminator-header-parser.js";
 
 import { streamToBuffer } from "./stream-utils.js";
 import { IFileMedia, IParser, IParsers } from "./interfaces.js";
+import { groupBy, mapValues } from "./utils.js";
 
 const parseHeader = async <T extends IParsers>(
   Parser: IParser<T>,
@@ -51,10 +52,7 @@ export class RarFilesPackage extends EventEmitter {
     );
     fileOffset += archiveHeader.size;
 
-    while (
-      fileOffset <
-      rarFile.length - TerminatorHeaderParser.HEADER_SIZE - 20
-    ) {
+    while (fileOffset < rarFile.length - TerminatorHeaderParser.HEADER_SIZE) {
       const fileHead = await parseHeader(FileHeaderParser, rarFile, fileOffset);
       if (fileHead.type !== 116) {
         break;
@@ -113,17 +111,13 @@ export class RarFilesPackage extends EventEmitter {
 
     const fileChunks = parsedFileChunks.flat();
 
-    const grouped = fileChunks.reduce((file, { name, chunk }) => {
-      if (!file[name]) {
-        file[name] = [];
-      }
+    const grouped = mapValues(
+      groupBy(fileChunks, (f) => f.name),
+      (value) => value.map((v) => v.chunk)
+    );
 
-      file[name]!.push(chunk);
-      return file;
-    }, {} as { [name: string]: RarFileChunk[] });
-
-    const innerFiles = Object.keys(grouped).map(
-      (name) => new InnerFile(name, grouped[name]!)
+    const innerFiles = Object.entries(grouped).map(
+      ([name, chunks]) => new InnerFile(name, chunks)
     );
 
     this.emit("parsing-complete", innerFiles);

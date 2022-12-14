@@ -10,7 +10,7 @@
   "type": "module",
   "packageManager": "pnpm@7.18.2",
   "engines": {
-    "node": ">=18.0.0"
+    "node": ">=18"
   },
   "main": "dist/index.js",
   "scripts": {
@@ -21,9 +21,8 @@
   },
   "license": "MIT",
   "devDependencies": {
-    "vitest": "^0.25.7"
-  },
-  "dependencies": {
-    "typescript": "^4.9.4"
+    "typescript": "4.9.4",
+    "vitest": "0.25.8",
+    "vite": "4.0.1"
   }
 }

@@ -1,5 +1,5 @@
 export class TerminatorHeaderParser {
-  static HEADER_SIZE = 7;
+  static HEADER_SIZE = 27;
   constructor(private headerBuffer: Buffer) {}
   parse() {
     const crc = this.headerBuffer.readUInt16LE(0);
