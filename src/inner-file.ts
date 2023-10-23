@@ -1,5 +1,5 @@
-import { IFileMedia, IReadInterval } from "./interfaces.js";
 import { InnerFileStream } from "./inner-file-stream.js";
+import { IFileMedia, IReadInterval } from "./interfaces.js";
 import { RarFileChunk } from "./rar-file-chunk.js";
 import { streamToBuffer } from "./stream-utils.js";
 import { sum } from "./utils.js";
@@ -14,7 +14,7 @@ export class InnerFile implements IFileMedia {
   length: number;
 
   chunkMap: ChunkMapEntry[];
-  constructor(public name: string, private rarFileChunks: RarFileChunk[]) {
+  constructor(public name: string, private rarFileChunks: RarFileChunk[], public fileHead: any) {
     this.length = sum(rarFileChunks.map((c) => c.length));
     this.chunkMap = this.calculateChunkMap(rarFileChunks);
 

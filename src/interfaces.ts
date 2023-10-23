@@ -1,3 +1,4 @@
+import { Readable } from "stream";
 import { ArchiveHeaderParser } from "./parsing/archive-header-parser.js";
 import { FileHeaderParser } from "./parsing/file-header-parser.js";
 import { MarkerHeaderParser } from "./parsing/marker-header-parser.js";
@@ -5,7 +6,7 @@ import { TerminatorHeaderParser } from "./parsing/terminator-header-parser.js";
 export interface IFileMedia {
   length: number;
   name: string;
-  createReadStream(opts?: IReadInterval): NodeJS.ReadableStream;
+  createReadStream(opts?: IReadInterval): Readable;
 }
 export interface IReadInterval {
   start: number;

@@ -1,15 +1,15 @@
 import { EventEmitter } from "events";
+import { InnerFile } from "./inner-file.js";
 import { makeRarFileBundle, RarFileBundle } from "./rar-file-bundle.js";
 import { RarFileChunk } from "./rar-file-chunk.js";
-import { InnerFile } from "./inner-file.js";
 
-import { MarkerHeaderParser } from "./parsing/marker-header-parser.js";
 import { ArchiveHeaderParser } from "./parsing/archive-header-parser.js";
 import { FileHeaderParser, IFileHeader } from "./parsing/file-header-parser.js";
+import { MarkerHeaderParser } from "./parsing/marker-header-parser.js";
 import { TerminatorHeaderParser } from "./parsing/terminator-header-parser.js";
 
-import { streamToBuffer } from "./stream-utils.js";
 import { IFileMedia, IParser, IParsers } from "./interfaces.js";
+import { streamToBuffer } from "./stream-utils.js";
 import { groupBy, mapValues } from "./utils.js";
 
 const parseHeader = async <T extends IParsers>(
@@ -115,9 +115,10 @@ export class RarFilesPackage extends EventEmitter {
       groupBy(fileChunks, (f) => f.name),
       (value) => value.map((v) => v.chunk)
     );
+    const fileHead = ((fileChunks.find((f) => (<FileChunkMapping>f).fileHead) || undefined) as FileChunkMapping | undefined)?.fileHead || undefined;
 
     const innerFiles = Object.entries(grouped).map(
-      ([name, chunks]) => new InnerFile(name, chunks)
+      ([name, chunks]) => new InnerFile(name, chunks, fileHead)
     );
 
     this.emit("parsing-complete", innerFiles);

@@ -1,6 +1,6 @@
-import { Stream, Duplex } from "stream";
+import { Duplex, Readable } from "stream";
 
-export const streamToBuffer = async (stream: Stream): Promise<Buffer> =>
+export const streamToBuffer = async (stream: Readable): Promise<Buffer> =>
   new Promise((resolve, reject) => {
     const buffers: Uint8Array[] = [];
     stream.on("error", reject);
@@ -8,7 +8,7 @@ export const streamToBuffer = async (stream: Stream): Promise<Buffer> =>
     stream.on("end", () => resolve(Buffer.concat(buffers)));
   });
 
-export const bufferToStream = (buffer: Buffer): Stream => {
+export const bufferToStream = (buffer: Buffer): Duplex => {
   const stream = new Duplex();
   stream.push(buffer);
   stream.push(null);
