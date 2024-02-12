@@ -11,6 +11,10 @@ export interface IReadInterval {
   start: number;
   end: number;
 }
+export interface FindOpts {
+  fileMustInclude: (RegExp | string)[];
+  fileIdx: number;
+}
 
 export type IParsers =
   | ArchiveHeaderParser

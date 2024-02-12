@@ -9,7 +9,7 @@ import { FileHeaderParser, IFileHeader } from "./parsing/file-header-parser.js";
 import { TerminatorHeaderParser } from "./parsing/terminator-header-parser.js";
 
 import { streamToBuffer } from "./stream-utils.js";
-import { IFileMedia, IParser, IParsers } from "./interfaces.js";
+import { IFileMedia, IParser, IParsers, FindOpts } from "./interfaces.js";
 import { groupBy, mapValues } from "./utils.js";
 
 const parseHeader = async <T extends IParsers>(
@@ -39,7 +39,7 @@ export class RarFilesPackage extends EventEmitter {
     super();
     this.rarFileBundle = makeRarFileBundle(fileMedias);
   }
-  async parseFile(rarFile: IFileMedia) {
+  async parseFile(rarFile: IFileMedia, opts: FindOpts) {
     const fileChunks: FileChunkMapping[] = [];
     let fileOffset = 0;
     const markerHead = await parseHeader(MarkerHeaderParser, rarFile);
@@ -52,38 +52,61 @@ export class RarFilesPackage extends EventEmitter {
     );
     fileOffset += archiveHeader.size;
 
-    while (fileOffset < rarFile.length - TerminatorHeaderParser.HEADER_SIZE) {
+    let foundFile = false
+    let countFiles = 0
+    while (fileOffset < rarFile.length - TerminatorHeaderParser.HEADER_SIZE && !foundFile) {
       const fileHead = await parseHeader(FileHeaderParser, rarFile, fileOffset);
       if (fileHead.type !== 116) {
         break;
       }
-      if (fileHead.method !== 0x30) {
-        throw new Error("Decompression is not implemented");
-      }
       fileOffset += fileHead.headSize;
-
-      fileChunks.push({
-        name: fileHead.name,
-        fileHead,
-        chunk: new RarFileChunk(
-          rarFile,
-          fileOffset,
-          fileOffset + fileHead.size - 1
-        ),
-      });
+      function getFileChunk() {
+          if (fileHead.method !== 0x30) {
+              throw new Error("Decompression is not implemented");
+          }
+          return {
+              name: fileHead.name,
+              fileHead,
+              chunk: new RarFileChunk(
+                rarFile,
+                fileOffset,
+                fileOffset + fileHead.size - 1
+              ),
+          };
+      }
+      if (opts.fileMustInclude) {
+          if (opts.fileMustInclude.find(reg => {
+              reg = typeof reg === 'string' ? new RegExp(reg) : reg
+              return reg.test(fileHead.name || '')
+          })) {
+              fileChunks.push(getFileChunk());
+              break;
+          }
+      } else if (opts.hasOwnProperty('fileIdx')) {
+          if (opts.fileIdx === countFiles) {
+              fileChunks.push(getFileChunk());
+              break;
+          }
+      } else {
+          fileChunks.push(getFileChunk());
+      }
       fileOffset += fileHead.size;
     }
     this.emit("file-parsed", rarFile);
     return fileChunks;
   }
-  async parse(): Promise<InnerFile[]> {
+  async parse(opts: FindOpts): Promise<InnerFile[]> {
     this.emit("parsing-start", this.rarFileBundle);
     const parsedFileChunks: ParsedFileChunkMapping[][] = [];
     const { files } = this.rarFileBundle;
     for (let i = 0; i < files.length; ++i) {
       const file = files[i]!;
 
-      const chunks = await this.parseFile(file);
+      const chunks = await this.parseFile(file, opts);
+      if (!chunks.length) {
+          this.emit("parsing-complete", []);
+          return [];
+      }
       const { fileHead, chunk } = chunks[chunks.length - 1]!;
       const chunkSize = Math.abs(chunk.endOffset - chunk.startOffset);
       let innerFileSize = fileHead.unpackedSize;
