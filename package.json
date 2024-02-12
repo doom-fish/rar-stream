@@ -22,7 +22,7 @@
     "test": "vitest",
     "build": "tsup",
     "coverage": "vitest --coverage",
-    "prepublish": "build"
+    "prepublish": "npm run build"
   },
   "license": "MIT",
   "devDependencies": {
