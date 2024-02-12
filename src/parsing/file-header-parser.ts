@@ -88,19 +88,34 @@ export class FileHeaderParser {
     const fileCrc = this.buffer.readUInt32LE(this.offset);
     this.offset += 4;
 
-    const timestamp = this.buffer.readUInt32LE(this.offset);
+    let timestamp = null;
+    try {
+        timestamp = this.buffer.readUInt32LE(this.offset);
+    } catch(e) {}
     this.offset += 4;
 
-    const version = this.buffer.readUInt8(this.offset);
+    let version = null;
+    try {
+        version = this.buffer.readUInt8(this.offset);
+    } catch(e) {}
     this.offset += 1;
 
-    const method = this.buffer.readUInt8(this.offset);
+    let method = null;
+    try {
+        method = this.buffer.readUInt8(this.offset);
+    } catch(e) {}
     this.offset += 1;
 
-    const nameSize = this.buffer.readUInt16LE(this.offset);
+    let nameSize = null;
+    try {
+        nameSize = this.buffer.readUInt16LE(this.offset);
+    } catch(e) {}
     this.offset += 2;
 
-    const attributes = this.buffer.readUInt32LE(this.offset);
+    let attributes = null;
+    try {
+        attributes = this.buffer.readUInt32LE(this.offset);
+    } catch(e) {}
     this.offset += 4;
 
     let vars: IFileHeaderRaw = {
