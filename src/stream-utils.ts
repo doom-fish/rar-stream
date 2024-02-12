@@ -1,6 +1,6 @@
 import { Stream, Duplex } from "stream";
 
-export const streamToBuffer = async (stream: Stream): Promise<Buffer> =>
+export const streamToBuffer = async (stream: Stream | NodeJS.ReadableStream): Promise<Buffer> =>
   new Promise((resolve, reject) => {
     const buffers: Uint8Array[] = [];
     stream.on("error", reject);
