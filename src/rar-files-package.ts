@@ -91,6 +91,7 @@ export class RarFilesPackage extends EventEmitter {
           fileChunks.push(getFileChunk());
       }
       fileOffset += fileHead.size;
+      countFiles++;
     }
     this.emit("file-parsed", rarFile);
     return fileChunks;
