@@ -20,11 +20,11 @@ interface IFileHeaderRaw {
   unpackedSize: number;
   host: number;
   fileCrc: number;
-  timestamp: number;
-  version: number;
-  method: number;
+  timestamp: number | null;
+  version: number | null;
+  method: number | null;
   nameSize: number;
-  attributes: number;
+  attributes: number | null;
   name: string;
 }
 
@@ -45,6 +45,7 @@ export class FileHeaderParser {
     }
   }
   private parseFileName(parsedVars: IFileHeaderRaw) {
+
     parsedVars.name = this.buffer
       .subarray(this.offset, this.offset + parsedVars.nameSize)
       .toString("utf-8");
@@ -106,7 +107,7 @@ export class FileHeaderParser {
     } catch(e) {}
     this.offset += 1;
 
-    let nameSize = null;
+    let nameSize = 0;
     try {
         nameSize = this.buffer.readUInt16LE(this.offset);
     } catch(e) {}
