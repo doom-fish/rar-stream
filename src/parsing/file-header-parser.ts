@@ -20,11 +20,11 @@ interface IFileHeaderRaw {
   unpackedSize: number;
   host: number;
   fileCrc: number;
-  timestamp: number | null;
-  version: number | null;
-  method: number | null;
+  timestamp: number;
+  version: number;
+  method: number;
   nameSize: number;
-  attributes: number | null;
+  attributes: number;
   name: string;
 }
 
@@ -89,34 +89,19 @@ export class FileHeaderParser {
     const fileCrc = this.buffer.readUInt32LE(this.offset);
     this.offset += 4;
 
-    let timestamp = null;
-    try {
-        timestamp = this.buffer.readUInt32LE(this.offset);
-    } catch(e) {}
+    const timestamp = this.buffer.readUInt32LE(this.offset);
     this.offset += 4;
 
-    let version = null;
-    try {
-        version = this.buffer.readUInt8(this.offset);
-    } catch(e) {}
+    let version = this.buffer.readUInt8(this.offset);
     this.offset += 1;
 
-    let method = null;
-    try {
-        method = this.buffer.readUInt8(this.offset);
-    } catch(e) {}
+    let method = this.buffer.readUInt8(this.offset);
     this.offset += 1;
 
-    let nameSize = 0;
-    try {
-        nameSize = this.buffer.readUInt16LE(this.offset);
-    } catch(e) {}
+    let nameSize = this.buffer.readUInt16LE(this.offset);
     this.offset += 2;
 
-    let attributes = null;
-    try {
-        attributes = this.buffer.readUInt32LE(this.offset);
-    } catch(e) {}
+    let attributes = this.buffer.readUInt32LE(this.offset);
     this.offset += 4;
 
     let vars: IFileHeaderRaw = {
