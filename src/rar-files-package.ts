@@ -92,6 +92,7 @@ export class RarFilesPackage extends EventEmitter {
     return fileChunks;
   }
   async parse(opts: FindOpts): Promise<InnerFile[]> {
+    opts = opts || {};
     this.emit("parsing-start", this.rarFileBundle);
     const parsedFileChunks: ParsedFileChunkMapping[][] = [];
     const { files } = this.rarFileBundle;
