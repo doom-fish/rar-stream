@@ -11,6 +11,13 @@ export interface IReadInterval {
   start: number;
   end: number;
 }
+export interface FindOpts {
+  filter(
+    filename: string,
+    idx: number
+  ): boolean;
+  maxFiles: number;
+}
 
 export type IParsers =
   | ArchiveHeaderParser
