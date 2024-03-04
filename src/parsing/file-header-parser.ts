@@ -45,7 +45,6 @@ export class FileHeaderParser {
     }
   }
   private parseFileName(parsedVars: IFileHeaderRaw) {
-
     parsedVars.name = this.buffer
       .subarray(this.offset, this.offset + parsedVars.nameSize)
       .toString("utf-8");
@@ -92,16 +91,16 @@ export class FileHeaderParser {
     const timestamp = this.buffer.readUInt32LE(this.offset);
     this.offset += 4;
 
-    let version = this.buffer.readUInt8(this.offset);
+    const version = this.buffer.readUInt8(this.offset);
     this.offset += 1;
 
-    let method = this.buffer.readUInt8(this.offset);
+    const method = this.buffer.readUInt8(this.offset);
     this.offset += 1;
 
-    let nameSize = this.buffer.readUInt16LE(this.offset);
+    const nameSize = this.buffer.readUInt16LE(this.offset);
     this.offset += 2;
 
-    let attributes = this.buffer.readUInt32LE(this.offset);
+    const attributes = this.buffer.readUInt32LE(this.offset);
     this.offset += 4;
 
     let vars: IFileHeaderRaw = {
