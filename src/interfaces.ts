@@ -17,7 +17,6 @@ export interface FindOpts {
     idx: number
   ): boolean;
   maxFiles: number;
-  fileIdx: number;
 }
 
 export type IParsers =
