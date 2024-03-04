@@ -75,7 +75,7 @@ export class RarFilesPackage extends EventEmitter {
           };
       }
       if (opts.filter) {
-          if (await opts.filter(fileHead.name, countFiles)) {
+          if (opts.filter(fileHead.name, countFiles)) {
               fileChunks.push(getFileChunk());
               retrievedFiles++;
               if (retrievedFiles === opts.maxFiles) {
