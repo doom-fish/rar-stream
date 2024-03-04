@@ -12,7 +12,11 @@ export interface IReadInterval {
   end: number;
 }
 export interface FindOpts {
-  fileMustInclude: (RegExp | string)[];
+  filter(
+    filename: string,
+    idx: number
+  ): boolean;
+  maxFiles: number;
   fileIdx: number;
 }
 

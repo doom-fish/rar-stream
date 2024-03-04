@@ -52,9 +52,9 @@ export class RarFilesPackage extends EventEmitter {
     );
     fileOffset += archiveHeader.size;
 
-    let foundFile = false
-    let countFiles = 0
-    while (fileOffset < rarFile.length - TerminatorHeaderParser.HEADER_SIZE && !foundFile) {
+    let countFiles = 0;
+    let retrievedFiles = 0;
+    while (fileOffset < rarFile.length - TerminatorHeaderParser.HEADER_SIZE) {
       const fileHead = await parseHeader(FileHeaderParser, rarFile, fileOffset);
       if (fileHead.type !== 116) {
         break;
@@ -74,13 +74,13 @@ export class RarFilesPackage extends EventEmitter {
               ),
           };
       }
-      if (opts.fileMustInclude) {
-          if (opts.fileMustInclude.find(reg => {
-              reg = typeof reg === 'string' ? new RegExp(reg) : reg
-              return reg.test(fileHead.name || '')
-          })) {
+      if (opts.filter) {
+          if (await opts.filter(fileHead.name, countFiles)) {
               fileChunks.push(getFileChunk());
-              break;
+              retrievedFiles++;
+              if (retrievedFiles === opts.maxFiles) {
+                break;
+              }
           }
       } else if (opts.hasOwnProperty('fileIdx')) {
           if (opts.fileIdx === countFiles) {
