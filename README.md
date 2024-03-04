@@ -4,7 +4,7 @@
 
 Library for _"unpacking"_ and reading files inside rar archives as node Readable streams.
 
-**Note: Requires node version >= 18.0.0**
+**Note: Requires node version >= 12.0.0**
 
 **Note: Decompression is not implemented at the moment**
 
