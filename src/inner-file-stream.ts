@@ -17,13 +17,13 @@ export class InnerFileStream extends Readable {
   get isStarted() {
     return !!this.stream;
   }
-  next() {
+  async next() {
     const chunk = this.rarFileChunks.shift();
 
     if (!chunk) {
       this.push(null);
     } else {
-      this.stream = chunk.getStream();
+      this.stream = await chunk.getStream();
       this.stream?.on("data", (data) => this.pushData(data));
       this.stream?.on("end", () => this.next());
     }
