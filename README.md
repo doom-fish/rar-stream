@@ -60,6 +60,31 @@ npm i rar-stream
 | _constructor_ | Takes an array of local file paths as strings or instances that satifies the [`FileMedia`](#filemedia-interface) interface mentioned below. |
 | parse         | Parses all rar files and returns a Promise with [`InnerFile`](#innerfile-api)s.                                                             |
 
+#### Filtering:
+
+The `RarFilesPackage.parse()` method accepts one optional parameter that should be an object of options.
+
+As parsing is done sequencially, `opts.filter` and `opts.maxFiles` can be used to filter and limit results.
+
+Here is an example:
+```
+{
+  filter: (fileName, fileIdx) => {
+    if (fileName.includes('Lorem Ipsum')) {
+      return true;
+    } else if (fileIdx === 9) {
+      return true;
+    }
+    return false;
+  },
+  maxFiles: 1
+}
+```
+
+The filter function will be called on each file entry from within the RAR archive and it will always include the name of the file and the file index. The filter function is expected to return a boolean value, if the returned value is `true` the file will be included in the parser's results.
+
+The parser will stop processing the file list once it reaches the `maxFiles` limit of returned files.
+
 #### Events:
 
 | Event            | Description                                                                                                                                               |
