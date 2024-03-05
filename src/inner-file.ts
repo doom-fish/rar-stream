@@ -20,10 +20,9 @@ export class InnerFile implements IFileMedia {
 
     this.name = name;
   }
-  readToEnd() {
-    return streamToBuffer(
-      this.createReadStream({ start: 0, end: this.length - 1 })
-    );
+  async readToEnd() {
+    const stream = await this.createReadStream({ start: 0, end: this.length - 1 });
+    return streamToBuffer(stream);
   }
   getChunksToStream(fileStart: number, fileEnd: number) {
     const { index: startIndex, start: startOffset } =
@@ -58,7 +57,9 @@ export class InnerFile implements IFileMedia {
       throw Error("Illegal start/end offset");
     }
 
-    return new InnerFileStream(this.getChunksToStream(start, end));
+    return Promise.resolve(
+      new InnerFileStream(this.getChunksToStream(start, end))
+    );
   }
   calculateChunkMap(rarFileChunks: RarFileChunk[]) {
     const chunkMap: ChunkMapEntry[] = [];

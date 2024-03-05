@@ -30,9 +30,8 @@ const rarFilesPackage = new RarFilesPackage(localRarFiles);
 async function writeInnerRarFilesToDisk() {
   const innerFiles = await rarFilesPackage.parse();
   for (const innerFile of innerFiles) {
-    innerFile
-      .createReadStream({ start: 0, end: innerFile.length - 1 })
-      .pipe(fs.createWriteStream(innerFile.name));
+    const stream = await innerFile.createReadStream({ start: 0, end: innerFile.length - 1 })
+    stream.pipe(fs.createWriteStream(innerFile.name));
   }
 }
 
@@ -84,10 +83,10 @@ Implements the [`FileMedia`](#filemedia-interface) interface.
 
 #### Methods:
 
-| Method                                         | Description                                                             |
-| ---------------------------------------------- | ----------------------------------------------------------------------- |
-| createReadStream({start: number, end: number}) | Returns a `Readable` stream. The start and end interval is inclusive.   |
-| readToEnd                                      | Returns a Promise with a Buffer containing all the content of the file. |
+| Method                                         | Description                                                                          |
+| ---------------------------------------------- | ------------------------------------------------------------------------------------ |
+| createReadStream({start: number, end: number}) | Returns a Promise with a `Readable` stream. The start and end interval is inclusive. |
+| readToEnd                                      | Returns a Promise with a Buffer containing all the content of the file.              |
 
 #### Properties:
 
@@ -100,7 +99,7 @@ Implements the [`FileMedia`](#filemedia-interface) interface.
 
 ```
 const innerFiles = await rarStreamPackage.parse();
-const innerFileStream = innerFiles[0].createReadStream({ start: 0, end: 30});
+const innerFileStream = await innerFiles[0].createReadStream({ start: 0, end: 30});
 ```
 
 ### _FileMedia Interface_
@@ -112,7 +111,7 @@ Should have the following shape:
 ```javascript
  // FileMedia
  {
-  createReadStream(interval: Interval): Readable,
+  createReadStream(interval: Interval): Promise<Readable>,
   name: string,
   length: number // Length or size of the file in bytes
  }

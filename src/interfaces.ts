@@ -5,7 +5,7 @@ import { TerminatorHeaderParser } from "./parsing/terminator-header-parser.js";
 export interface IFileMedia {
   length: number;
   name: string;
-  createReadStream(opts?: IReadInterval): NodeJS.ReadableStream;
+  createReadStream(opts?: IReadInterval): Promise<NodeJS.ReadableStream> | NodeJS.ReadableStream;
 }
 export interface IReadInterval {
   start: number;

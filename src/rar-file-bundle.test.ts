@@ -7,7 +7,7 @@ const newFileMedia = (name: string) =>
   ({
     name,
     length: 0,
-    createReadStream: () => new Readable(),
+    createReadStream: () => Promise.resolve(new Readable()),
   } satisfies IFileMedia);
 
 test("RarFileBundle length should be 0 with an empty array as input", () => {
