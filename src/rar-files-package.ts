@@ -17,7 +17,7 @@ const parseHeader = async <T extends IParsers>(
   fileMedia: IFileMedia,
   offset = 0
 ) => {
-  const stream = fileMedia.createReadStream({
+  const stream = await fileMedia.createReadStream({
     start: offset,
     end: offset + Parser.HEADER_SIZE,
   });

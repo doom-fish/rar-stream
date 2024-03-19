@@ -114,7 +114,7 @@ test("single rar file with one inner files can be read in parts", async () => {
   const rarPackage = new RarFilesPackage(singleFileRarWithOneInnerFile);
 
   const [file] = await rarPackage.parse();
-  const rarFileInterval = file?.createReadStream(interval);
+  const rarFileInterval = await file?.createReadStream(interval);
   const singleFileInterval = fs.createReadStream(singleFilePath, interval);
   const rarFileBuffer = await streamToBuffer(rarFileInterval!);
   const singleFileBuffer = await streamToBuffer(singleFileInterval);
@@ -150,13 +150,13 @@ test("single rar file with many inner files can be read in parts", async () => {
   const [rarFile1, rarFile2, rarFile3] = await rarPackage.parse();
 
   const rarFile1Buffer = await streamToBuffer(
-    rarFile1!.createReadStream(interval)
+    await rarFile1!.createReadStream(interval)
   );
   const rarFile2Buffer = await streamToBuffer(
-    rarFile2!.createReadStream(interval)
+    await rarFile2!.createReadStream(interval)
   );
   const rarFile3Buffer = await streamToBuffer(
-    rarFile3!.createReadStream(interval)
+    await rarFile3!.createReadStream(interval)
   );
 
   const splittedFile1Buffer = await streamToBuffer(
@@ -192,7 +192,7 @@ test("multiple rar file with one inner can be read as in parts", async () => {
   const rarPackage = new RarFilesPackage(multipleRarFileWithOneInnerFile);
 
   const [file] = await rarPackage.parse();
-  const rarFileBuffer = await streamToBuffer(file!.createReadStream(interval));
+  const rarFileBuffer = await streamToBuffer(await file!.createReadStream(interval));
   const multiFileBuffer = await streamToBuffer(
     fs.createReadStream(multiFilePath, interval)
   );
@@ -225,16 +225,16 @@ test("multi rar file with many inner files can be read in parts", async () => {
   const [rarFile1, rarFile2, rarFile3, rarFile4] = await rarPackage.parse();
 
   const rarFile1Buffer = await streamToBuffer(
-    rarFile1!.createReadStream(interval)
+    await rarFile1!.createReadStream(interval)
   );
   const rarFile2Buffer = await streamToBuffer(
-    rarFile2!.createReadStream(interval)
+    await rarFile2!.createReadStream(interval)
   );
   const rarFile3Buffer = await streamToBuffer(
-    rarFile3!.createReadStream(interval)
+    await rarFile3!.createReadStream(interval)
   );
   const rarFile4Buffer = await streamToBuffer(
-    rarFile4!.createReadStream(interval)
+    await rarFile4!.createReadStream(interval)
   );
 
   const splittedFile1Buffer = await streamToBuffer(

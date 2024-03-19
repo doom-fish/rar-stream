@@ -12,6 +12,8 @@ export class MockFileMedia implements IFileMedia {
   length: number;
   name: string;
   createReadStream(options: IReadInterval) {
-    return new MockFileStream(this.buffer, options);
+    return Promise.resolve(
+      new MockFileStream(this.buffer, options)
+    );
   }
 }

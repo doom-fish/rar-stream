@@ -7,7 +7,7 @@ test("RarFileChunk#getStream should return a stream from its FileMedia", async (
   const bufferString = "123456789A";
   const fileMedia = new MockFileMedia(bufferString);
   const rarFileChunk = new RarFileChunk(fileMedia, 0, 5);
-  const stream = rarFileChunk.getStream();
+  const stream = await rarFileChunk.getStream();
   const buffer = await streamToBuffer(stream);
   expect(Buffer.from(bufferString, "hex")).toEqual(buffer);
 });
@@ -16,7 +16,7 @@ test("RarFileChunk#getStream should return a stream with a subset stream of File
   const bufferString = "123456789A";
   const fileMedia = new MockFileMedia(bufferString);
   const rarFileChunk = new RarFileChunk(fileMedia, 2, 5);
-  const stream = rarFileChunk.getStream();
+  const stream = await rarFileChunk.getStream();
   const buffer = await streamToBuffer(stream);
   expect(Buffer.from("56789A", "hex")).toEqual(buffer);
 });
@@ -25,7 +25,7 @@ test("RarFileChunk#getStream should return a stream with another subset stream o
   const bufferString = "123456789A";
   const fileMedia = new MockFileMedia(bufferString);
   const rarFileChunk = new RarFileChunk(fileMedia, 1, 3);
-  const stream = rarFileChunk.getStream();
+  const stream = await rarFileChunk.getStream();
   const buffer = await streamToBuffer(stream);
   expect(Buffer.from("3456", "hex")).toEqual(buffer);
 });

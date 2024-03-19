@@ -10,6 +10,8 @@ export class LocalFileMedia implements IFileMedia {
     this.length = statSync(path).size;
   }
   createReadStream(interval: IReadInterval) {
-    return createReadStream(this.path, interval);
+    return Promise.resolve(
+      createReadStream(this.path, interval)
+    );
   }
 }
