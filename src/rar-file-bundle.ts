@@ -1,6 +1,6 @@
 const RXX_EXTENSION = /\.R(\d\d)$|.RAR$/i;
 const RAR_EXTENSION = /.RAR$/i;
-const PARTXX_RAR_EXTENSION = /.PART(\d\d).RAR/i;
+const PARTXX_RAR_EXTENSION = /.PART(\d\d?\d?).RAR/i;
 import { IFileMedia } from "./interfaces.js";
 
 const isPartXXExtension = (fileMedias: IFileMedia[] = []) => {
