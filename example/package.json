@@ -14,7 +14,9 @@
   "author": "1313",
   "license": "MIT",
   "dependencies": {
-    "rar-stream": "..",
-    "webtorrent": "^1.9.6"
+    "@opentf/cli-pbar": "^0.7.2",
+    "pretty-bytes": "^6.1.1",
+    "rar-stream": "^3.2.0",
+    "webtorrent": "^2.5.10"
   }
 }
