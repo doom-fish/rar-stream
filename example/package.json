@@ -4,12 +4,8 @@
   "private": true,
   "type": "module",
   "main": "webtorrent",
-  "packageManager": "pnpm@7.18.2",
   "engines": {
     "node": ">=18.0.0"
-  },
-  "scripts": {
-    "start": "node --es-module-specifier-resolution=node webtorrent"
   },
   "author": "1313",
   "license": "MIT",
