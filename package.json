@@ -26,11 +26,11 @@
   },
   "license": "MIT",
   "devDependencies": {
-    "@types/node": "^20.11.17",
-    "@vitest/coverage-v8": "^1.2.2",
-    "tsup": "^8.0.2",
-    "typescript": "5.3.3",
-    "vitest": "1.2.2"
+    "@types/node": "^22.10.1",
+    "@vitest/coverage-v8": "^2.1.8",
+    "tsup": "^8.3.5",
+    "typescript": "5.7.2",
+    "vitest": "2.1.8"
   },
   "exports": {
     "import": {
