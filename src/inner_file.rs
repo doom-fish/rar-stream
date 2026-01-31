@@ -7,7 +7,7 @@ use crate::decompress::Rar29Decoder;
 use crate::error::{RarError, Result};
 use crate::file_media::ReadInterval;
 use crate::rar_file_chunk::RarFileChunk;
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 
 /// Mapping of a chunk within the logical file.
 /// Stored sorted by start offset for binary search.
@@ -31,8 +31,8 @@ pub struct InnerFile {
     method: u8,
     /// Packed size (sum of chunk sizes)
     packed_size: u64,
-    /// Cached decompressed data (for compressed files)
-    decompressed_cache: Mutex<Option<Vec<u8>>>,
+    /// Cached decompressed data (for compressed files) - Arc to avoid cloning
+    decompressed_cache: Mutex<Option<Arc<Vec<u8>>>>,
 }
 
 impl InnerFile {
@@ -187,12 +187,12 @@ impl InnerFile {
     }
 
     /// Read decompressed data (with caching).
-    async fn read_decompressed(&self) -> Result<Vec<u8>> {
+    async fn read_decompressed(&self) -> Result<Arc<Vec<u8>>> {
         // Check cache first
         {
             let cache = self.decompressed_cache.lock().unwrap();
             if let Some(ref data) = *cache {
-                return Ok(data.clone());
+                return Ok(Arc::clone(data));
             }
         }
 
@@ -201,12 +201,12 @@ impl InnerFile {
 
         // Decompress
         let mut decoder = Rar29Decoder::new();
-        let decompressed = decoder.decompress(&packed, self.length)?;
+        let decompressed = Arc::new(decoder.decompress(&packed, self.length)?);
 
         // Cache result
         {
             let mut cache = self.decompressed_cache.lock().unwrap();
-            *cache = Some(decompressed.clone());
+            *cache = Some(Arc::clone(&decompressed));
         }
 
         Ok(decompressed)

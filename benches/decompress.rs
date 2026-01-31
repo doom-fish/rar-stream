@@ -40,34 +40,15 @@ fn parse_rar4_file(data: &[u8]) -> Option<(rar_stream::parsing::file_header::Fil
     Some((header, &data[data_start..data_end]))
 }
 
-/// Benchmark RAR4 LZSS decompression (default compression)
-fn bench_lzss_default(c: &mut Criterion) {
-    let data = include_bytes!("../__fixtures__/compressed/lipsum_rar4_default.rar");
-    let (header, compressed) = parse_rar4_file(data).expect("Failed to parse");
-    
-    let mut group = c.benchmark_group("decompress");
-    group.throughput(Throughput::Bytes(header.unpacked_size as u64));
-    
-    group.bench_function("lzss_default", |b| {
-        b.iter(|| {
-            let mut decoder = Rar29Decoder::new();
-            let result = decoder.decompress(black_box(compressed), header.unpacked_size);
-            black_box(result)
-        });
-    });
-    
-    group.finish();
-}
-
-/// Benchmark RAR4 LZSS decompression (max compression)
-fn bench_lzss_max(c: &mut Criterion) {
+/// Benchmark RAR4 LZSS decompression
+fn bench_lzss(c: &mut Criterion) {
     let data = include_bytes!("../__fixtures__/compressed/lipsum_rar4_max.rar");
     let (header, compressed) = parse_rar4_file(data).expect("Failed to parse");
     
     let mut group = c.benchmark_group("decompress");
     group.throughput(Throughput::Bytes(header.unpacked_size as u64));
     
-    group.bench_function("lzss_max", |b| {
+    group.bench_function("lzss_3kb", |b| {
         b.iter(|| {
             let mut decoder = Rar29Decoder::new();
             let result = decoder.decompress(black_box(compressed), header.unpacked_size);
@@ -86,7 +67,7 @@ fn bench_ppmd(c: &mut Criterion) {
     let mut group = c.benchmark_group("decompress");
     group.throughput(Throughput::Bytes(header.unpacked_size as u64));
     
-    group.bench_function("ppmd", |b| {
+    group.bench_function("ppmd_3kb", |b| {
         b.iter(|| {
             let mut decoder = Rar29Decoder::new();
             let result = decoder.decompress(black_box(compressed), header.unpacked_size);
@@ -103,18 +84,35 @@ fn bench_header_parsing(c: &mut Criterion) {
     
     c.bench_function("parse_header", |b| {
         b.iter(|| {
-            // Parse file header from RAR archive
             let result = parse_rar4_file(black_box(data));
             black_box(result)
         });
     });
 }
 
+/// Benchmark stored (uncompressed) file passthrough
+fn bench_stored(c: &mut Criterion) {
+    let data = include_bytes!("../__fixtures__/compressed/lipsum_rar4_store.rar");
+    let (header, stored_data) = parse_rar4_file(data).expect("Failed to parse");
+    
+    let mut group = c.benchmark_group("stored");
+    group.throughput(Throughput::Bytes(header.unpacked_size as u64));
+    
+    group.bench_function("passthrough_3kb", |b| {
+        b.iter(|| {
+            let result = black_box(stored_data).to_vec();
+            black_box(result)
+        });
+    });
+    
+    group.finish();
+}
+
 criterion_group!(
     benches,
     bench_header_parsing,
-    bench_lzss_default,
-    bench_lzss_max,
+    bench_stored,
+    bench_lzss,
     bench_ppmd,
 );
 criterion_main!(benches);

@@ -53,6 +53,7 @@ impl LzssDecoder {
     }
 
     /// Copy bytes from a previous position in the window.
+    /// Optimized for both overlapping and non-overlapping copies.
     #[inline]
     pub fn copy_match(&mut self, distance: u32, length: u32) -> Result<()> {
         if distance == 0 || distance as usize > self.window.len() {
@@ -62,9 +63,23 @@ impl LzssDecoder {
             });
         }
 
-        let src_pos = (self.pos.wrapping_sub(distance as usize)) & self.mask;
+        let len = length as usize;
+        let dist = distance as usize;
+        
+        // Fast path: copy doesn't wrap around window boundary and doesn't overlap
+        if dist >= len && self.pos + len <= self.window.len() && self.pos >= dist {
+            // Non-overlapping, non-wrapping: use copy_within for speed
+            let src_start = self.pos - dist;
+            self.window.copy_within(src_start..src_start + len, self.pos);
+            self.pos += len;
+            self.total_written += length as u64;
+            return Ok(());
+        }
 
-        for i in 0..length as usize {
+        // Slow path: handle overlapping or wrapping copies byte-by-byte
+        let src_pos = (self.pos.wrapping_sub(dist)) & self.mask;
+
+        for i in 0..len {
             let src_idx = (src_pos + i) & self.mask;
             let byte = self.window[src_idx];
             self.window[self.pos] = byte;
