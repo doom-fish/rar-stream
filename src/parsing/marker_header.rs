@@ -13,9 +13,10 @@ pub const RAR4_SIGNATURE: [u8; 7] = [0x52, 0x61, 0x72, 0x21, 0x1A, 0x07, 0x00];
 pub const RAR5_SIGNATURE: [u8; 8] = [0x52, 0x61, 0x72, 0x21, 0x1A, 0x07, 0x01, 0x00];
 
 /// RAR archive version.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum RarVersion {
     /// RAR 4.x format (also known as RAR 2.9)
+    #[default]
     Rar4,
     /// RAR 5.x format
     Rar5,

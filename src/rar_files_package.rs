@@ -11,6 +11,21 @@ use crate::rar_file_chunk::RarFileChunk;
 use std::collections::HashMap;
 use std::sync::Arc;
 
+/// Archive metadata.
+#[derive(Debug, Clone, Default)]
+pub struct ArchiveInfo {
+    /// Whether the archive has a recovery record.
+    pub has_recovery_record: bool,
+    /// Whether the archive is solid.
+    pub is_solid: bool,
+    /// Whether the archive is locked.
+    pub is_locked: bool,
+    /// Whether the archive is a multi-volume set.
+    pub is_multivolume: bool,
+    /// RAR format version.
+    pub version: RarVersion,
+}
+
 /// Filter options for parsing.
 #[derive(Default)]
 pub struct ParseOptions {
@@ -87,6 +102,60 @@ impl RarFilesPackage {
                     .unwrap_or((1000, lower))
             } else {
                 (1000, lower)
+            }
+        }
+    }
+
+    /// Get archive metadata from the first volume.
+    pub async fn get_archive_info(&self) -> Result<ArchiveInfo> {
+        if self.files.is_empty() {
+            return Err(RarError::NoFilesFound);
+        }
+
+        let rar_file = &self.files[0];
+        let marker_buf = rar_file
+            .read_range(ReadInterval {
+                start: 0,
+                end: 7, // RAR5 signature is 8 bytes
+            })
+            .await?;
+
+        let marker = MarkerHeaderParser::parse(&marker_buf)?;
+
+        match marker.version {
+            RarVersion::Rar4 => {
+                let archive_buf = rar_file
+                    .read_range(ReadInterval {
+                        start: marker.size as u64,
+                        end: marker.size as u64 + ArchiveHeaderParser::HEADER_SIZE as u64 - 1,
+                    })
+                    .await?;
+                let archive = ArchiveHeaderParser::parse(&archive_buf)?;
+
+                Ok(ArchiveInfo {
+                    has_recovery_record: archive.has_recovery,
+                    is_solid: archive.has_solid_attributes,
+                    is_locked: archive.is_locked,
+                    is_multivolume: archive.has_volume_attributes,
+                    version: RarVersion::Rar4,
+                })
+            }
+            RarVersion::Rar5 => {
+                let header_buf = rar_file
+                    .read_range(ReadInterval {
+                        start: marker.size as u64,
+                        end: (marker.size as u64 + 255).min(rar_file.length() - 1),
+                    })
+                    .await?;
+                let (archive, _) = Rar5ArchiveHeaderParser::parse(&header_buf)?;
+
+                Ok(ArchiveInfo {
+                    has_recovery_record: archive.archive_flags.has_recovery_record,
+                    is_solid: archive.archive_flags.is_solid,
+                    is_locked: archive.archive_flags.is_locked,
+                    is_multivolume: archive.archive_flags.is_volume,
+                    version: RarVersion::Rar5,
+                })
             }
         }
     }
@@ -488,6 +557,30 @@ impl RarFilesPackage {
 mod tests {
     use super::*;
     use crate::file_media::{FileMedia, LocalFileMedia};
+
+    #[tokio::test]
+    #[cfg(feature = "async")]
+    async fn test_get_archive_info_rar5() {
+        let file: Arc<dyn FileMedia> =
+            Arc::new(LocalFileMedia::new("__fixtures__/rar5/test.rar").unwrap());
+        let package = RarFilesPackage::new(vec![file]);
+
+        let info = package.get_archive_info().await.unwrap();
+        assert_eq!(info.version, RarVersion::Rar5);
+        assert!(!info.is_multivolume);
+    }
+
+    #[tokio::test]
+    #[cfg(feature = "async")]
+    async fn test_get_archive_info_rar4() {
+        let file: Arc<dyn FileMedia> =
+            Arc::new(LocalFileMedia::new("__fixtures__/single/single.rar").unwrap());
+        let package = RarFilesPackage::new(vec![file]);
+
+        let info = package.get_archive_info().await.unwrap();
+        assert_eq!(info.version, RarVersion::Rar4);
+        assert!(!info.is_multivolume);
+    }
 
     #[tokio::test]
     #[cfg(feature = "async")]
