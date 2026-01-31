@@ -12,7 +12,8 @@
 - 🌐 **Cross-platform**: Works on Linux, macOS, Windows
 - 🔄 **Streaming**: Stream files directly from RAR archives
 - 📚 **Multi-volume**: Supports split archives (.rar, .r00, .r01, ...)
-- 🗜️ **Full decompression**: LZSS, PPMd, and VM filters
+- 🗜️ **Full decompression**: LZSS, PPMd, and filters
+- 🆕 **RAR4 + RAR5**: Full support for both RAR formats
 - 🌍 **Browser support**: WASM build available
 
 ## Installation
@@ -222,12 +223,32 @@ interface RarFileInfo {
 
 ## Compression Support
 
-| Method | Support | Description |
-|--------|---------|-------------|
-| Store (0x30) | ✅ | No compression |
-| LZSS (0x31-0x35) | ✅ | Huffman + LZ77 |
-| PPMd | ✅ | Context-based |
-| VM Filters | ✅ | E8, Delta, Audio, RGB |
+### RAR Format Compatibility
+
+| Format | Signature | Support |
+|--------|-----------|---------|
+| RAR 1.5-4.x (RAR4) | `Rar!\x1a\x07\x00` | ✅ Full |
+| RAR 5.0+ (RAR5) | `Rar!\x1a\x07\x01\x00` | ✅ Full |
+
+### Compression Methods
+
+| Method | RAR4 | RAR5 | Description |
+|--------|------|------|-------------|
+| Store | ✅ | ✅ | No compression |
+| LZSS | ✅ | ✅ | Huffman + LZ77 sliding window |
+| PPMd | ✅ | — | Context-based (RAR4 only) |
+
+### Filter Support
+
+| Filter | RAR4 | RAR5 | Description |
+|--------|------|------|-------------|
+| E8 | ✅ | ✅ | x86 CALL preprocessing |
+| E8E9 | ✅ | ✅ | x86 CALL/JMP preprocessing |
+| Delta | ✅ | ✅ | Byte delta per channel |
+| ARM | — | ✅ | ARM branch preprocessing |
+| Itanium | ✅ | — | IA-64 preprocessing |
+| RGB | ✅ | — | Predictive color filter |
+| Audio | ✅ | — | Audio sample predictor |
 
 ## Performance
 
