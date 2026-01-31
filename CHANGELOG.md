@@ -12,6 +12,10 @@ All notable changes to this project will be documented in this file.
   - RAR5 compressed file decompression (LZSS-based)
   - RAR5 filters: Delta, E8, E8E9, ARM
   - RAR5 multi-volume archive support
+- **Encrypted archive support** (optional `crypto` feature)
+  - RAR5 encryption: AES-256-CBC with PBKDF2-HMAC-SHA256 key derivation
+  - Password verification via 64-bit check value
+  - Full decryption of stored and compressed files
 - CI now tests against stable Rust
 
 ### Changed
@@ -25,4 +29,5 @@ All notable changes to this project will be documented in this file.
 
 - RAR5 table length repeat codes (2*num formula)
 - RAR5 offset decoding for small slots (<4)
+- Extra area field size parsing
 

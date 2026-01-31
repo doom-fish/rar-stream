@@ -13,6 +13,7 @@
 - 🔄 **Streaming**: Stream files directly from RAR archives
 - 📚 **Multi-volume**: Supports split archives (.rar, .r00, .r01, ...)
 - 🗜️ **Full decompression**: LZSS, PPMd, and filters
+- 🔐 **Encrypted archives**: AES-256 decryption (with `crypto` feature)
 - 🆕 **RAR4 + RAR5**: Full support for both RAR formats
 - 🌍 **Browser support**: WASM build available
 
@@ -249,6 +250,22 @@ interface RarFileInfo {
 | Itanium | ✅ | — | IA-64 preprocessing |
 | RGB | ✅ | — | Predictive color filter |
 | Audio | ✅ | — | Audio sample predictor |
+
+### Encryption Support
+
+| Feature | RAR4 | RAR5 | Notes |
+|---------|------|------|-------|
+| Encrypted files | 🔜 | ✅ | `crypto` feature |
+| Encrypted headers | — | 🔜 | Coming soon |
+| Algorithm | AES-128-CBC | AES-256-CBC | — |
+| Key derivation | SHA-1 based | PBKDF2-HMAC-SHA256 | — |
+
+To enable encryption support, use the `crypto` feature:
+
+```toml
+[dependencies]
+rar-stream = { version = "4", features = ["crypto"] }
+```
 
 ## Performance
 
