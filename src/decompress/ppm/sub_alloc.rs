@@ -309,6 +309,7 @@ impl SubAllocator {
     }
 
     /// Write a byte to heap.
+    #[inline]
     pub fn write_byte(&mut self, offset: usize, val: u8) {
         if offset < self.heap.len() {
             self.heap[offset] = val;
@@ -316,7 +317,8 @@ impl SubAllocator {
     }
 
     /// Read a u32 from heap.
-    fn read_u32(&self, offset: usize) -> u32 {
+    #[inline]
+    pub fn read_u32(&self, offset: usize) -> u32 {
         if offset + 4 <= self.heap.len() {
             u32::from_le_bytes([
                 self.heap[offset],
@@ -330,7 +332,8 @@ impl SubAllocator {
     }
 
     /// Write a u32 to heap.
-    fn write_u32(&mut self, offset: usize, val: u32) {
+    #[inline]
+    pub fn write_u32(&mut self, offset: usize, val: u32) {
         if offset + 4 <= self.heap.len() {
             let bytes = val.to_le_bytes();
             self.heap[offset] = bytes[0];
@@ -341,6 +344,7 @@ impl SubAllocator {
     }
 
     /// Read a u16 from heap.
+    #[inline]
     pub fn read_u16(&self, offset: usize) -> u16 {
         if offset + 2 <= self.heap.len() {
             u16::from_le_bytes([self.heap[offset], self.heap[offset + 1]])
@@ -350,6 +354,7 @@ impl SubAllocator {
     }
 
     /// Write a u16 to heap.
+    #[inline]
     pub fn write_u16(&mut self, offset: usize, val: u16) {
         if offset + 2 <= self.heap.len() {
             let bytes = val.to_le_bytes();

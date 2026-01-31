@@ -339,8 +339,10 @@ impl PpmModel {
         coder: &mut RangeCoder,
         reader: &mut BitReader,
     ) -> Result<i32, &'static str> {
-        // Track position for debugging
-        self.debug_count += 1;
+        #[cfg(test)]
+        {
+            self.debug_count += 1;
+        }
 
         #[cfg(test)]
         let start_bytes = reader.byte_position();
@@ -1766,101 +1768,86 @@ impl PpmModel {
 
     // Helper methods for reading/writing context and state structures
 
+    #[inline]
     fn read_context_num_stats(&self, offset: usize) -> u16 {
         self.sub_alloc.read_u16(offset)
     }
 
+    #[inline]
     fn write_context_num_stats(&mut self, offset: usize, val: u16) {
         self.sub_alloc.write_u16(offset, val);
     }
 
+    #[inline]
     fn read_context_summ_freq(&self, offset: usize) -> u16 {
         self.sub_alloc.read_u16(offset + 2)
     }
 
+    #[inline]
     fn write_context_summ_freq(&mut self, offset: usize, val: u16) {
         self.sub_alloc.write_u16(offset + 2, val);
     }
 
+    #[inline]
     fn read_context_stats(&self, offset: usize) -> u32 {
-        let b0 = self.sub_alloc.read_byte(offset + 4) as u32;
-        let b1 = self.sub_alloc.read_byte(offset + 5) as u32;
-        let b2 = self.sub_alloc.read_byte(offset + 6) as u32;
-        let b3 = self.sub_alloc.read_byte(offset + 7) as u32;
-        b0 | (b1 << 8) | (b2 << 16) | (b3 << 24)
+        self.sub_alloc.read_u32(offset + 4)
     }
 
+    #[inline]
     fn write_context_stats(&mut self, offset: usize, val: u32) {
-        self.sub_alloc.write_byte(offset + 4, val as u8);
-        self.sub_alloc.write_byte(offset + 5, (val >> 8) as u8);
-        self.sub_alloc.write_byte(offset + 6, (val >> 16) as u8);
-        self.sub_alloc.write_byte(offset + 7, (val >> 24) as u8);
+        self.sub_alloc.write_u32(offset + 4, val);
     }
 
+    #[inline]
     fn read_context_suffix(&self, offset: usize) -> u32 {
-        let b0 = self.sub_alloc.read_byte(offset + 8) as u32;
-        let b1 = self.sub_alloc.read_byte(offset + 9) as u32;
-        let b2 = self.sub_alloc.read_byte(offset + 10) as u32;
-        let b3 = self.sub_alloc.read_byte(offset + 11) as u32;
-        b0 | (b1 << 8) | (b2 << 16) | (b3 << 24)
+        self.sub_alloc.read_u32(offset + 8)
     }
 
+    #[inline]
     fn write_context_suffix(&mut self, offset: usize, val: u32) {
-        self.sub_alloc.write_byte(offset + 8, val as u8);
-        self.sub_alloc.write_byte(offset + 9, (val >> 8) as u8);
-        self.sub_alloc.write_byte(offset + 10, (val >> 16) as u8);
-        self.sub_alloc.write_byte(offset + 11, (val >> 24) as u8);
+        self.sub_alloc.write_u32(offset + 8, val);
     }
 
+    #[inline]
     fn read_context_one_state(&self, offset: usize) -> State {
         // OneState is at offset 2 (in the union with SummFreq+Stats)
         // Layout: Symbol(1) + Freq(1) + Successor(4) = 6 bytes at offset 2-7
         State {
             symbol: self.sub_alloc.read_byte(offset + 2),
             freq: self.sub_alloc.read_byte(offset + 3),
-            successor: {
-                let b0 = self.sub_alloc.read_byte(offset + 4) as u32;
-                let b1 = self.sub_alloc.read_byte(offset + 5) as u32;
-                let b2 = self.sub_alloc.read_byte(offset + 6) as u32;
-                let b3 = self.sub_alloc.read_byte(offset + 7) as u32;
-                b0 | (b1 << 8) | (b2 << 16) | (b3 << 24)
-            },
+            successor: self.sub_alloc.read_u32(offset + 4),
         }
     }
 
+    #[inline]
     fn write_context_one_state_freq(&mut self, offset: usize, freq: u8) {
         // OneState.Freq is at offset+3 (Symbol at +2, Freq at +3)
         self.sub_alloc.write_byte(offset + 3, freq);
     }
 
+    #[inline]
     fn read_state_symbol(&self, offset: usize) -> u8 {
         self.sub_alloc.read_byte(offset)
     }
 
+    #[inline]
     fn read_state_freq(&self, offset: usize) -> u8 {
         self.sub_alloc.read_byte(offset + 1)
     }
 
+    #[inline]
     fn write_state_freq(&mut self, offset: usize, freq: u8) {
         self.sub_alloc.write_byte(offset + 1, freq);
     }
 
+    #[inline]
     fn read_state_successor(&self, offset: usize) -> u32 {
-        let b0 = self.sub_alloc.read_byte(offset + 2) as u32;
-        let b1 = self.sub_alloc.read_byte(offset + 3) as u32;
-        let b2 = self.sub_alloc.read_byte(offset + 4) as u32;
-        let b3 = self.sub_alloc.read_byte(offset + 5) as u32;
-        b0 | (b1 << 8) | (b2 << 16) | (b3 << 24)
+        self.sub_alloc.read_u32(offset + 2)
     }
 
+    #[inline]
     fn write_state_successor(&mut self, offset: usize, successor: u32) {
-        self.sub_alloc.write_byte(offset + 2, successor as u8);
-        self.sub_alloc
-            .write_byte(offset + 3, (successor >> 8) as u8);
-        self.sub_alloc
-            .write_byte(offset + 4, (successor >> 16) as u8);
-        self.sub_alloc
-            .write_byte(offset + 5, (successor >> 24) as u8);
+        self.sub_alloc.write_u32(offset + 2, successor);
     }
 
     fn write_state(&mut self, offset: usize, symbol: u8, freq: u8, successor: u32) {
