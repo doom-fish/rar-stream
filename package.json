@@ -1,6 +1,6 @@
 {
   "name": "rar-stream",
-  "version": "4.0.2",
+  "version": "4.0.3",
   "description": "RAR streaming library - Rust implementation with NAPI and WASM bindings",
   "main": "index.js",
   "browser": "browser.js",
@@ -64,7 +64,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:browser": "npx playwright test",
-    "prepublishOnly": "napi prepublish -t npm"
+    "prepublishOnly": "napi prepublish -t npm --skip-gh-release"
   },
   "devDependencies": {
     "@eslint/js": "^9.0.0",

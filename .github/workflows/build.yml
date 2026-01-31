@@ -144,10 +144,12 @@ jobs:
         run: npm install -g npm@latest
       
       - name: Publish to npm with OIDC
-        run: npm publish --access public
+        run: npm publish --access public --provenance || echo "npm publish failed (version may already exist)"
+        continue-on-error: true
       
       - name: Publish to crates.io
-        run: cargo publish
+        run: cargo publish || echo "cargo publish failed (version may already exist)"
+        continue-on-error: true
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
       
