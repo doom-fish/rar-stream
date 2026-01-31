@@ -30,22 +30,131 @@ pnpm add rar-stream
 ```javascript
 import { LocalFileMedia, RarFilesPackage } from 'rar-stream';
 
-// Single RAR file
+// Open a RAR archive
 const media = new LocalFileMedia('./archive.rar');
 const pkg = new RarFilesPackage([media]);
 
-// Parse archive and get inner files
+// Parse and list inner files
 const files = await pkg.parse();
 
 for (const file of files) {
   console.log(`${file.name}: ${file.length} bytes`);
   
-  // Read entire file
+  // Read entire file into memory
   const buffer = await file.readToEnd();
   
-  // Or read a specific range
-  const chunk = await file.createReadStream({ start: 0, end: 1024 });
+  // Or read a specific byte range (for streaming)
+  const chunk = await file.createReadStream({ start: 0, end: 1023 });
 }
+```
+
+## Examples
+
+### Extract a File to Disk
+
+```javascript
+import { LocalFileMedia, RarFilesPackage } from 'rar-stream';
+import fs from 'fs';
+
+const media = new LocalFileMedia('./archive.rar');
+const pkg = new RarFilesPackage([media]);
+const files = await pkg.parse();
+
+// Find a specific file
+const targetFile = files.find(f => f.name.endsWith('.txt'));
+if (targetFile) {
+  const content = await targetFile.readToEnd();
+  fs.writeFileSync('./extracted.txt', content);
+  console.log(`Extracted ${targetFile.name} (${content.length} bytes)`);
+}
+```
+
+### Stream Video from RAR (Partial Reads)
+
+```javascript
+import { LocalFileMedia, RarFilesPackage } from 'rar-stream';
+
+const media = new LocalFileMedia('./movie.rar');
+const pkg = new RarFilesPackage([media]);
+const files = await pkg.parse();
+
+const video = files.find(f => f.name.endsWith('.mkv'));
+if (video) {
+  // Read first 1MB for header analysis
+  const header = await video.createReadStream({ start: 0, end: 1024 * 1024 - 1 });
+  console.log(`Video: ${video.name}, Total size: ${video.length} bytes`);
+  
+  // Stream in chunks
+  const chunkSize = 1024 * 1024; // 1MB chunks
+  for (let offset = 0; offset < video.length; offset += chunkSize) {
+    const end = Math.min(offset + chunkSize - 1, video.length - 1);
+    const chunk = await video.createReadStream({ start: offset, end });
+    // Process chunk...
+  }
+}
+```
+
+### Multi-Volume Archives
+
+```javascript
+import { LocalFileMedia, RarFilesPackage } from 'rar-stream';
+import fs from 'fs';
+import path from 'path';
+
+// Find all volumes in a directory
+const dir = './my-archive';
+const volumeFiles = fs.readdirSync(dir)
+  .filter(f => /\.(rar|r\d{2})$/i.test(f))
+  .sort()
+  .map(f => new LocalFileMedia(path.join(dir, f)));
+
+console.log(`Found ${volumeFiles.length} volumes`);
+
+const pkg = new RarFilesPackage(volumeFiles);
+const files = await pkg.parse();
+
+// Files spanning multiple volumes are handled automatically
+for (const file of files) {
+  console.log(`${file.name}: ${file.length} bytes`);
+}
+```
+
+### Check if a File is a RAR Archive
+
+```javascript
+import { isRarArchive, parseRarHeader } from 'rar-stream';
+import fs from 'fs';
+
+// Read first 300 bytes (enough for header detection)
+const buffer = Buffer.alloc(300);
+const fd = fs.openSync('./unknown-file', 'r');
+fs.readSync(fd, buffer, 0, 300, 0);
+fs.closeSync(fd);
+
+if (isRarArchive(buffer)) {
+  const info = parseRarHeader(buffer);
+  if (info) {
+    console.log(`First file: ${info.name}`);
+    console.log(`Packed size: ${info.packedSize} bytes`);
+    console.log(`Unpacked size: ${info.unpackedSize} bytes`);
+    console.log(`Compression method: 0x${info.method.toString(16)}`);
+  }
+} else {
+  console.log('Not a RAR archive');
+}
+```
+
+### Limit Number of Files Parsed
+
+```javascript
+import { LocalFileMedia, RarFilesPackage } from 'rar-stream';
+
+const media = new LocalFileMedia('./large-archive.rar');
+const pkg = new RarFilesPackage([media]);
+
+// Only parse first 10 files (useful for previewing large archives)
+const files = await pkg.parse({ maxFiles: 10 });
+console.log(`Showing first ${files.length} files`);
 ```
 
 ## API Reference
@@ -58,8 +167,8 @@ Represents a local RAR file.
 class LocalFileMedia {
   constructor(path: string);
   
-  readonly name: string;
-  readonly length: number;
+  readonly name: string;    // Filename (basename)
+  readonly length: number;  // File size in bytes
   
   createReadStream(opts: { start: number; end: number }): Promise<Buffer>;
 }
@@ -74,7 +183,7 @@ class RarFilesPackage {
   constructor(files: LocalFileMedia[]);
   
   parse(opts?: {
-    maxFiles?: number;
+    maxFiles?: number;  // Limit number of files to parse
   }): Promise<InnerFile[]>;
 }
 ```
@@ -85,8 +194,8 @@ Represents a file inside the RAR archive.
 
 ```typescript
 class InnerFile {
-  readonly name: string;
-  readonly length: number;
+  readonly name: string;    // Full path inside archive
+  readonly length: number;  // Uncompressed size in bytes
   
   readToEnd(): Promise<Buffer>;
   createReadStream(opts: { start: number; end: number }): Promise<Buffer>;
@@ -96,45 +205,18 @@ class InnerFile {
 ### Utility Functions
 
 ```typescript
-// Check if buffer contains RAR signature
+// Check if buffer starts with RAR signature
 function isRarArchive(buffer: Buffer): boolean;
 
-// Parse RAR header from buffer (useful for detecting files)
+// Parse RAR header from buffer (needs ~300 bytes)
 function parseRarHeader(buffer: Buffer): RarFileInfo | null;
-```
 
-## Multi-Volume Archives
-
-```javascript
-import { LocalFileMedia, RarFilesPackage } from 'rar-stream';
-
-// Load all volumes
-const volumes = [
-  new LocalFileMedia('./archive.rar'),
-  new LocalFileMedia('./archive.r00'),
-  new LocalFileMedia('./archive.r01'),
-];
-
-const pkg = new RarFilesPackage(volumes);
-const files = await pkg.parse();
-
-// Files spanning multiple volumes are handled automatically
-const content = await files[0].readToEnd();
-```
-
-## Browser Usage (WASM)
-
-```javascript
-import init, { isRarArchive, WasmRarDecoder } from 'rar-stream/wasm';
-
-await init();
-
-// Check if data is a RAR archive
-const buffer = new Uint8Array(/* ... */);
-if (isRarArchive(buffer)) {
-  // Create decoder
-  const decoder = new WasmRarDecoder(unpackedSize);
-  const decompressed = decoder.decompress(compressedData);
+interface RarFileInfo {
+  name: string;
+  packedSize: number;
+  unpackedSize: number;
+  method: number;
+  continuesInNext: boolean;
 }
 ```
 
@@ -149,9 +231,9 @@ if (isRarArchive(buffer)) {
 
 ## Performance
 
-Benchmarks on M1 MacBook Pro:
+Benchmarks on M1 MacBook Pro (v4.x vs v3.x):
 
-| Operation | rar-stream v2 (Rust) | rar-stream v1 (JS) |
+| Operation | rar-stream v4 (Rust) | rar-stream v3 (JS) |
 |-----------|---------------------|-------------------|
 | Parse 1GB archive | ~50ms | ~200ms |
 | Decompress 100MB | ~800ms | ~3000ms |
@@ -159,7 +241,7 @@ Benchmarks on M1 MacBook Pro:
 
 ## Migrating from v3.x
 
-rar-stream v4.0 is a complete Rust rewrite with the same API. It's a drop-in replacement:
+rar-stream v4 is a complete Rust rewrite with the same API. It's a drop-in replacement:
 
 ```javascript
 // Works the same in v3.x and v4.x
@@ -173,12 +255,11 @@ const files = await pkg.parse();
 ### Breaking Changes
 
 - Node.js 18+ required (was 14+)
-- WASM module path changed to `rar-stream/wasm`
 - Native Rust implementation (faster, lower memory)
 
 ## License
 
-MIT © beam.cat
+MIT
 
 ## Credits
 
