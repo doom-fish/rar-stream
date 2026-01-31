@@ -155,21 +155,23 @@ impl Rar5FileHeader {
         let mut pos = 0;
         while pos < extra.len() {
             // Each extra field: size (vint), type (vint), data
+            // size = total size of type + data (does NOT include the size vint itself)
             let mut reader = super::VintReader::new(&extra[pos..]);
             let size = reader.read()?;
+            let size_vint_len = reader.position();
             let ftype = reader.read()?;
             let header_consumed = reader.position();
 
             if ftype == field_type {
                 // Return the data after the type field
                 let data_start = pos + header_consumed;
-                let data_end = pos + size as usize;
+                let data_end = pos + size_vint_len + size as usize;
                 if data_end <= extra.len() {
                     return Some(&extra[data_start..data_end]);
                 }
             }
 
-            pos += size as usize;
+            pos += size_vint_len + size as usize;
         }
         None
     }

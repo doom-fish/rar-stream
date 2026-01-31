@@ -23,9 +23,11 @@ pub const CRYPT_BLOCK_SIZE: usize = 16;
 
 /// Default PBKDF2 iteration count (log2).
 /// Actual iterations = 2^15 = 32768
+#[allow(dead_code)]
 pub const CRYPT5_KDF_LG2_COUNT: u32 = 15;
 
 /// Maximum allowed PBKDF2 iteration count (log2).
+#[allow(dead_code)]
 pub const CRYPT5_KDF_LG2_COUNT_MAX: u32 = 24;
 
 /// RAR5 encryption information parsed from file header.
@@ -50,41 +52,56 @@ pub struct Rar5EncryptionInfo {
 impl Rar5EncryptionInfo {
     /// Parse encryption info from extra data.
     /// Format:
-    /// - 1 byte: version
-    /// - 1 byte: flags
+    /// - vint: version
+    /// - vint: flags
     /// - 1 byte: lg2_count
     /// - 16 bytes: salt
     /// - 16 bytes: init_v
     /// - if flags & 0x01:
     ///   - 8 bytes: psw_check
-    ///   - 4 bytes: psw_check_sum (CRC32 of first 3 bytes)
+    ///   - 4 bytes: psw_check_sum (SHA-256 of psw_check, first 4 bytes)
     pub fn parse(data: &[u8]) -> Result<Self, super::CryptoError> {
-        if data.len() < 35 {
-            return Err(super::CryptoError::InvalidHeader);
-        }
+        use crate::parsing::rar5::VintReader;
 
-        let version = data[0];
+        let mut reader = VintReader::new(data);
+
+        let version = reader.read().ok_or(super::CryptoError::InvalidHeader)? as u8;
         if version != 0 {
             return Err(super::CryptoError::UnsupportedVersion(version));
         }
 
-        let flags = data[1];
-        let lg2_count = data[2];
+        let flags = reader.read().ok_or(super::CryptoError::InvalidHeader)? as u8;
 
+        let lg2_bytes = reader
+            .read_bytes(1)
+            .ok_or(super::CryptoError::InvalidHeader)?;
+        let lg2_count = lg2_bytes[0];
+
+        let salt_bytes = reader
+            .read_bytes(SIZE_SALT50)
+            .ok_or(super::CryptoError::InvalidHeader)?;
         let mut salt = [0u8; SIZE_SALT50];
-        salt.copy_from_slice(&data[3..19]);
+        salt.copy_from_slice(salt_bytes);
 
+        let iv_bytes = reader
+            .read_bytes(SIZE_INITV)
+            .ok_or(super::CryptoError::InvalidHeader)?;
         let mut init_v = [0u8; SIZE_INITV];
-        init_v.copy_from_slice(&data[19..35]);
+        init_v.copy_from_slice(iv_bytes);
 
         let (psw_check, psw_check_sum) = if flags & 0x01 != 0 {
-            if data.len() < 47 {
-                return Err(super::CryptoError::InvalidHeader);
-            }
+            let check_bytes = reader
+                .read_bytes(SIZE_PSWCHECK)
+                .ok_or(super::CryptoError::InvalidHeader)?;
             let mut check = [0u8; SIZE_PSWCHECK];
-            check.copy_from_slice(&data[35..43]);
+            check.copy_from_slice(check_bytes);
+
+            let sum_bytes = reader
+                .read_bytes(SIZE_PSWCHECK_CSUM)
+                .ok_or(super::CryptoError::InvalidHeader)?;
             let mut sum = [0u8; SIZE_PSWCHECK_CSUM];
-            sum.copy_from_slice(&data[43..47]);
+            sum.copy_from_slice(sum_bytes);
+
             (Some(check), Some(sum))
         } else {
             (None, None)
@@ -157,7 +174,7 @@ impl Rar5Crypto {
     /// Decrypt data in-place using AES-256-CBC.
     pub fn decrypt(&self, iv: &[u8; SIZE_INITV], data: &mut [u8]) -> Result<(), super::CryptoError> {
         // Data must be a multiple of block size
-        if data.len() % CRYPT_BLOCK_SIZE != 0 {
+        if !data.len().is_multiple_of(CRYPT_BLOCK_SIZE) {
             return Err(super::CryptoError::DecryptionFailed);
         }
 
@@ -235,5 +252,56 @@ mod tests {
         assert_eq!(info.flags, 1);
         assert!(info.psw_check.is_some());
         assert!(info.psw_check_sum.is_some());
+    }
+
+    #[test]
+    fn test_decrypt_encrypted_rar5() {
+        use crate::parsing::rar5::file_header::Rar5FileHeaderParser;
+        use crate::parsing::rar5::VintReader;
+
+        // Read the encrypted RAR5 file (created with rar -ma5 -p"testpass")
+        let data = std::fs::read("__fixtures__/encrypted/rar5-encrypted-v5.rar").unwrap();
+
+        // Skip the 8-byte RAR5 signature
+        let _after_sig = &data[8..];
+
+        // Find the file header (type 2)
+        let mut pos = 8; // After signature
+        loop {
+            if pos + 7 > data.len() {
+                panic!("Could not find file header");
+            }
+
+            // Read header: CRC32 (4) + header_size (vint) + header_type (vint)
+            let mut reader = VintReader::new(&data[pos + 4..]);
+            let header_size = reader.read().unwrap();
+            let header_type = reader.read().unwrap();
+
+            if header_type == 2 {
+                // File header found
+                let (file_header, _) = Rar5FileHeaderParser::parse(&data[pos..]).unwrap();
+                if let Some(ref extra) = file_header.extra_area {
+                }
+
+                if file_header.is_encrypted() {
+                    let enc_data = file_header.encryption_info().unwrap();
+                    
+                    let enc_info = Rar5EncryptionInfo::parse(enc_data).unwrap();
+
+
+                    // Derive key with correct password
+                    let crypto = Rar5Crypto::derive_key("testpass", &enc_info.salt, enc_info.lg2_count);
+
+                    // Verify password if check value is present
+                    if let Some(ref check) = enc_info.psw_check {
+                        let valid = crypto.verify_password(check);
+                        assert!(valid, "Password verification failed");
+                    }
+                }
+                break;
+            }
+
+            pos += 4 + 1 + header_size as usize;
+        }
     }
 }
