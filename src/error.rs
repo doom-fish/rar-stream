@@ -10,6 +10,10 @@ pub enum RarError {
     InvalidHeaderType(u8),
     DecompressionNotSupported(u8),
     EncryptedNotSupported,
+    /// Encrypted file but no password provided
+    PasswordRequired,
+    /// Decryption failed (wrong password or corrupt data)
+    DecryptionFailed(String),
     BufferTooSmall { needed: usize, have: usize },
     InvalidOffset { offset: u64, length: u64 },
     Io(io::Error),
@@ -27,6 +31,8 @@ impl fmt::Display for RarError {
                 write!(f, "Decompression not supported (method: 0x{:02x})", m)
             }
             Self::EncryptedNotSupported => write!(f, "Encrypted archives not supported"),
+            Self::PasswordRequired => write!(f, "Password required for encrypted file"),
+            Self::DecryptionFailed(msg) => write!(f, "Decryption failed: {}", msg),
             Self::BufferTooSmall { needed, have } => {
                 write!(f, "Buffer too small: need {} bytes, have {}", needed, have)
             }

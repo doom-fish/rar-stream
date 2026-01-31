@@ -18,6 +18,21 @@ pub struct ParseOptions {
     pub filter: Option<Box<dyn Fn(&str, usize) -> bool + Send + Sync>>,
     /// Maximum number of files to return.
     pub max_files: Option<usize>,
+    /// Password for encrypted archives.
+    #[cfg(feature = "crypto")]
+    pub password: Option<String>,
+}
+
+/// Encryption info for a file (RAR5).
+#[cfg(feature = "crypto")]
+#[derive(Clone)]
+pub struct FileEncryptionInfo {
+    /// 16-byte salt for key derivation
+    pub salt: [u8; 16],
+    /// 16-byte initialization vector
+    pub init_v: [u8; 16],
+    /// Log2 of PBKDF2 iteration count
+    pub lg2_count: u8,
 }
 
 /// Parsed file chunk with metadata.
@@ -29,6 +44,9 @@ struct ParsedChunk {
     chunk_size: u64,
     method: u8,
     rar_version: RarVersion,
+    /// Encryption info (if encrypted)
+    #[cfg(feature = "crypto")]
+    encryption: Option<FileEncryptionInfo>,
 }
 
 /// Multi-volume RAR archive parser.
@@ -170,6 +188,8 @@ impl RarFilesPackage {
                     chunk_size,
                     method: file_header.method,
                     rar_version: RarVersion::Rar4,
+                    #[cfg(feature = "crypto")]
+                    encryption: None, // RAR4 encryption not yet implemented
                 });
                 retrieved_count += 1;
 
@@ -252,6 +272,22 @@ impl RarFilesPackage {
                 // Store the raw method, not converted to RAR4 format
                 let method = file_header.compression.method;
 
+                // Parse encryption info if present
+                #[cfg(feature = "crypto")]
+                let encryption = if file_header.is_encrypted() {
+                    file_header.encryption_info().and_then(|data| {
+                        crate::crypto::Rar5EncryptionInfo::parse(data).ok().map(|info| {
+                            FileEncryptionInfo {
+                                salt: info.salt,
+                                init_v: info.init_v,
+                                lg2_count: info.lg2_count,
+                            }
+                        })
+                    })
+                } else {
+                    None
+                };
+
                 chunks.push(ParsedChunk {
                     name: file_header.name.clone(),
                     chunk,
@@ -260,6 +296,8 @@ impl RarFilesPackage {
                     chunk_size,
                     method,
                     rar_version: RarVersion::Rar5,
+                    #[cfg(feature = "crypto")]
+                    encryption,
                 });
                 retrieved_count += 1;
 
@@ -324,6 +362,8 @@ impl RarFilesPackage {
                         chunk_size,
                         method: 0x30, // Continue chunks are always raw data
                         rar_version,
+                        #[cfg(feature = "crypto")]
+                        encryption: None, // Continuation chunks don't have encryption headers
                     }]);
                     remaining = remaining.saturating_sub(chunk_size);
                 }
@@ -335,8 +375,30 @@ impl RarFilesPackage {
         // Flatten and group chunks by filename, keeping method info
         let all_chunks: Vec<ParsedChunk> = all_parsed.into_iter().flatten().collect();
 
-        let mut grouped: HashMap<String, (Vec<RarFileChunk>, u8, u64, RarVersion)> = HashMap::new();
+        #[cfg(feature = "crypto")]
+        type GroupValue = (
+            Vec<RarFileChunk>,
+            u8,
+            u64,
+            RarVersion,
+            Option<FileEncryptionInfo>,
+        );
+        #[cfg(not(feature = "crypto"))]
+        type GroupValue = (Vec<RarFileChunk>, u8, u64, RarVersion);
+
+        let mut grouped: HashMap<String, GroupValue> = HashMap::new();
         for chunk in all_chunks {
+            #[cfg(feature = "crypto")]
+            let entry = grouped.entry(chunk.name).or_insert_with(|| {
+                (
+                    Vec::new(),
+                    chunk.method,
+                    chunk.unpacked_size,
+                    chunk.rar_version,
+                    chunk.encryption,
+                )
+            });
+            #[cfg(not(feature = "crypto"))]
             let entry = grouped.entry(chunk.name).or_insert_with(|| {
                 (
                     Vec::new(),
@@ -349,10 +411,35 @@ impl RarFilesPackage {
         }
 
         // Create InnerFile for each group
+        #[cfg(feature = "crypto")]
+        let password = opts.password.clone();
+
         let inner_files: Vec<InnerFile> = grouped
             .into_iter()
-            .map(|(name, (chunks, method, unpacked_size, rar_version))| {
-                InnerFile::new(name, chunks, method, unpacked_size, rar_version)
+            .map(|(name, value)| {
+                #[cfg(feature = "crypto")]
+                {
+                    let (chunks, method, unpacked_size, rar_version, encryption) = value;
+                    let enc_info = encryption.map(|e| crate::inner_file::EncryptionInfo {
+                        salt: e.salt,
+                        init_v: e.init_v,
+                        lg2_count: e.lg2_count,
+                    });
+                    InnerFile::new_encrypted(
+                        name,
+                        chunks,
+                        method,
+                        unpacked_size,
+                        rar_version,
+                        enc_info,
+                        password.clone(),
+                    )
+                }
+                #[cfg(not(feature = "crypto"))]
+                {
+                    let (chunks, method, unpacked_size, rar_version) = value;
+                    InnerFile::new(name, chunks, method, unpacked_size, rar_version)
+                }
             })
             .collect();
 
@@ -488,5 +575,70 @@ mod tests {
 
         // Verify we got approximately the right size (allow for header overhead)
         assert!(content.len() >= 11000, "should have at least 11000 bytes");
+    }
+
+    #[tokio::test]
+    #[cfg(all(feature = "async", feature = "crypto"))]
+    async fn test_parse_rar5_encrypted_stored() {
+        // Test parsing and extracting an encrypted RAR5 file (stored, no compression)
+        let fixture = "__fixtures__/encrypted/rar5-encrypted-stored.rar";
+
+        if !std::path::Path::new(fixture).exists() {
+            eprintln!("Skipping test - encrypted fixtures not found");
+            return;
+        }
+
+        let file: Arc<dyn FileMedia> = Arc::new(LocalFileMedia::new(fixture).unwrap());
+        let package = RarFilesPackage::new(vec![file]);
+
+        let opts = ParseOptions {
+            password: Some("testpass".to_string()),
+            ..Default::default()
+        };
+
+        let parsed = package.parse(opts).await.unwrap();
+        assert_eq!(parsed.len(), 1, "should have 1 inner file");
+
+        let inner_file = &parsed[0];
+        assert_eq!(inner_file.name, "testfile.txt");
+        assert!(inner_file.is_encrypted());
+
+        // Read the decrypted content
+        let content = inner_file.read_decompressed().await.unwrap();
+        let text = std::str::from_utf8(&content).expect("should be valid UTF-8");
+
+        assert!(text.starts_with("Hello, encrypted world!"));
+    }
+
+    #[tokio::test]
+    #[cfg(all(feature = "async", feature = "crypto"))]
+    async fn test_parse_rar5_encrypted_no_password() {
+        let fixture = "__fixtures__/encrypted/rar5-encrypted-stored.rar";
+
+        if !std::path::Path::new(fixture).exists() {
+            eprintln!("Skipping test - encrypted fixtures not found");
+            return;
+        }
+
+        let file: Arc<dyn FileMedia> = Arc::new(LocalFileMedia::new(fixture).unwrap());
+        let package = RarFilesPackage::new(vec![file]);
+
+        // No password provided
+        let parsed = package.parse(ParseOptions::default()).await.unwrap();
+        assert_eq!(parsed.len(), 1, "should have 1 inner file");
+
+        let inner_file = &parsed[0];
+        assert!(inner_file.is_encrypted());
+
+        // Reading should fail because no password was provided
+        let result = inner_file.read_decompressed().await;
+        assert!(result.is_err());
+        match result {
+            Err(crate::RarError::PasswordRequired) => {
+                // Expected error
+            }
+            Err(e) => panic!("Expected PasswordRequired error, got: {:?}", e),
+            Ok(_) => panic!("Expected error but got success"),
+        }
     }
 }

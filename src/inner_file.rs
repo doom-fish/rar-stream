@@ -20,6 +20,18 @@ pub struct ChunkMapEntry {
     pub end: u64,
 }
 
+/// Encryption info for a file.
+#[cfg(feature = "crypto")]
+#[derive(Debug, Clone)]
+pub struct EncryptionInfo {
+    /// 16-byte salt for key derivation
+    pub salt: [u8; 16],
+    /// 16-byte initialization vector
+    pub init_v: [u8; 16],
+    /// Log2 of PBKDF2 iteration count
+    pub lg2_count: u8,
+}
+
 /// A file inside a RAR archive, potentially spanning multiple chunks/volumes.
 /// Optimized for streaming video with fast seeking.
 #[derive(Debug)]
@@ -37,6 +49,12 @@ pub struct InnerFile {
     rar_version: RarVersion,
     /// Cached decompressed data (for compressed files) - Arc to avoid cloning
     decompressed_cache: Mutex<Option<Arc<Vec<u8>>>>,
+    /// Encryption info (if encrypted)
+    #[cfg(feature = "crypto")]
+    encryption: Option<EncryptionInfo>,
+    /// Password for decryption
+    #[cfg(feature = "crypto")]
+    password: Option<String>,
 }
 
 impl InnerFile {
@@ -67,7 +85,51 @@ impl InnerFile {
             packed_size,
             rar_version,
             decompressed_cache: Mutex::new(None),
+            #[cfg(feature = "crypto")]
+            encryption: None,
+            #[cfg(feature = "crypto")]
+            password: None,
         }
+    }
+
+    /// Create an InnerFile with encryption info.
+    #[cfg(feature = "crypto")]
+    pub fn new_encrypted(
+        name: String,
+        chunks: Vec<RarFileChunk>,
+        method: u8,
+        unpacked_size: u64,
+        rar_version: RarVersion,
+        encryption: Option<EncryptionInfo>,
+        password: Option<String>,
+    ) -> Self {
+        let packed_size: u64 = chunks.iter().map(|c| c.length()).sum();
+        let chunk_map = Self::calculate_chunk_map(&chunks);
+
+        let length = if method == 0x30 || method == 0 {
+            packed_size
+        } else {
+            unpacked_size
+        };
+
+        Self {
+            name,
+            length,
+            chunks,
+            chunk_map,
+            method,
+            packed_size,
+            rar_version,
+            decompressed_cache: Mutex::new(None),
+            encryption,
+            password,
+        }
+    }
+
+    /// Check if this file is encrypted.
+    #[cfg(feature = "crypto")]
+    pub fn is_encrypted(&self) -> bool {
+        self.encryption.is_some()
     }
 
     /// Returns true if this file is compressed.
@@ -202,7 +264,7 @@ impl InnerFile {
     }
 
     /// Read decompressed data (with caching).
-    async fn read_decompressed(&self) -> Result<Arc<Vec<u8>>> {
+    pub async fn read_decompressed(&self) -> Result<Arc<Vec<u8>>> {
         // Check cache first
         {
             let cache = self.decompressed_cache.lock().unwrap();
@@ -212,7 +274,20 @@ impl InnerFile {
         }
 
         // Read all packed data
-        let packed = self.read_all_raw().await?;
+        let mut packed = self.read_all_raw().await?;
+
+        // Decrypt if encrypted
+        #[cfg(feature = "crypto")]
+        if let Some(ref enc) = self.encryption {
+            use crate::crypto::Rar5Crypto;
+
+            let password = self.password.as_ref().ok_or(RarError::PasswordRequired)?;
+
+            let crypto = Rar5Crypto::derive_key(password, &enc.salt, enc.lg2_count);
+            crypto
+                .decrypt(&enc.init_v, &mut packed)
+                .map_err(|e| RarError::DecryptionFailed(e.to_string()))?;
+        }
 
         // Decompress based on RAR version
         let decompressed = match self.rar_version {
