@@ -6,6 +6,7 @@ use std::io;
 #[derive(Debug)]
 pub enum RarError {
     InvalidSignature,
+    InvalidHeader,
     InvalidHeaderType(u8),
     DecompressionNotSupported(u8),
     EncryptedNotSupported,
@@ -13,12 +14,14 @@ pub enum RarError {
     InvalidOffset { offset: u64, length: u64 },
     Io(io::Error),
     NoFilesFound,
+    Rar5NotFullySupported,
 }
 
 impl fmt::Display for RarError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::InvalidSignature => write!(f, "Invalid RAR signature"),
+            Self::InvalidHeader => write!(f, "Invalid or malformed header"),
             Self::InvalidHeaderType(t) => write!(f, "Invalid header type: {}", t),
             Self::DecompressionNotSupported(m) => {
                 write!(f, "Decompression not supported (method: 0x{:02x})", m)
@@ -32,6 +35,9 @@ impl fmt::Display for RarError {
             }
             Self::Io(e) => write!(f, "IO error: {}", e),
             Self::NoFilesFound => write!(f, "No files found in archive"),
+            Self::Rar5NotFullySupported => {
+                write!(f, "RAR5 format detected but decompression not yet supported")
+            }
         }
     }
 }

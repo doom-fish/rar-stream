@@ -11,6 +11,7 @@ mod huffman;
 mod lzss;
 mod ppm;
 mod rar29;
+pub mod rar5;
 mod vm;
 
 #[cfg(test)]
@@ -21,6 +22,7 @@ pub use huffman::{HuffmanDecoder, HuffmanTable};
 pub use lzss::LzssDecoder;
 pub use ppm::PpmModel;
 pub use rar29::Rar29Decoder;
+pub use rar5::Rar5Decoder;
 pub use vm::RarVM;
 
 use std::fmt;
@@ -34,6 +36,7 @@ pub enum DecompressError {
     InvalidBackReference { offset: u32, position: u32 },
     BufferOverflow,
     UnsupportedMethod(u8),
+    IncompleteData,
     Io(io::Error),
 }
 
@@ -51,6 +54,7 @@ impl fmt::Display for DecompressError {
             }
             Self::BufferOverflow => write!(f, "Decompression buffer overflow"),
             Self::UnsupportedMethod(m) => write!(f, "Unsupported compression method: {}", m),
+            Self::IncompleteData => write!(f, "Incomplete compressed data"),
             Self::Io(e) => write!(f, "I/O error: {}", e),
         }
     }

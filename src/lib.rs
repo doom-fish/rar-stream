@@ -11,7 +11,8 @@
 //! - `napi` - Node.js bindings
 //! - `wasm` - Browser WASM bindings
 
-#![forbid(unsafe_code)]
+// Note: unsafe_code = "warn" in Cargo.toml allows targeted unsafe for performance
+// All unsafe blocks should be minimal and well-documented with SAFETY comments
 
 mod crc32;
 pub mod decompress;

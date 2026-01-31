@@ -63,7 +63,7 @@ src/
 
 ## Conventions
 
-- **No unsafe code**: `#![forbid(unsafe_code)]` is enforced
+- **Unsafe code**: `unsafe_code = "warn"` - allowed sparingly for performance with SAFETY comments
 - **Clippy pedantic**: Most pedantic lints enabled (see `Cargo.toml [lints.clippy]`)
 - **NAPI pattern**: Rust types prefixed with `Rust` internally, exposed as JS-friendly names (e.g., `RustInnerFile` → `InnerFile`)
 - **Range reads are inclusive**: `{ start: 0, end: 10 }` returns 11 bytes

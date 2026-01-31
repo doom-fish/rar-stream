@@ -48,7 +48,8 @@ napi-build = "2"
 
 # Strict linting configuration
 [lints.rust]
-unsafe_code = "forbid"
+# Allow unsafe for performance-critical paths (e.g., avoiding array zeroing)
+unsafe_code = "warn"
 # missing_docs disabled - NAPI/WASM bindings generate many internal types
 missing_docs = "allow"
 
