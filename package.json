@@ -1,6 +1,6 @@
 {
   "name": "rar-stream",
-  "version": "4.0.0",
+  "version": "4.0.1",
   "description": "RAR streaming library - Rust implementation with NAPI and WASM bindings",
   "main": "index.js",
   "browser": "browser.js",
@@ -86,5 +86,14 @@
     "pkg/rar_stream_bg.wasm",
     "pkg/rar_stream_bg.wasm.d.ts",
     "*.node"
-  ]
+  ],
+  "optionalDependencies": {
+    "rar-stream-win32-x64-msvc": "4.0.0",
+    "rar-stream-darwin-x64": "4.0.0",
+    "rar-stream-linux-x64-gnu": "4.0.0",
+    "rar-stream-linux-x64-musl": "4.0.0",
+    "rar-stream-linux-arm64-gnu": "4.0.0",
+    "rar-stream-darwin-arm64": "4.0.0",
+    "rar-stream-linux-arm64-musl": "4.0.0"
+  }
 }
