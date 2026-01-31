@@ -297,11 +297,100 @@ mod tests {
                         let valid = crypto.verify_password(check);
                         assert!(valid, "Password verification failed");
                     }
+
+                    // Now decrypt the actual file data
+                    // The packed data follows the file header
+                    let header_total_size = 4 + 1 + header_size as usize; // CRC + size vint + content
+                    let data_start = pos + header_total_size;
+                    let data_end = data_start + file_header.packed_size as usize;
+
+                    if data_end <= data.len() {
+                        let encrypted_data = &data[data_start..data_end];
+
+                        // Decrypt the data
+                        let decrypted = crypto.decrypt_to_vec(&enc_info.init_v, encrypted_data).unwrap();
+
+                        // The decrypted data should be compressed - we can't verify the content
+                        // directly without decompressing, but we can verify decryption succeeded
+                        assert_eq!(decrypted.len(), encrypted_data.len());
+
+                        // For stored files (method 0), we could verify content directly
+                        // For compressed files, the decrypted data is still compressed
+                    }
                 }
                 break;
             }
 
-            pos += 4 + 1 + header_size as usize;
+            // Move to next header: 4 bytes CRC + size vint length + header content
+            let size_vint_len = {
+                let mut r = VintReader::new(&data[pos + 4..]);
+                r.read().unwrap();
+                r.position()
+            };
+            pos += 4 + size_vint_len + header_size as usize;
+        }
+    }
+
+    #[test]
+    fn test_decrypt_stored_file() {
+        use crate::parsing::rar5::file_header::Rar5FileHeaderParser;
+        use crate::parsing::rar5::VintReader;
+
+        // Read the stored encrypted RAR5 file (created with rar -ma5 -m0 -p"testpass")
+        let data = std::fs::read("__fixtures__/encrypted/rar5-encrypted-stored.rar").unwrap();
+
+        // Find the file header (type 2)
+        let mut pos = 8; // After signature
+        loop {
+            if pos + 7 > data.len() {
+                panic!("Could not find file header");
+            }
+
+            let mut reader = VintReader::new(&data[pos + 4..]);
+            let header_size = reader.read().unwrap();
+            let header_type = reader.read().unwrap();
+
+            if header_type == 2 {
+                let (file_header, consumed) = Rar5FileHeaderParser::parse(&data[pos..]).unwrap();
+
+                assert!(file_header.is_encrypted());
+                assert!(file_header.is_stored(), "File should be stored (uncompressed)");
+
+                let enc_data = file_header.encryption_info().unwrap();
+                let enc_info = Rar5EncryptionInfo::parse(enc_data).unwrap();
+
+                let crypto = Rar5Crypto::derive_key("testpass", &enc_info.salt, enc_info.lg2_count);
+
+                // Verify password
+                if let Some(ref check) = enc_info.psw_check {
+                    assert!(crypto.verify_password(check), "Password verification failed");
+                }
+
+                // Decrypt the file data
+                let data_start = pos + consumed;
+                let data_end = data_start + file_header.packed_size as usize;
+                let encrypted_data = &data[data_start..data_end];
+
+                let decrypted = crypto.decrypt_to_vec(&enc_info.init_v, encrypted_data).unwrap();
+
+                // For stored files, decrypted data IS the original content (with padding)
+                // The original file is "Hello, encrypted world!\n" (24 bytes)
+                // Padded to 32 bytes (next multiple of 16)
+                let expected = b"Hello, encrypted world!\n";
+                assert!(
+                    decrypted.starts_with(expected),
+                    "Decrypted content doesn't match. Got: {:?}",
+                    String::from_utf8_lossy(&decrypted[..expected.len().min(decrypted.len())])
+                );
+                break;
+            }
+
+            let size_vint_len = {
+                let mut r = VintReader::new(&data[pos + 4..]);
+                r.read().unwrap();
+                r.position()
+            };
+            pos += 4 + size_vint_len + header_size as usize;
         }
     }
 }
