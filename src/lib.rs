@@ -10,11 +10,14 @@
 //! - `async` - Async file reading with tokio
 //! - `napi` - Node.js bindings
 //! - `wasm` - Browser WASM bindings
+//! - `crypto` - Encrypted archive support
 
 // Note: unsafe_code = "warn" in Cargo.toml allows targeted unsafe for performance
 // All unsafe blocks should be minimal and well-documented with SAFETY comments
 
 mod crc32;
+#[cfg(feature = "crypto")]
+pub mod crypto;
 pub mod decompress;
 pub mod error;
 mod file_media;

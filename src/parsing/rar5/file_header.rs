@@ -137,6 +137,42 @@ impl Rar5FileHeader {
     pub fn is_directory(&self) -> bool {
         self.file_flags.is_directory
     }
+
+    /// Check if file is encrypted.
+    pub fn is_encrypted(&self) -> bool {
+        self.header_flags.has_extra_area && self.encryption_info().is_some()
+    }
+
+    /// Get encryption info from extra area if present.
+    /// Returns (encryption_data, flags) where flags indicate password check presence.
+    pub fn encryption_info(&self) -> Option<&[u8]> {
+        let extra = self.extra_area.as_ref()?;
+        Self::find_extra_field(extra, 0x01) // FHEXTRA_CRYPT = 0x01
+    }
+
+    /// Find a specific extra field by type.
+    fn find_extra_field(extra: &[u8], field_type: u64) -> Option<&[u8]> {
+        let mut pos = 0;
+        while pos < extra.len() {
+            // Each extra field: size (vint), type (vint), data
+            let mut reader = super::VintReader::new(&extra[pos..]);
+            let size = reader.read()?;
+            let ftype = reader.read()?;
+            let header_consumed = reader.position();
+
+            if ftype == field_type {
+                // Return the data after the type field
+                let data_start = pos + header_consumed;
+                let data_end = pos + size as usize;
+                if data_end <= extra.len() {
+                    return Some(&extra[data_start..data_end]);
+                }
+            }
+
+            pos += size as usize;
+        }
+        None
+    }
 }
 
 pub struct Rar5FileHeaderParser;
