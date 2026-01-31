@@ -74,13 +74,13 @@ impl SubAllocator {
     fn init_tables(&mut self) {
         let mut i = 0usize;
         let mut k: u8;
-        
+
         // First N1 indices: k=1,2,3,4
         for j in 0..N1 {
             self.idx2units[i] = (j + 1) as u8;
             i += 1;
         }
-        
+
         // Next N2 indices: k starts at 6 (skips 5), steps by 2: 6,8,10,12
         k = (N1 as u8) + 2; // k = 6
         for _ in 0..N2 {
@@ -88,7 +88,7 @@ impl SubAllocator {
             i += 1;
             k += 2;
         }
-        
+
         // Next N3 indices: k starts at k+1, steps by 3: 13,16,19,22
         k += 1; // 12 + 1 = 13
         for _ in 0..N3 {
@@ -96,7 +96,7 @@ impl SubAllocator {
             i += 1;
             k += 3;
         }
-        
+
         // Remaining N4 indices: k starts at k+1, steps by 4: 23,27,31,...
         k += 1; // 22 + 1 = 23
         for _ in 0..N4 {
@@ -122,7 +122,7 @@ impl SubAllocator {
         for i in 0..N_INDEXES {
             self.free_list[i] = 0;
         }
-        
+
         // unrar uses 1/8 of memory for text area
         // Size2 = (SubAllocatorSize/8/UNIT_SIZE*7) * UNIT_SIZE = 7/8 of memory
         // Size1 = SubAllocatorSize - Size2 = 1/8 of memory
@@ -162,57 +162,61 @@ impl SubAllocator {
         // Clamp to valid index range (units2idx is only 128 entries)
         let lookup_nu = if nu >= 128 { 127 } else { nu };
         let idx = self.units2idx[lookup_nu] as usize;
-        
+
         #[cfg(test)]
         if nu == 128 {
-            eprintln!("[ALLOC] alloc_units(128): lookup_nu={} idx={} idx2units[idx]={}", 
-                     lookup_nu, idx, self.idx2units[idx]);
+            eprintln!(
+                "[ALLOC] alloc_units(128): lookup_nu={} idx={} idx2units[idx]={}",
+                lookup_nu, idx, self.idx2units[idx]
+            );
         }
-        
+
         // Try free list first
         if self.free_list[idx] != 0 {
             let ptr = self.remove_node(idx)?;
-            
+
             // Debug trace
             #[cfg(test)]
             if ptr >= 1024 && ptr < 2560 {
                 eprintln!("[ALLOC] WARNING: alloc_units({}) from FREE LIST returned {} which overlaps root stats [1024, 2560)", nu, ptr);
             }
-            
+
             return Some(ptr);
         }
-        
+
         // Try to allocate from lo_unit
         let units_needed = self.idx2units[idx] as usize;
         let bytes_needed = units_needed * UNIT_SIZE;
-        
+
         #[cfg(test)]
         if nu == 128 {
-            eprintln!("[ALLOC] alloc_units(128): units_needed={} bytes_needed={} lo_unit={}", 
-                     units_needed, bytes_needed, self.lo_unit);
+            eprintln!(
+                "[ALLOC] alloc_units(128): units_needed={} bytes_needed={} lo_unit={}",
+                units_needed, bytes_needed, self.lo_unit
+            );
         }
-        
+
         if self.lo_unit + bytes_needed <= self.hi_unit {
             let ptr = self.lo_unit;
             self.lo_unit += bytes_needed;
-            
+
             // Debug trace
             #[cfg(test)]
             if ptr >= 1024 && ptr < 2560 {
                 eprintln!("[ALLOC] WARNING: alloc_units({}) from LO_UNIT returned {} which overlaps root stats [1024, 2560)", nu, ptr);
             }
-            
+
             return Some(ptr);
         }
-        
+
         let ptr = self.alloc_units_rare(idx)?;
-        
+
         // Debug trace
         #[cfg(test)]
         if ptr >= 1024 && ptr < 2560 {
             eprintln!("[ALLOC] WARNING: alloc_units({}) from RARE returned {} which overlaps root stats [1024, 2560)", nu, ptr);
         }
-        
+
         Some(ptr)
     }
 
@@ -228,14 +232,14 @@ impl SubAllocator {
                 }
             }
         }
-        
+
         // Try gluing free blocks
         self.glue_count += 1;
         if self.glue_count > 13 {
             self.glue_free_blocks();
             self.glue_count = 0;
         }
-        
+
         None
     }
 
@@ -245,7 +249,7 @@ impl SubAllocator {
         if ptr == 0 {
             return None;
         }
-        
+
         // Read next pointer from the node
         let next = self.read_u32(ptr);
         self.free_list[idx] = next;
@@ -264,7 +268,7 @@ impl SubAllocator {
         let old_units = self.idx2units[old_idx] as usize;
         let new_units = self.idx2units[new_idx] as usize;
         let diff = old_units - new_units;
-        
+
         if diff > 0 {
             let new_ptr = ptr + new_units * UNIT_SIZE;
             let diff_idx = self.units2idx[diff.saturating_sub(1)] as usize;
@@ -369,28 +373,36 @@ impl SubAllocator {
     /// Expand units allocation.
     /// Returns new pointer or None if allocation fails.
     pub fn expand_units(&mut self, old_ptr: usize, old_nu: usize) -> Option<usize> {
-        let old_idx = if old_nu >= 128 { N_INDEXES - 1 } else { self.units2idx[old_nu] as usize };
+        let old_idx = if old_nu >= 128 {
+            N_INDEXES - 1
+        } else {
+            self.units2idx[old_nu] as usize
+        };
         let new_nu = old_nu + 1;
-        let new_idx = if new_nu >= 128 { N_INDEXES - 1 } else { self.units2idx[new_nu] as usize };
-        
+        let new_idx = if new_nu >= 128 {
+            N_INDEXES - 1
+        } else {
+            self.units2idx[new_nu] as usize
+        };
+
         if old_idx == new_idx {
             // Same size class, no need to reallocate
             return Some(old_ptr);
         }
-        
+
         // Need to allocate new block and copy
         let new_ptr = self.alloc_units(new_nu)?;
-        
+
         // Copy old data
         let copy_size = self.idx2units[old_idx] as usize * UNIT_SIZE;
         for i in 0..copy_size {
             let byte = self.read_byte(old_ptr + i);
             self.write_byte(new_ptr + i, byte);
         }
-        
+
         // Free old block
         self.free_units(old_ptr, old_nu);
-        
+
         Some(new_ptr)
     }
 }

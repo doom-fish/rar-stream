@@ -19,7 +19,6 @@ pub struct ParseOptions {
     pub max_files: Option<usize>,
 }
 
-
 /// Parsed file chunk with metadata.
 struct ParsedChunk {
     name: String,
@@ -224,14 +223,18 @@ impl RarFilesPackage {
 
         let mut grouped: HashMap<String, (Vec<RarFileChunk>, u8, u64)> = HashMap::new();
         for chunk in all_chunks {
-            let entry = grouped.entry(chunk.name).or_insert_with(|| (Vec::new(), chunk.method, chunk.unpacked_size));
+            let entry = grouped
+                .entry(chunk.name)
+                .or_insert_with(|| (Vec::new(), chunk.method, chunk.unpacked_size));
             entry.0.push(chunk.chunk);
         }
 
         // Create InnerFile for each group
         let inner_files: Vec<InnerFile> = grouped
             .into_iter()
-            .map(|(name, (chunks, method, unpacked_size))| InnerFile::new(name, chunks, method, unpacked_size))
+            .map(|(name, (chunks, method, unpacked_size))| {
+                InnerFile::new(name, chunks, method, unpacked_size)
+            })
             .collect();
 
         Ok(inner_files)

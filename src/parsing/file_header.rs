@@ -218,7 +218,7 @@ mod tests {
         buffer[2] = FILE_HEADER_TYPE;
         buffer[5] = 36;
         buffer[25] = 0x30; // method = Store (no compression) - at offset 25
-        buffer[26] = 4;    // name_size low byte
+        buffer[26] = 4; // name_size low byte
         buffer[32..36].copy_from_slice(b"test");
 
         let header = FileHeaderParser::parse(&buffer).unwrap();

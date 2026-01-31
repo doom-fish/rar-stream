@@ -65,12 +65,17 @@ fn test_decompress_lzss_max() {
     assert_eq!(header.unpacked_size, 3515);
 
     let mut decoder = Rar29Decoder::new();
-    let decompressed = decoder.decompress(compressed, header.unpacked_size)
+    let decompressed = decoder
+        .decompress(compressed, header.unpacked_size)
         .expect("LZSS decompression failed");
 
     let expected = include_bytes!("../../__fixtures__/compressed/lorem_ipsum.txt.expected");
     assert_eq!(decompressed.len(), expected.len(), "Size mismatch");
-    assert_eq!(decompressed.as_slice(), expected.as_slice(), "Content mismatch");
+    assert_eq!(
+        decompressed.as_slice(),
+        expected.as_slice(),
+        "Content mismatch"
+    );
 }
 
 #[test]
@@ -82,7 +87,8 @@ fn test_decompress_lzss_default() {
     assert_eq!(header.unpacked_size, 3515);
 
     let mut decoder = Rar29Decoder::new();
-    let decompressed = decoder.decompress(compressed, header.unpacked_size)
+    let decompressed = decoder
+        .decompress(compressed, header.unpacked_size)
         .expect("LZSS default decompression failed");
 
     let expected = include_bytes!("../../__fixtures__/compressed/lorem_ipsum.txt.expected");
@@ -98,12 +104,17 @@ fn test_decompress_ppmd() {
     assert_eq!(header.unpacked_size, 3515);
 
     let mut decoder = Rar29Decoder::new();
-    let decompressed = decoder.decompress(compressed, header.unpacked_size)
+    let decompressed = decoder
+        .decompress(compressed, header.unpacked_size)
         .expect("PPMd decompression failed");
 
     let expected = include_bytes!("../../__fixtures__/compressed/lorem_ipsum.txt.expected");
     assert_eq!(decompressed.len(), expected.len(), "Size mismatch");
-    assert_eq!(decompressed.as_slice(), expected.as_slice(), "Content mismatch");
+    assert_eq!(
+        decompressed.as_slice(),
+        expected.as_slice(),
+        "Content mismatch"
+    );
 }
 
 #[test]
@@ -115,7 +126,8 @@ fn test_decompress_delta() {
     assert_eq!(header.unpacked_size, 3515);
 
     let mut decoder = Rar29Decoder::new();
-    let decompressed = decoder.decompress(compressed, header.unpacked_size)
+    let decompressed = decoder
+        .decompress(compressed, header.unpacked_size)
         .expect("Delta decompression failed");
 
     let expected = include_bytes!("../../__fixtures__/compressed/lorem_ipsum.txt.expected");
@@ -132,12 +144,13 @@ fn test_decompress_audio() {
     assert_eq!(header.unpacked_size, 44292);
 
     let mut decoder = Rar29Decoder::new();
-    let decompressed = decoder.decompress(compressed, header.unpacked_size)
+    let decompressed = decoder
+        .decompress(compressed, header.unpacked_size)
         .expect("Audio decompression failed");
 
     // Check size matches
     assert_eq!(decompressed.len(), 44292, "Size mismatch");
-    
+
     // Check WAV header (RIFF....WAVEfmt )
     assert_eq!(&decompressed[0..4], b"RIFF", "Invalid WAV header");
     assert_eq!(&decompressed[8..12], b"WAVE", "Invalid WAV format");
@@ -164,12 +177,16 @@ fn test_parse_ppmd_rar() {
     assert_eq!(header.unpacked_size, 3515);
 
     let mut decoder = Rar29Decoder::new();
-    let decompressed = decoder.decompress(compressed, header.unpacked_size)
+    let decompressed = decoder
+        .decompress(compressed, header.unpacked_size)
         .expect("PPMd decompression failed");
 
     let expected = include_bytes!("../../__fixtures__/compressed/lorem_ipsum.txt.expected");
     assert_eq!(decompressed.as_slice(), expected.as_slice());
-    println!("PPMd decompression: SUCCESS - {} bytes match perfectly!", decompressed.len());
+    println!(
+        "PPMd decompression: SUCCESS - {} bytes match perfectly!",
+        decompressed.len()
+    );
 }
 
 #[test]
@@ -178,7 +195,8 @@ fn test_lzss_decompression() {
     let (header, compressed) = parse_rar4_file(data).expect("Failed to parse RAR file");
 
     let mut decoder = Rar29Decoder::new();
-    let decompressed = decoder.decompress(compressed, header.unpacked_size)
+    let decompressed = decoder
+        .decompress(compressed, header.unpacked_size)
         .expect("LZSS decompression failed");
 
     let expected = include_bytes!("../../__fixtures__/compressed/lorem_ipsum.txt.expected");

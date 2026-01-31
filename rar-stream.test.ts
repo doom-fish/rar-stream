@@ -14,15 +14,6 @@ const fixturePath = path.resolve(__dirname, "./__fixtures__");
 const readToEnd = (files: any[]) =>
   Promise.all(files.map((file: any) => file.readToEnd()));
 
-// Helper to convert stream to buffer
-async function streamToBuffer(stream: NodeJS.ReadableStream): Promise<Buffer> {
-  const chunks: Buffer[] = [];
-  for await (const chunk of stream) {
-    chunks.push(Buffer.from(chunk));
-  }
-  return Buffer.concat(chunks);
-}
-
 // File paths
 const singleFilePath = path.resolve(fixturePath, "single/single.txt");
 const multiFilePath = path.resolve(fixturePath, "multi/multi.txt");

@@ -20,10 +20,16 @@ impl fmt::Display for RarError {
         match self {
             Self::InvalidSignature => write!(f, "Invalid RAR signature"),
             Self::InvalidHeaderType(t) => write!(f, "Invalid header type: {}", t),
-            Self::DecompressionNotSupported(m) => write!(f, "Decompression not supported (method: 0x{:02x})", m),
+            Self::DecompressionNotSupported(m) => {
+                write!(f, "Decompression not supported (method: 0x{:02x})", m)
+            }
             Self::EncryptedNotSupported => write!(f, "Encrypted archives not supported"),
-            Self::BufferTooSmall { needed, have } => write!(f, "Buffer too small: need {} bytes, have {}", needed, have),
-            Self::InvalidOffset { offset, length } => write!(f, "Invalid offset: {} (file length: {})", offset, length),
+            Self::BufferTooSmall { needed, have } => {
+                write!(f, "Buffer too small: need {} bytes, have {}", needed, have)
+            }
+            Self::InvalidOffset { offset, length } => {
+                write!(f, "Invalid offset: {} (file length: {})", offset, length)
+            }
             Self::Io(e) => write!(f, "IO error: {}", e),
             Self::NoFilesFound => write!(f, "No files found in archive"),
         }
@@ -48,7 +54,9 @@ impl From<io::Error> for RarError {
 impl From<crate::decompress::DecompressError> for RarError {
     fn from(e: crate::decompress::DecompressError) -> Self {
         match e {
-            crate::decompress::DecompressError::UnsupportedMethod(m) => Self::DecompressionNotSupported(m),
+            crate::decompress::DecompressError::UnsupportedMethod(m) => {
+                Self::DecompressionNotSupported(m)
+            }
             _ => Self::Io(io::Error::new(io::ErrorKind::InvalidData, e.to_string())),
         }
     }

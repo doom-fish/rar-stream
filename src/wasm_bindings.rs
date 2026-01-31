@@ -8,7 +8,7 @@ use wasm_bindgen::prelude::*;
 
 use crate::decompress::Rar29Decoder;
 use crate::formats::Signature;
-use crate::parsing::{MarkerHeaderParser, ArchiveHeaderParser, FileHeaderParser};
+use crate::parsing::{ArchiveHeaderParser, FileHeaderParser, MarkerHeaderParser};
 
 /// Check if a buffer contains a RAR signature.
 #[wasm_bindgen]
@@ -102,10 +102,26 @@ pub fn parse_rar_header(data: &[u8]) -> Result<JsValue, JsError> {
     // Build result object
     let obj = js_sys::Object::new();
     let _ = js_sys::Reflect::set(&obj, &"name".into(), &file_header.name.into());
-    let _ = js_sys::Reflect::set(&obj, &"packedSize".into(), &JsValue::from_f64(file_header.packed_size as f64));
-    let _ = js_sys::Reflect::set(&obj, &"unpackedSize".into(), &JsValue::from_f64(file_header.unpacked_size as f64));
-    let _ = js_sys::Reflect::set(&obj, &"method".into(), &JsValue::from_f64(file_header.method as f64));
-    let _ = js_sys::Reflect::set(&obj, &"isCompressed".into(), &JsValue::from_bool(file_header.method != 0x30));
+    let _ = js_sys::Reflect::set(
+        &obj,
+        &"packedSize".into(),
+        &JsValue::from_f64(file_header.packed_size as f64),
+    );
+    let _ = js_sys::Reflect::set(
+        &obj,
+        &"unpackedSize".into(),
+        &JsValue::from_f64(file_header.unpacked_size as f64),
+    );
+    let _ = js_sys::Reflect::set(
+        &obj,
+        &"method".into(),
+        &JsValue::from_f64(file_header.method as f64),
+    );
+    let _ = js_sys::Reflect::set(
+        &obj,
+        &"isCompressed".into(),
+        &JsValue::from_bool(file_header.method != 0x30),
+    );
 
     Ok(obj.into())
 }

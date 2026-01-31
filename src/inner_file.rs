@@ -39,10 +39,14 @@ impl InnerFile {
     pub fn new(name: String, chunks: Vec<RarFileChunk>, method: u8, unpacked_size: u64) -> Self {
         let packed_size: u64 = chunks.iter().map(|c| c.length()).sum();
         let chunk_map = Self::calculate_chunk_map(&chunks);
-        
+
         // For stored files, length = packed_size
         // For compressed files, length = unpacked_size
-        let length = if method == 0x30 { packed_size } else { unpacked_size };
+        let length = if method == 0x30 {
+            packed_size
+        } else {
+            unpacked_size
+        };
 
         Self {
             name,
@@ -54,7 +58,7 @@ impl InnerFile {
             decompressed_cache: Mutex::new(None),
         }
     }
-    
+
     /// Returns true if this file is compressed.
     pub fn is_compressed(&self) -> bool {
         self.method != 0x30
@@ -85,7 +89,7 @@ impl InnerFile {
 
         // Binary search: find the chunk where start <= offset <= end
         let idx = self.chunk_map.partition_point(|entry| entry.end < offset);
-        
+
         if idx < self.chunk_map.len() && self.chunk_map[idx].start <= offset {
             Some(idx)
         } else {
@@ -119,28 +123,32 @@ impl InnerFile {
             self.read_raw_range(0, self.length.saturating_sub(1)).await
         }
     }
-    
+
     /// Read raw data from all chunks (no decompression).
     async fn read_raw_range(&self, start: u64, end: u64) -> Result<Vec<u8>> {
         if start > end {
             return Ok(Vec::new());
         }
-        
+
         let packed_len = self.packed_size;
         let actual_end = end.min(packed_len.saturating_sub(1));
-        
+
         if start >= packed_len {
             return Ok(Vec::new());
         }
 
-        let start_idx = self.find_chunk_index(start).ok_or(RarError::InvalidOffset {
-            offset: start,
-            length: packed_len,
-        })?;
-        let end_idx = self.find_chunk_index(actual_end).ok_or(RarError::InvalidOffset {
-            offset: actual_end,
-            length: packed_len,
-        })?;
+        let start_idx = self
+            .find_chunk_index(start)
+            .ok_or(RarError::InvalidOffset {
+                offset: start,
+                length: packed_len,
+            })?;
+        let end_idx = self
+            .find_chunk_index(actual_end)
+            .ok_or(RarError::InvalidOffset {
+                offset: actual_end,
+                length: packed_len,
+            })?;
 
         let mut result = Vec::with_capacity((actual_end - start + 1) as usize);
 
@@ -165,17 +173,19 @@ impl InnerFile {
 
         Ok(result)
     }
-    
+
     /// Read all raw packed data from chunks.
     async fn read_all_raw(&self) -> Result<Vec<u8>> {
         let mut result = Vec::with_capacity(self.packed_size as usize);
         for chunk in &self.chunks {
-            let data = chunk.read_range(0, chunk.length().saturating_sub(1)).await?;
+            let data = chunk
+                .read_range(0, chunk.length().saturating_sub(1))
+                .await?;
             result.extend_from_slice(&data);
         }
         Ok(result)
     }
-    
+
     /// Read decompressed data (with caching).
     async fn read_decompressed(&self) -> Result<Vec<u8>> {
         // Check cache first
@@ -185,20 +195,20 @@ impl InnerFile {
                 return Ok(data.clone());
             }
         }
-        
+
         // Read all packed data
         let packed = self.read_all_raw().await?;
-        
+
         // Decompress
         let mut decoder = Rar29Decoder::new();
         let decompressed = decoder.decompress(&packed, self.length)?;
-        
+
         // Cache result
         {
             let mut cache = self.decompressed_cache.lock().unwrap();
             *cache = Some(decompressed.clone());
         }
-        
+
         Ok(decompressed)
     }
 
@@ -214,7 +224,7 @@ impl InnerFile {
                 length: self.length,
             });
         }
-        
+
         if self.is_compressed() {
             // For compressed files, decompress and slice
             let decompressed = self.read_decompressed().await?;
@@ -229,10 +239,12 @@ impl InnerFile {
             return Ok(decompressed[start_usize..end_usize].to_vec());
         }
 
-        let start_idx = self.find_chunk_index(start).ok_or(RarError::InvalidOffset {
-            offset: start,
-            length: self.length,
-        })?;
+        let start_idx = self
+            .find_chunk_index(start)
+            .ok_or(RarError::InvalidOffset {
+                offset: start,
+                length: self.length,
+            })?;
         let end_idx = self.find_chunk_index(end).ok_or(RarError::InvalidOffset {
             offset: end,
             length: self.length,
@@ -370,7 +382,7 @@ impl<'a> InnerFileStream<'a> {
         match &result {
             Ok(data) => {
                 self.current_offset += data.len() as u64;
-                
+
                 if self.current_offset > self.end_offset {
                     self.done = true;
                 } else {
@@ -489,7 +501,9 @@ mod tests {
         fn read_range(
             &self,
             interval: ReadInterval,
-        ) -> std::pin::Pin<Box<dyn std::future::Future<Output = crate::error::Result<Vec<u8>>> + Send + '_>> {
+        ) -> std::pin::Pin<
+            Box<dyn std::future::Future<Output = crate::error::Result<Vec<u8>>> + Send + '_>,
+        > {
             let start = interval.start as usize;
             let end = (interval.end + 1) as usize;
             let data = self.data[start..end.min(self.data.len())].to_vec();
@@ -527,22 +541,22 @@ mod tests {
         let file = InnerFile::new("test.mkv".to_string(), chunks, 0x30, 0);
 
         assert_eq!(file.length, 300);
-        
+
         // First chunk
         assert_eq!(file.find_chunk_index(0), Some(0));
         assert_eq!(file.find_chunk_index(50), Some(0));
         assert_eq!(file.find_chunk_index(99), Some(0));
-        
+
         // Second chunk
         assert_eq!(file.find_chunk_index(100), Some(1));
         assert_eq!(file.find_chunk_index(150), Some(1));
         assert_eq!(file.find_chunk_index(199), Some(1));
-        
+
         // Third chunk
         assert_eq!(file.find_chunk_index(200), Some(2));
         assert_eq!(file.find_chunk_index(250), Some(2));
         assert_eq!(file.find_chunk_index(299), Some(2));
-        
+
         // Out of bounds
         assert_eq!(file.find_chunk_index(300), None);
     }
@@ -615,7 +629,13 @@ mod tests {
         let file = InnerFile::new("test.mkv".to_string(), chunks, 0x30, 0);
 
         // Read from middle chunk
-        let data = file.read_range(ReadInterval { start: 150, end: 160 }).await.unwrap();
+        let data = file
+            .read_range(ReadInterval {
+                start: 150,
+                end: 160,
+            })
+            .await
+            .unwrap();
         assert_eq!(data.len(), 11);
         // All bytes should be 1 (from chunk 1)
         assert!(data.iter().all(|&b| b == 1));
@@ -627,9 +647,15 @@ mod tests {
         let file = InnerFile::new("test.mkv".to_string(), chunks, 0x30, 0);
 
         // Read spanning chunk 0 and 1
-        let data = file.read_range(ReadInterval { start: 90, end: 110 }).await.unwrap();
+        let data = file
+            .read_range(ReadInterval {
+                start: 90,
+                end: 110,
+            })
+            .await
+            .unwrap();
         assert_eq!(data.len(), 21);
-        
+
         // First 10 bytes from chunk 0
         assert!(data[..10].iter().all(|&b| b == 0));
         // Next 11 bytes from chunk 1

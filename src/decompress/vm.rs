@@ -38,12 +38,36 @@ struct FilterSignature {
 }
 
 const FILTER_SIGNATURES: &[FilterSignature] = &[
-    FilterSignature { length: 53, crc: 0xad576887, filter_type: StandardFilter::E8 },
-    FilterSignature { length: 57, crc: 0x3cd7e57e, filter_type: StandardFilter::E8E9 },
-    FilterSignature { length: 120, crc: 0x3769893f, filter_type: StandardFilter::Itanium },
-    FilterSignature { length: 29, crc: 0x0e06077d, filter_type: StandardFilter::Delta },
-    FilterSignature { length: 149, crc: 0x1c2c5dc8, filter_type: StandardFilter::Rgb },
-    FilterSignature { length: 216, crc: 0xbc85e701, filter_type: StandardFilter::Audio },
+    FilterSignature {
+        length: 53,
+        crc: 0xad576887,
+        filter_type: StandardFilter::E8,
+    },
+    FilterSignature {
+        length: 57,
+        crc: 0x3cd7e57e,
+        filter_type: StandardFilter::E8E9,
+    },
+    FilterSignature {
+        length: 120,
+        crc: 0x3769893f,
+        filter_type: StandardFilter::Itanium,
+    },
+    FilterSignature {
+        length: 29,
+        crc: 0x0e06077d,
+        filter_type: StandardFilter::Delta,
+    },
+    FilterSignature {
+        length: 149,
+        crc: 0x1c2c5dc8,
+        filter_type: StandardFilter::Rgb,
+    },
+    FilterSignature {
+        length: 216,
+        crc: 0xbc85e701,
+        filter_type: StandardFilter::Audio,
+    },
 ];
 
 /// A prepared filter ready for execution
@@ -134,7 +158,7 @@ impl RarVM {
         // Read 16 bits
         let byte_pos = *bit_pos / 8;
         let bit_off = *bit_pos % 8;
-        
+
         let mut val: u32 = 0;
         if byte_pos < data.len() {
             val |= (data[byte_pos] as u32) << 8;
@@ -203,7 +227,7 @@ impl RarVM {
     /// Add VM code and create filter
     pub fn add_code(&mut self, first_byte: u8, code: &[u8]) -> bool {
         let filter_type = Self::identify_filter(code);
-        
+
         let filt_pos = if (first_byte & 0x80) != 0 {
             let mut bit_pos = 0;
             let pos = Self::read_data(code, &mut bit_pos);
@@ -230,13 +254,13 @@ impl RarVM {
         }
 
         // Parse filter parameters from code
-        let mut bit_pos = if (first_byte & 0x80) != 0 { 
+        let mut bit_pos = if (first_byte & 0x80) != 0 {
             // Skip the filter position we already read
             let mut bp = 0;
             Self::read_data(code, &mut bp);
             bp
-        } else { 
-            0 
+        } else {
+            0
         };
 
         let block_start = Self::read_data(code, &mut bit_pos);
@@ -269,7 +293,11 @@ impl RarVM {
         }
 
         let filter = PreparedFilter {
-            filter_type: self.filters.get(filt_pos).map(|f| f.filter_type).unwrap_or(filter_type),
+            filter_type: self
+                .filters
+                .get(filt_pos)
+                .map(|f| f.filter_type)
+                .unwrap_or(filter_type),
             init_r,
             block_start,
             block_length,
@@ -330,26 +358,25 @@ impl RarVM {
 
         match filter.filter_type {
             StandardFilter::None => (0, data_size),
-            StandardFilter::E8 | StandardFilter::E8E9 => {
-                self.filter_e8e9(r[4] as usize, r[6], filter.filter_type == StandardFilter::E8E9)
-            }
-            StandardFilter::Itanium => {
-                self.filter_itanium(r[4] as usize, r[6])
-            }
-            StandardFilter::Delta => {
-                self.filter_delta(r[4] as usize, r[0] as usize)
-            }
-            StandardFilter::Rgb => {
-                self.filter_rgb(r[4] as usize, r[0] as usize, r[1] as usize)
-            }
-            StandardFilter::Audio => {
-                self.filter_audio(r[4] as usize, r[0] as usize)
-            }
+            StandardFilter::E8 | StandardFilter::E8E9 => self.filter_e8e9(
+                r[4] as usize,
+                r[6],
+                filter.filter_type == StandardFilter::E8E9,
+            ),
+            StandardFilter::Itanium => self.filter_itanium(r[4] as usize, r[6]),
+            StandardFilter::Delta => self.filter_delta(r[4] as usize, r[0] as usize),
+            StandardFilter::Rgb => self.filter_rgb(r[4] as usize, r[0] as usize, r[1] as usize),
+            StandardFilter::Audio => self.filter_audio(r[4] as usize, r[0] as usize),
         }
     }
 
     /// E8/E8E9 filter - x86 CALL/JMP address conversion
-    fn filter_e8e9(&mut self, data_size: usize, file_offset: u32, include_e9: bool) -> (usize, usize) {
+    fn filter_e8e9(
+        &mut self,
+        data_size: usize,
+        file_offset: u32,
+        include_e9: bool,
+    ) -> (usize, usize) {
         if !(4..=VM_MEMSIZE).contains(&data_size) {
             return (0, 0);
         }
@@ -513,7 +540,9 @@ impl RarVM {
                     let upper_byte = self.mem[upper_idx] as u32;
                     let upper_left_byte = self.mem[upper_idx - 3] as u32;
 
-                    let mut pred = prev_byte.wrapping_add(upper_byte).wrapping_sub(upper_left_byte);
+                    let mut pred = prev_byte
+                        .wrapping_add(upper_byte)
+                        .wrapping_sub(upper_left_byte);
                     let pa = (pred as i32 - prev_byte as i32).unsigned_abs();
                     let pb = (pred as i32 - upper_byte as i32).unsigned_abs();
                     let pc = (pred as i32 - upper_left_byte as i32).unsigned_abs();
@@ -610,12 +639,36 @@ impl RarVM {
                     }
 
                     match num_min_dif {
-                        1 => { if k1 >= -16 { k1 -= 1; } }
-                        2 => { if k1 < 16 { k1 += 1; } }
-                        3 => { if k2 >= -16 { k2 -= 1; } }
-                        4 => { if k2 < 16 { k2 += 1; } }
-                        5 => { if k3 >= -16 { k3 -= 1; } }
-                        6 => { if k3 < 16 { k3 += 1; } }
+                        1 => {
+                            if k1 >= -16 {
+                                k1 -= 1;
+                            }
+                        }
+                        2 => {
+                            if k1 < 16 {
+                                k1 += 1;
+                            }
+                        }
+                        3 => {
+                            if k2 >= -16 {
+                                k2 -= 1;
+                            }
+                        }
+                        4 => {
+                            if k2 < 16 {
+                                k2 += 1;
+                            }
+                        }
+                        5 => {
+                            if k3 >= -16 {
+                                k3 -= 1;
+                            }
+                        }
+                        6 => {
+                            if k3 < 16 {
+                                k3 += 1;
+                            }
+                        }
                         _ => {}
                     }
                 }
@@ -648,7 +701,7 @@ mod tests {
     #[test]
     fn test_delta_filter() {
         let mut vm = RarVM::new();
-        
+
         // Simple delta test: 3 channels, 6 bytes
         vm.mem[0] = 10;
         vm.mem[1] = 20;
@@ -665,7 +718,7 @@ mod tests {
     #[test]
     fn test_e8_filter() {
         let mut vm = RarVM::new();
-        
+
         // E8 filter test
         vm.mem[0] = 0xe8;
         vm.mem[1] = 0x00;

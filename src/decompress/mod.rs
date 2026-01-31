@@ -43,7 +43,11 @@ impl fmt::Display for DecompressError {
             Self::UnexpectedEof => write!(f, "Unexpected end of data"),
             Self::InvalidHuffmanCode => write!(f, "Invalid Huffman code"),
             Self::InvalidBackReference { offset, position } => {
-                write!(f, "Invalid back reference: offset {} exceeds window position {}", offset, position)
+                write!(
+                    f,
+                    "Invalid back reference: offset {} exceeds window position {}",
+                    offset, position
+                )
             }
             Self::BufferOverflow => write!(f, "Decompression buffer overflow"),
             Self::UnsupportedMethod(m) => write!(f, "Unsupported compression method: {}", m),

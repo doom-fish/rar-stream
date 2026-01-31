@@ -40,7 +40,7 @@ impl RangeCoder {
     pub fn get_current_count(&mut self, scale: u32) -> u32 {
         self.range /= scale;
         // Use wrapping_sub to avoid overflow - this can happen with state corruption
-        
+
         self.code.wrapping_sub(self.low) / self.range
     }
 
@@ -62,14 +62,19 @@ impl RangeCoder {
 
     /// Decode with the given subrange (without normalizing).
     pub fn decode(&mut self, sub: &SubRange) {
-        self.low = self.low.wrapping_add(sub.low_count.wrapping_mul(self.range));
+        self.low = self
+            .low
+            .wrapping_add(sub.low_count.wrapping_mul(self.range));
         self.range = self.range.wrapping_mul(sub.high_count - sub.low_count);
     }
 
     /// Normalize the range coder state.
     pub fn normalize(&mut self, reader: &mut BitReader) {
-        while (self.low ^ (self.low.wrapping_add(self.range))) < TOP 
-            || self.range < BOT && { self.range = (0u32.wrapping_sub(self.low)) & (BOT - 1); true }
+        while (self.low ^ (self.low.wrapping_add(self.range))) < TOP
+            || self.range < BOT && {
+                self.range = (0u32.wrapping_sub(self.low)) & (BOT - 1);
+                true
+            }
         {
             let byte = reader.read_byte().unwrap_or(0);
             self.code = (self.code << 8) | byte as u32;

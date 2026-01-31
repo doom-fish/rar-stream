@@ -138,8 +138,9 @@ impl FileMedia for JsFileMediaWrapper {
     fn read_range(
         &self,
         interval: ReadInterval,
-    ) -> std::pin::Pin<Box<dyn std::future::Future<Output = crate::error::Result<Vec<u8>>> + Send + '_>>
-    {
+    ) -> std::pin::Pin<
+        Box<dyn std::future::Future<Output = crate::error::Result<Vec<u8>>> + Send + '_>,
+    > {
         let local = self.local.clone();
         Box::pin(async move {
             if let Some(local) = local {

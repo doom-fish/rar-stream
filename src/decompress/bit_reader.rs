@@ -49,7 +49,7 @@ impl<'a> BitReader<'a> {
     #[inline]
     pub fn read_bits(&mut self, n: u32) -> Result<u32> {
         debug_assert!(n <= 16);
-        
+
         if n > self.bits_in_buffer && self.pos >= self.data.len() {
             return Err(DecompressError::UnexpectedEof);
         }

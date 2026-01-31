@@ -63,14 +63,14 @@ impl LzssDecoder {
         }
 
         let src_pos = (self.pos.wrapping_sub(distance as usize)) & self.mask;
-        
+
         for i in 0..length as usize {
             let src_idx = (src_pos + i) & self.mask;
             let byte = self.window[src_idx];
             self.window[self.pos] = byte;
             self.pos = (self.pos + 1) & self.mask;
         }
-        
+
         self.total_written += length as u64;
         Ok(())
     }
@@ -97,7 +97,7 @@ impl LzssDecoder {
     pub fn get_output(&self, start: u64, len: usize) -> Vec<u8> {
         let mut output = Vec::with_capacity(len);
         let window_len = self.window.len();
-        
+
         // Calculate start position in window
         let start_pos = if self.total_written <= window_len as u64 {
             start as usize
@@ -123,13 +123,13 @@ impl LzssDecoder {
     pub fn get_recent(&self, len: usize) -> Vec<u8> {
         let actual_len = len.min(self.total_written as usize);
         let mut output = Vec::with_capacity(actual_len);
-        
+
         let start = (self.pos.wrapping_sub(actual_len)) & self.mask;
         for i in 0..actual_len {
             let idx = (start + i) & self.mask;
             output.push(self.window[idx]);
         }
-        
+
         output
     }
 
@@ -148,13 +148,13 @@ mod tests {
     #[test]
     fn test_literal_output() {
         let mut decoder = LzssDecoder::new(256);
-        
+
         decoder.write_literal(b'H');
         decoder.write_literal(b'e');
         decoder.write_literal(b'l');
         decoder.write_literal(b'l');
         decoder.write_literal(b'o');
-        
+
         assert_eq!(decoder.total_written(), 5);
         assert_eq!(decoder.get_recent(5), b"Hello");
     }
@@ -162,15 +162,15 @@ mod tests {
     #[test]
     fn test_copy_match() {
         let mut decoder = LzssDecoder::new(256);
-        
+
         // Write "abc"
         decoder.write_literal(b'a');
         decoder.write_literal(b'b');
         decoder.write_literal(b'c');
-        
+
         // Copy from distance 3, length 6 -> "abcabc"
         decoder.copy_match(3, 6).unwrap();
-        
+
         assert_eq!(decoder.total_written(), 9);
         assert_eq!(decoder.get_recent(9), b"abcabcabc");
     }
@@ -178,13 +178,13 @@ mod tests {
     #[test]
     fn test_overlapping_copy() {
         let mut decoder = LzssDecoder::new(256);
-        
+
         // Write "a"
         decoder.write_literal(b'a');
-        
+
         // Copy from distance 1, length 5 -> "aaaaa"
         decoder.copy_match(1, 5).unwrap();
-        
+
         assert_eq!(decoder.get_recent(6), b"aaaaaa");
     }
 
@@ -192,7 +192,7 @@ mod tests {
     fn test_invalid_distance() {
         let mut decoder = LzssDecoder::new(256);
         decoder.write_literal(b'a');
-        
+
         // Distance 0 is invalid
         assert!(decoder.copy_match(0, 1).is_err());
     }

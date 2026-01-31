@@ -35,31 +35,26 @@ const SHORT_BITS: [u8; 8] = [2, 2, 3, 4, 5, 6, 6, 6];
 
 /// Base lengths for length codes.
 const LENGTH_BASE: [u32; 28] = [
-    0, 1, 2, 3, 4, 5, 6, 7, 8, 10, 12, 14, 16, 20, 24, 28,
-    32, 40, 48, 56, 64, 80, 96, 112, 128, 160, 192, 224,
+    0, 1, 2, 3, 4, 5, 6, 7, 8, 10, 12, 14, 16, 20, 24, 28, 32, 40, 48, 56, 64, 80, 96, 112, 128,
+    160, 192, 224,
 ];
 
 /// Extra bits for length codes.
 const LENGTH_EXTRA: [u8; 28] = [
-    0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 2, 2, 2, 2,
-    3, 3, 3, 3, 4, 4, 4, 4, 5, 5, 5, 5,
+    0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 2, 2, 2, 2, 3, 3, 3, 3, 4, 4, 4, 4, 5, 5, 5, 5,
 ];
 
 /// Base distances for distance codes (48 entries for RAR3).
 const DIST_BASE: [u32; 48] = [
-    0, 1, 2, 3, 4, 6, 8, 12, 16, 24, 32, 48,
-    64, 96, 128, 192, 256, 384, 512, 768, 1024, 1536, 2048, 3072,
-    4096, 6144, 8192, 12288, 16384, 24576, 32768, 49152, 65536, 98304,
-    131072, 196608, 262144, 327680, 393216, 458752, 524288, 589824,
-    655360, 720896, 786432, 851968, 917504, 983040,
+    0, 1, 2, 3, 4, 6, 8, 12, 16, 24, 32, 48, 64, 96, 128, 192, 256, 384, 512, 768, 1024, 1536,
+    2048, 3072, 4096, 6144, 8192, 12288, 16384, 24576, 32768, 49152, 65536, 98304, 131072, 196608,
+    262144, 327680, 393216, 458752, 524288, 589824, 655360, 720896, 786432, 851968, 917504, 983040,
 ];
 
 /// Extra bits for distance codes (48 entries for RAR3).
 const DIST_EXTRA: [u8; 48] = [
-    0, 0, 0, 0, 1, 1, 2, 2, 3, 3, 4, 4,
-    5, 5, 6, 6, 7, 7, 8, 8, 9, 9, 10, 10,
-    11, 11, 12, 12, 13, 13, 14, 14, 15, 15, 16, 16,
-    16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16,
+    0, 0, 0, 0, 1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 6, 6, 7, 7, 8, 8, 9, 9, 10, 10, 11, 11, 12, 12, 13,
+    13, 14, 14, 15, 15, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16,
 ];
 
 /// RAR 2.9 decoder state.
@@ -119,7 +114,7 @@ impl Rar29Decoder {
     /// Returns the decompressed data.
     pub fn decompress(&mut self, data: &[u8], unpacked_size: u64) -> Result<Vec<u8>> {
         let mut reader = BitReader::new(data);
-        
+
         // Read tables if needed
         if !self.tables_read {
             self.read_tables(&mut reader)?;
@@ -143,13 +138,13 @@ impl Rar29Decoder {
     fn read_tables(&mut self, reader: &mut BitReader) -> Result<()> {
         // Align to byte boundary (like unrar)
         reader.align_to_byte();
-        
+
         // Peek at the high bit to check for PPM mode
         // In unrar, this is done by peeking 16 bits and checking bit 15
         let ppm_flag = reader.peek_bits(1) != 0;
-        
+
         self.ppm_mode = ppm_flag;
-        
+
         if self.ppm_mode {
             // DON'T consume the PPM flag bit - it's part of the MaxOrder byte
             // Initialize PPMd model (which will read MaxOrder byte including the flag)
@@ -171,13 +166,13 @@ impl Rar29Decoder {
         } else {
             // LZ mode - check bit 1 (0x4000) for reset tables
             let reset_tables = reader.peek_bits(2) & 1 == 0; // Bit 14 inverted (0 means reset)
-            // Consume the 2 header bits (PPM flag + reset flag)
+                                                             // Consume the 2 header bits (PPM flag + reset flag)
             reader.advance_bits(2);
-            
+
             if reset_tables {
                 self.huffman.reset_tables();
             }
-            
+
             // Read Huffman tables
             self.huffman.read_tables_after_header(reader)?;
         }
@@ -191,7 +186,7 @@ impl Rar29Decoder {
         if self.ppm_mode {
             return self.decode_block_ppm(reader, max_size);
         }
-        
+
         // Validate tables exist
         if self.huffman.main_table.is_none() || self.huffman.dist_table.is_none() {
             return Err(DecompressError::InvalidHuffmanCode);
@@ -204,7 +199,7 @@ impl Rar29Decoder {
             // Decode main symbol
             #[cfg(test)]
             let bit_pos_main_start = reader.bit_position();
-            
+
             let symbol = {
                 let main_table = self.huffman.main_table.as_ref().unwrap();
                 main_table.decode(reader)?
@@ -215,11 +210,13 @@ impl Rar29Decoder {
                 let written = self.lzss.total_written();
                 if written >= 0 && written < 0 {
                     let bit_pos_main_end = reader.bit_position();
-                    eprintln!("\nmain decode at pos {}: sym={} (bits {}->{})", 
-                        written, symbol, bit_pos_main_start, bit_pos_main_end);
+                    eprintln!(
+                        "\nmain decode at pos {}: sym={} (bits {}->{})",
+                        written, symbol, bit_pos_main_start, bit_pos_main_end
+                    );
                 }
             }
-            
+
             #[cfg(test)]
             {
                 if symbol_count < 0 {
@@ -260,20 +257,23 @@ impl Rar29Decoder {
                 // Use one of the old distances (symbols 259-262 = indices 0-3)
                 let idx = (symbol - 259) as usize;
                 let distance = self.old_dist[idx];
-                
+
                 // Decode length using the length table
                 let length = self.decode_length_from_table(reader)?;
-                
+
                 #[cfg(test)]
                 {
                     let written = self.lzss.total_written();
                     if written >= 0 && written < 0 {
-                        eprintln!("[{}:old idx={},len={},dist={}]", written, idx, length, distance);
+                        eprintln!(
+                            "[{}:old idx={},len={},dist={}]",
+                            written, idx, length, distance
+                        );
                     }
                 }
-                
+
                 self.lzss.copy_match(distance, length)?;
-                
+
                 // Shift old distances: move entries 0..idx up by 1, put this at 0
                 for i in (1..=idx).rev() {
                     self.old_dist[i] = self.old_dist[i - 1];
@@ -298,13 +298,15 @@ impl Rar29Decoder {
                 {
                     let written = self.lzss.total_written();
                     if written >= 0 && written < 0 {
-                        eprintln!("[{}:short sym={}, idx={}, base={}, bits={}, extra={}, dist={}]", 
-                            written, symbol, idx, base, bits, extra, distance);
+                        eprintln!(
+                            "[{}:short sym={}, idx={}, base={}, bits={}, extra={}, dist={}]",
+                            written, symbol, idx, base, bits, extra, distance
+                        );
                     }
                 }
 
                 self.lzss.copy_match(distance, length)?;
-                
+
                 // Shift old distances
                 for i in (1..4).rev() {
                     self.old_dist[i] = self.old_dist[i - 1];
@@ -317,7 +319,7 @@ impl Rar29Decoder {
                 // Long match (symbols 271-298): length from main symbol, distance from offset table
                 #[cfg(test)]
                 let bit_before_len = reader.bit_position();
-                
+
                 let len_idx = (symbol - 271) as usize;
                 let length = if len_idx < LENGTH_BASE.len() {
                     let base = LENGTH_BASE[len_idx];
@@ -340,7 +342,11 @@ impl Rar29Decoder {
                     base + extra_val + 3 // +3 because minimum match length for long matches is 3
                 } else {
                     #[cfg(test)]
-                    eprintln!("\nlen_idx {} out of range at written={}", len_idx, self.lzss.total_written());
+                    eprintln!(
+                        "\nlen_idx {} out of range at written={}",
+                        len_idx,
+                        self.lzss.total_written()
+                    );
                     return Err(DecompressError::InvalidHuffmanCode);
                 };
 
@@ -348,7 +354,7 @@ impl Rar29Decoder {
                 let dist_symbol = {
                     #[cfg(test)]
                     let bit_pos_before = reader.bit_position();
-                    
+
                     let dist_table = self.huffman.dist_table.as_ref().unwrap();
                     match dist_table.decode(reader) {
                         Ok(s) => {
@@ -357,24 +363,31 @@ impl Rar29Decoder {
                                 let written = self.lzss.total_written();
                                 if written >= 0 && written < 0 {
                                     let bit_pos_after = reader.bit_position();
-                                    eprintln!("  decoded dist_symbol={} (bits {}->{})", s, bit_pos_before, bit_pos_after);
+                                    eprintln!(
+                                        "  decoded dist_symbol={} (bits {}->{})",
+                                        s, bit_pos_before, bit_pos_after
+                                    );
                                 }
                             }
                             s
                         }
                         Err(e) => {
                             #[cfg(test)]
-                            eprintln!("\nOffset decode failed at written={}, len={}", self.lzss.total_written(), length);
+                            eprintln!(
+                                "\nOffset decode failed at written={}, len={}",
+                                self.lzss.total_written(),
+                                length
+                            );
                             return Err(e);
                         }
                     }
                 };
-                
+
                 let dist_code = dist_symbol as usize;
                 let distance = if dist_code < DIST_BASE.len() {
                     let base = DIST_BASE[dist_code];
                     let extra = DIST_EXTRA[dist_code];
-                    
+
                     let extra_val = if extra > 0 {
                         if dist_code > 9 {
                             // For dist_code > 9, use low offset table
@@ -387,8 +400,13 @@ impl Rar29Decoder {
                                 {
                                     let written = self.lzss.total_written();
                                     if written >= 0 && written < 0 {
-                                        eprintln!("    high bits: {} bits = {}, pos {}->{}",
-                                            extra - 4, h, high_bit_pos, reader.bit_position());
+                                        eprintln!(
+                                            "    high bits: {} bits = {}, pos {}->{}",
+                                            extra - 4,
+                                            h,
+                                            high_bit_pos,
+                                            reader.bit_position()
+                                        );
                                     }
                                 }
                                 h << 4
@@ -402,7 +420,10 @@ impl Rar29Decoder {
                                 {
                                     let written = self.lzss.total_written();
                                     if written >= 0 && written < 0 {
-                                        eprintln!("    low_offset repeat: prev={}", self.prev_low_offset);
+                                        eprintln!(
+                                            "    low_offset repeat: prev={}",
+                                            self.prev_low_offset
+                                        );
                                     }
                                 }
                                 self.prev_low_offset
@@ -422,7 +443,7 @@ impl Rar29Decoder {
                                             sym, bit_pos_before, bit_pos_after, raw_bits_16);
                                     }
                                 }
-                                
+
                                 if sym == 16 {
                                     // Repeat previous low offset 15 times
                                     self.low_offset_repeat_count = 15 - 1; // -1 because we use one now
@@ -462,7 +483,11 @@ impl Rar29Decoder {
                     base + extra_val + 1
                 } else {
                     #[cfg(test)]
-                    eprintln!("\ndist_code {} out of range at written={}", dist_code, self.lzss.total_written());
+                    eprintln!(
+                        "\ndist_code {} out of range at written={}",
+                        dist_code,
+                        self.lzss.total_written()
+                    );
                     return Err(DecompressError::InvalidHuffmanCode);
                 };
 
@@ -475,7 +500,7 @@ impl Rar29Decoder {
                 }
 
                 self.lzss.copy_match(distance, length)?;
-                
+
                 // Shift old distances
                 for i in (1..4).rev() {
                     self.old_dist[i] = self.old_dist[i - 1];
@@ -493,11 +518,14 @@ impl Rar29Decoder {
     /// Decode a length value using the length table.
     fn decode_length_from_table(&mut self, reader: &mut BitReader) -> Result<u32> {
         let symbol = {
-            let len_table = self.huffman.len_table.as_ref()
+            let len_table = self
+                .huffman
+                .len_table
+                .as_ref()
                 .ok_or(DecompressError::InvalidHuffmanCode)?;
             len_table.decode(reader)?
         };
-        
+
         let sym = symbol as usize;
         if sym < LENGTH_BASE.len() {
             let base = LENGTH_BASE[sym];
@@ -515,44 +543,54 @@ impl Rar29Decoder {
 
     /// Decode a block using PPMd.
     fn decode_block_ppm(&mut self, reader: &mut BitReader, max_size: u64) -> Result<()> {
-        let ppm = self.ppm.as_mut().ok_or(DecompressError::UnsupportedMethod(0x33))?;
-        let coder = self.ppm_coder.as_mut().ok_or(DecompressError::UnsupportedMethod(0x33))?;
+        let ppm = self
+            .ppm
+            .as_mut()
+            .ok_or(DecompressError::UnsupportedMethod(0x33))?;
+        let coder = self
+            .ppm_coder
+            .as_mut()
+            .ok_or(DecompressError::UnsupportedMethod(0x33))?;
         let esc_char = self.ppm_esc_char;
-        
+
         while self.lzss.total_written() < max_size && !reader.is_eof() {
-            let ch = ppm.decode_char(coder, reader)
-                .map_err(|_e| {
-                    #[cfg(test)]
-                    eprintln!("PPM decode_char failed at pos {}: {}", self.lzss.total_written(), _e);
-                    DecompressError::InvalidHuffmanCode
-                })?;
-            
+            let ch = ppm.decode_char(coder, reader).map_err(|_e| {
+                #[cfg(test)]
+                eprintln!(
+                    "PPM decode_char failed at pos {}: {}",
+                    self.lzss.total_written(),
+                    _e
+                );
+                DecompressError::InvalidHuffmanCode
+            })?;
+
             if ch < 0 {
                 // Decode error
                 #[cfg(test)]
                 eprintln!("PPM decode_char returned negative: {}", ch);
                 return Err(DecompressError::InvalidHuffmanCode);
             }
-            
+
             #[cfg(test)]
             {
                 if self.lzss.total_written() < 20 {
                     eprint!("[{}:{}] ", self.lzss.total_written(), ch);
                 }
             }
-            
+
             if ch != esc_char {
                 // Regular character
                 self.lzss.write_literal(ch as u8);
             } else {
                 // Escape sequence - decode control code
-                let ctrl = ppm.decode_char(coder, reader)
+                let ctrl = ppm
+                    .decode_char(coder, reader)
                     .map_err(|_| DecompressError::InvalidHuffmanCode)?;
-                
+
                 if ctrl < 0 {
                     return Err(DecompressError::InvalidHuffmanCode);
                 }
-                
+
                 match ctrl {
                     0 => {
                         // Should not happen (NextCh starts at 0)
@@ -568,35 +606,41 @@ impl Rar29Decoder {
                     }
                     3 => {
                         // VM code - read and add to VM
-                        let first_byte = ppm.decode_char(coder, reader)
-                            .map_err(|_| DecompressError::InvalidHuffmanCode)? as u8;
-                        
+                        let first_byte = ppm
+                            .decode_char(coder, reader)
+                            .map_err(|_| DecompressError::InvalidHuffmanCode)?
+                            as u8;
+
                         // Decode length from first byte
                         let mut length = ((first_byte & 7) + 1) as u32;
                         if length == 7 {
-                            let b1 = ppm.decode_char(coder, reader)
+                            let b1 = ppm
+                                .decode_char(coder, reader)
                                 .map_err(|_| DecompressError::InvalidHuffmanCode)?;
                             length = (b1 as u32) + 7;
                         } else if length == 8 {
-                            let b1 = ppm.decode_char(coder, reader)
+                            let b1 = ppm
+                                .decode_char(coder, reader)
                                 .map_err(|_| DecompressError::InvalidHuffmanCode)?;
-                            let b2 = ppm.decode_char(coder, reader)
+                            let b2 = ppm
+                                .decode_char(coder, reader)
                                 .map_err(|_| DecompressError::InvalidHuffmanCode)?;
                             length = (b1 as u32) * 256 + (b2 as u32);
                         }
-                        
+
                         if length == 0 {
                             continue;
                         }
-                        
+
                         // Read VM code bytes
                         let mut vm_code = vec![0u8; length as usize];
                         for i in 0..length as usize {
-                            let ch = ppm.decode_char(coder, reader)
+                            let ch = ppm
+                                .decode_char(coder, reader)
                                 .map_err(|_| DecompressError::InvalidHuffmanCode)?;
                             vm_code[i] = ch as u8;
                         }
-                        
+
                         // Add to VM
                         self.vm.add_code(first_byte, &vm_code);
                     }
@@ -604,29 +648,32 @@ impl Rar29Decoder {
                         // LZ match: 3 bytes distance (MSB first), 1 byte length
                         let mut distance: u32 = 0;
                         for _ in 0..3 {
-                            let ch = ppm.decode_char(coder, reader)
+                            let ch = ppm
+                                .decode_char(coder, reader)
                                 .map_err(|_| DecompressError::InvalidHuffmanCode)?;
                             distance = (distance << 8) + (ch as u32);
                         }
-                        let len = ppm.decode_char(coder, reader)
+                        let len = ppm
+                            .decode_char(coder, reader)
                             .map_err(|_| DecompressError::InvalidHuffmanCode)?;
-                        
+
                         // Distance+2, Length+32
                         let distance = distance + 2;
                         let length = (len as u32) + 32;
-                        
+
                         self.lzss.copy_match(distance, length)?;
                         self.last_dist = distance;
                         self.last_len = length;
                     }
                     5 => {
                         // RLE match: 1 byte length, distance = 1
-                        let len = ppm.decode_char(coder, reader)
+                        let len = ppm
+                            .decode_char(coder, reader)
                             .map_err(|_| DecompressError::InvalidHuffmanCode)?;
-                        
+
                         // Length+4, Distance=1
                         let length = (len as u32) + 4;
-                        
+
                         self.lzss.copy_match(1, length)?;
                         self.last_dist = 1;
                         self.last_len = length;
@@ -640,7 +687,7 @@ impl Rar29Decoder {
                 }
             }
         }
-        
+
         Ok(())
     }
 
@@ -700,12 +747,11 @@ impl Rar29StreamDecoder {
     /// Returns decompressed data available so far.
     pub fn feed(&mut self, data: &[u8]) -> Result<Vec<u8>> {
         self.input_buffer.extend_from_slice(data);
-        
+
         // Try to decompress with available data
-        let result = self.decoder.decompress(
-            &self.input_buffer[self.input_pos..],
-            self.unpacked_size,
-        )?;
+        let result = self
+            .decoder
+            .decompress(&self.input_buffer[self.input_pos..], self.unpacked_size)?;
 
         Ok(result)
     }

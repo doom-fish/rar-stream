@@ -34,6 +34,7 @@ export default tseslint.config(
     // Ignore generated and non-TS files
     ignores: [
       'pkg/**',
+      'target/**',
       'index.js',
       'index.d.ts',
       'browser.js',

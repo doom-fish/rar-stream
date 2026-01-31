@@ -51,14 +51,18 @@ impl RawTimestamp {
         let day = ((dos_time >> 16) & 0x1f) as i64;
         let month = ((dos_time >> 21) & 0x0f) as i64;
         let year = ((dos_time >> 25) + 1980) as i64;
-        
+
         let days = (year - 1970) * 365 + (month - 1) * 30 + day;
         let secs = days * 86400 + hour * 3600 + minute * 60 + second;
-        Self { nanos: secs * 1_000_000_000 }
+        Self {
+            nanos: secs * 1_000_000_000,
+        }
     }
 
     pub fn saturating_add(self, add_nanos: i64) -> Self {
-        Self { nanos: self.nanos.saturating_add(add_nanos) }
+        Self {
+            nanos: self.nanos.saturating_add(add_nanos),
+        }
     }
 }
 
