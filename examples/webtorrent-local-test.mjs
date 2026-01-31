@@ -23,16 +23,6 @@ const leecher = new WebTorrent();
 /**
  * Wraps a WebTorrent file to implement the FileMedia interface
  */
-function wrapTorrentFile(torrentFile) {
-  return {
-    get name() { return torrentFile.name; },
-    get length() { return torrentFile.length; },
-    createReadStream({ start, end }) {
-      // Returns Readable stream (not Promise<Buffer>)
-      return torrentFile.createReadStream({ start, end });
-    },
-  };
-}
 
 console.log(`1. Seeding RAR file: ${rarPath}`);
 
@@ -59,9 +49,9 @@ seeder.seed(rarPath, { announceList: [] }, (torrent) => {
     
     console.log('\n3. Parsing RAR archive via rar-stream...');
     
-    // Wrap torrent files for rar-stream (custom FileMedia)
-    const wrappedFiles = rarFiles.map(wrapTorrentFile);
-    const pkg = new RarFilesPackage(wrappedFiles);
+    // WebTorrent files already implement the FileMedia interface!
+    // No wrapper needed - they have name, length, and createReadStream
+    const pkg = new RarFilesPackage(rarFiles);
     
     try {
       const innerFiles = await pkg.parse();

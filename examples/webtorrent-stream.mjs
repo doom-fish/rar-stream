@@ -33,20 +33,6 @@ if (!torrentId) {
 console.log('Starting WebTorrent client...');
 const client = new WebTorrent();
 
-/**
- * Wraps a WebTorrent file to implement the FileMedia interface
- */
-function wrapTorrentFile(torrentFile) {
-  return {
-    get name() { return torrentFile.name; },
-    get length() { return torrentFile.length; },
-    createReadStream({ start, end }) {
-      // WebTorrent createReadStream already returns a Readable stream
-      return torrentFile.createReadStream({ start, end });
-    },
-  };
-}
-
 client.add(torrentId, { path: '/tmp/webtorrent' }, async (torrent) => {
   console.log(`Torrent: ${torrent.name}`);
   console.log(`Files: ${torrent.files.length}`);
@@ -66,11 +52,10 @@ client.add(torrentId, { path: '/tmp/webtorrent' }, async (torrent) => {
   console.log(`Found ${rarFiles.length} RAR file(s):`);
   rarFiles.forEach(f => console.log(`  ${f.name} (${(f.length / 1024 / 1024).toFixed(1)} MB)`));
   
-  // Wrap torrent files for rar-stream
-  const wrappedFiles = rarFiles.map(wrapTorrentFile);
-  
+  // WebTorrent files already implement the FileMedia interface!
+  // No wrapper needed - they have name, length, and createReadStream
   console.log('\nParsing RAR archive...');
-  const pkg = new RarFilesPackage(wrappedFiles);
+  const pkg = new RarFilesPackage(rarFiles);
   
   try {
     const innerFiles = await pkg.parse();

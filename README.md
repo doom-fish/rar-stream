@@ -143,19 +143,11 @@ import { RarFilesPackage } from 'rar-stream';
 const client = new WebTorrent();
 
 client.add(magnetUri, (torrent) => {
-  // Find RAR files in the torrent
-  const rarFiles = torrent.files
-    .filter(f => f.name.endsWith('.rar'))
-    .map(f => ({
-      // Implement FileMedia interface for torrent files
-      get name() { return f.name; },
-      get length() { return f.length; },
-      // createReadStream returns a Readable stream
-      createReadStream({ start, end }) {
-        return f.createReadStream({ start, end });
-      },
-    }));
+  // Find RAR files - WebTorrent files already implement the FileMedia interface!
+  // They have name, length, and createReadStream({ start, end }) that returns Readable
+  const rarFiles = torrent.files.filter(f => f.name.endsWith('.rar'));
 
+  // No wrapper needed - pass torrent files directly
   const pkg = new RarFilesPackage(rarFiles);
   pkg.parse().then(innerFiles => {
     const video = innerFiles.find(f => f.name.endsWith('.mkv'));
