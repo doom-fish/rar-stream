@@ -35,6 +35,8 @@ pub struct FileHeader {
     pub has_salt: bool,
     pub is_old_version: bool,
     pub has_extended_time: bool,
+    /// 8-byte encryption salt (if has_salt is true)
+    pub salt: Option<[u8; 8]>,
 }
 
 pub struct FileHeaderParser;
@@ -161,6 +163,16 @@ impl FileHeaderParser {
             });
         }
         let name = String::from_utf8_lossy(&buffer[offset..name_end]).to_string();
+        offset = name_end;
+
+        // Parse salt if present (8 bytes after filename)
+        let salt = if has_salt && buffer.len() >= offset + 8 {
+            let mut s = [0u8; 8];
+            s.copy_from_slice(&buffer[offset..offset + 8]);
+            Some(s)
+        } else {
+            None
+        };
 
         Ok(FileHeader {
             crc,
@@ -187,6 +199,7 @@ impl FileHeaderParser {
             has_salt,
             is_old_version,
             has_extended_time,
+            salt,
         })
     }
 }

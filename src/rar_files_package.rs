@@ -23,16 +23,24 @@ pub struct ParseOptions {
     pub password: Option<String>,
 }
 
-/// Encryption info for a file (RAR5).
+/// Encryption info for a file.
 #[cfg(feature = "crypto")]
 #[derive(Clone)]
-pub struct FileEncryptionInfo {
-    /// 16-byte salt for key derivation
-    pub salt: [u8; 16],
-    /// 16-byte initialization vector
-    pub init_v: [u8; 16],
-    /// Log2 of PBKDF2 iteration count
-    pub lg2_count: u8,
+pub enum FileEncryptionInfo {
+    /// RAR5 encryption (AES-256-CBC with PBKDF2)
+    Rar5 {
+        /// 16-byte salt for key derivation
+        salt: [u8; 16],
+        /// 16-byte initialization vector
+        init_v: [u8; 16],
+        /// Log2 of PBKDF2 iteration count
+        lg2_count: u8,
+    },
+    /// RAR4 encryption (AES-256-CBC with custom SHA-1 KDF)
+    Rar4 {
+        /// 8-byte salt for key derivation
+        salt: [u8; 8],
+    },
 }
 
 /// Parsed file chunk with metadata.
@@ -180,6 +188,14 @@ impl RarFilesPackage {
                 let chunk = RarFileChunk::new(rar_file.clone(), data_start, data_end);
                 let chunk_size = chunk.length();
 
+                // Parse encryption info if present (RAR4)
+                #[cfg(feature = "crypto")]
+                let encryption = if file_header.is_encrypted {
+                    file_header.salt.map(|salt| FileEncryptionInfo::Rar4 { salt })
+                } else {
+                    None
+                };
+
                 chunks.push(ParsedChunk {
                     name: file_header.name.clone(),
                     chunk,
@@ -189,7 +205,7 @@ impl RarFilesPackage {
                     method: file_header.method,
                     rar_version: RarVersion::Rar4,
                     #[cfg(feature = "crypto")]
-                    encryption: None, // RAR4 encryption not yet implemented
+                    encryption,
                 });
                 retrieved_count += 1;
 
@@ -277,7 +293,7 @@ impl RarFilesPackage {
                 let encryption = if file_header.is_encrypted() {
                     file_header.encryption_info().and_then(|data| {
                         crate::crypto::Rar5EncryptionInfo::parse(data).ok().map(|info| {
-                            FileEncryptionInfo {
+                            FileEncryptionInfo::Rar5 {
                                 salt: info.salt,
                                 init_v: info.init_v,
                                 lg2_count: info.lg2_count,
@@ -420,10 +436,19 @@ impl RarFilesPackage {
                 #[cfg(feature = "crypto")]
                 {
                     let (chunks, method, unpacked_size, rar_version, encryption) = value;
-                    let enc_info = encryption.map(|e| crate::inner_file::EncryptionInfo {
-                        salt: e.salt,
-                        init_v: e.init_v,
-                        lg2_count: e.lg2_count,
+                    let enc_info = encryption.map(|e| match e {
+                        FileEncryptionInfo::Rar5 {
+                            salt,
+                            init_v,
+                            lg2_count,
+                        } => crate::inner_file::EncryptionInfo::Rar5 {
+                            salt,
+                            init_v,
+                            lg2_count,
+                        },
+                        FileEncryptionInfo::Rar4 { salt } => {
+                            crate::inner_file::EncryptionInfo::Rar4 { salt }
+                        }
                     });
                     InnerFile::new_encrypted(
                         name,

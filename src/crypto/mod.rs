@@ -1,10 +1,12 @@
 //! Cryptographic support for encrypted RAR archives.
 //!
 //! RAR5 uses AES-256-CBC with PBKDF2-HMAC-SHA256 key derivation.
-//! RAR4 uses AES-128-CBC with a custom SHA-1 based KDF.
+//! RAR4 uses AES-256-CBC with a custom SHA-1 based KDF.
 
+mod rar4;
 mod rar5;
 
+pub use rar4::{Rar4Crypto, Rar4EncryptionInfo};
 pub use rar5::{Rar5Crypto, Rar5EncryptionInfo};
 
 /// Encryption method used by the archive.

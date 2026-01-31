@@ -23,13 +23,21 @@ pub struct ChunkMapEntry {
 /// Encryption info for a file.
 #[cfg(feature = "crypto")]
 #[derive(Debug, Clone)]
-pub struct EncryptionInfo {
-    /// 16-byte salt for key derivation
-    pub salt: [u8; 16],
-    /// 16-byte initialization vector
-    pub init_v: [u8; 16],
-    /// Log2 of PBKDF2 iteration count
-    pub lg2_count: u8,
+pub enum EncryptionInfo {
+    /// RAR5 encryption (AES-256-CBC with PBKDF2)
+    Rar5 {
+        /// 16-byte salt for key derivation
+        salt: [u8; 16],
+        /// 16-byte initialization vector
+        init_v: [u8; 16],
+        /// Log2 of PBKDF2 iteration count
+        lg2_count: u8,
+    },
+    /// RAR4 encryption (AES-256-CBC with custom SHA-1 KDF)
+    Rar4 {
+        /// 8-byte salt for key derivation
+        salt: [u8; 8],
+    },
 }
 
 /// A file inside a RAR archive, potentially spanning multiple chunks/volumes.
@@ -279,14 +287,28 @@ impl InnerFile {
         // Decrypt if encrypted
         #[cfg(feature = "crypto")]
         if let Some(ref enc) = self.encryption {
-            use crate::crypto::Rar5Crypto;
-
             let password = self.password.as_ref().ok_or(RarError::PasswordRequired)?;
 
-            let crypto = Rar5Crypto::derive_key(password, &enc.salt, enc.lg2_count);
-            crypto
-                .decrypt(&enc.init_v, &mut packed)
-                .map_err(|e| RarError::DecryptionFailed(e.to_string()))?;
+            match enc {
+                EncryptionInfo::Rar5 {
+                    salt,
+                    init_v,
+                    lg2_count,
+                } => {
+                    use crate::crypto::Rar5Crypto;
+                    let crypto = Rar5Crypto::derive_key(password, salt, *lg2_count);
+                    crypto
+                        .decrypt(init_v, &mut packed)
+                        .map_err(|e| RarError::DecryptionFailed(e.to_string()))?;
+                }
+                EncryptionInfo::Rar4 { salt } => {
+                    use crate::crypto::Rar4Crypto;
+                    let crypto = Rar4Crypto::derive_key(password, salt);
+                    crypto
+                        .decrypt(&mut packed)
+                        .map_err(|e| RarError::DecryptionFailed(e.to_string()))?;
+                }
+            }
         }
 
         // Decompress based on RAR version
