@@ -11,6 +11,13 @@
 [![MSRV](https://img.shields.io/badge/MSRV-1.85-blue.svg)](https://blog.rust-lang.org/2025/02/20/Rust-1.85.0.html)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
+## What's New in v5.0.0
+
+- **Unified Streaming API**: `createReadStream()` now returns a Node.js `Readable` stream
+- **WebTorrent Integration**: Torrent files work directly - no wrapper needed!
+- **Custom FileMedia**: Use any data source (S3, HTTP, etc.) that implements the `FileMedia` interface
+- **Breaking**: Removed `getReadableStream()` (merged into `createReadStream`)
+
 ## Features
 
 - 🚀 **Fast**: Native Rust implementation with NAPI bindings
@@ -29,7 +36,7 @@
 
 ```toml
 [dependencies]
-rar-stream = { version = "4", features = ["async", "crypto"] }
+rar-stream = { version = "5", features = ["async", "crypto"] }
 ```
 
 ### Node.js
@@ -60,8 +67,9 @@ for (const file of files) {
   // Read entire file into memory
   const buffer = await file.readToEnd();
   
-  // Or read a specific byte range (for streaming)
-  const chunk = await file.createReadStream({ start: 0, end: 1023 });
+  // Or stream (returns Node.js Readable)
+  const stream = file.createReadStream();
+  stream.pipe(process.stdout);
 }
 ```
 
@@ -408,7 +416,7 @@ To enable encryption support:
 **Rust:**
 ```toml
 [dependencies]
-rar-stream = { version = "4", features = ["async", "crypto"] }
+rar-stream = { version = "5", features = ["async", "crypto"] }
 ```
 
 ## Performance
