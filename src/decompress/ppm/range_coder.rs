@@ -37,6 +37,7 @@ impl RangeCoder {
     }
 
     /// Get current count within the scale.
+    #[inline]
     pub fn get_current_count(&mut self, scale: u32) -> u32 {
         self.range /= scale;
         // Use wrapping_sub to avoid overflow - this can happen with state corruption
@@ -51,6 +52,7 @@ impl RangeCoder {
     }
 
     /// Get current count with shift.
+    #[inline]
     pub fn get_current_shift_count(&mut self, shift: u32) -> u32 {
         self.range >>= shift;
         if self.range == 0 {
@@ -61,6 +63,7 @@ impl RangeCoder {
     }
 
     /// Decode with the given subrange (without normalizing).
+    #[inline]
     pub fn decode(&mut self, sub: &SubRange) {
         self.low = self
             .low
@@ -69,6 +72,7 @@ impl RangeCoder {
     }
 
     /// Normalize the range coder state.
+    #[inline]
     pub fn normalize(&mut self, reader: &mut BitReader) {
         while (self.low ^ (self.low.wrapping_add(self.range))) < TOP
             || self.range < BOT && {
