@@ -136,12 +136,10 @@ impl BitDecoder {
 
     /// Check if reading has exceeded block boundary.
     pub fn is_block_over_read(&self) -> bool {
-        if self.pos < self.block_end {
-            false
-        } else if self.pos > self.block_end {
-            true
-        } else {
-            self.bit_pos > self.block_end_bits
+        match self.pos.cmp(&self.block_end) {
+            std::cmp::Ordering::Less => false,
+            std::cmp::Ordering::Greater => true,
+            std::cmp::Ordering::Equal => self.bit_pos > self.block_end_bits,
         }
     }
 

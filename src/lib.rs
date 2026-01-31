@@ -51,9 +51,9 @@ pub use rar_files_package::{ParseOptions, RarFilesPackage};
 pub use decompress::{CompressionMethod, DecompressError, Rar29Decoder};
 
 // Re-export NAPI bindings when feature is enabled
-#[cfg(feature = "napi")]
+#[cfg(all(feature = "napi", not(feature = "wasm")))]
 pub use napi_bindings::*;
 
 // Re-export WASM bindings when feature is enabled
-#[cfg(feature = "wasm")]
+#[cfg(all(feature = "wasm", not(feature = "napi")))]
 pub use wasm_bindings::*;

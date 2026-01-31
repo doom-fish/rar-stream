@@ -58,7 +58,7 @@ impl Rar5Decoder {
     }
 
     /// Apply pending filters to output data.
-    fn apply_filters(&mut self, output: &mut Vec<u8>) {
+    fn apply_filters(&mut self, output: &mut [u8]) {
         // Sort filters by block start position
         self.filters.sort_by_key(|f| f.block_start);
 

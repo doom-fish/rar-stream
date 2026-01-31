@@ -934,7 +934,7 @@ impl PpmModel {
         }
 
         #[cfg(test)]
-        let mut freq_histogram = [0u32; 256];
+        let _freq_histogram = [0u32; 256];
 
         #[cfg(test)]
         if self.debug_count == 15 {
@@ -1304,10 +1304,8 @@ impl PpmModel {
         }
 
         let mut pc = self.min_context;
-        // SAFETY: We only read entries 0..pps_idx which we write before reading.
-        // Avoiding zeroing 512 bytes saves ~1.6% of PPMd decompression time.
-        #[allow(unsafe_code)]
-        let mut ps: [usize; MAX_O] = unsafe { std::mem::MaybeUninit::uninit().assume_init() };
+        // Initialize array - optimizer may elide this when it sees writes before reads
+        let mut ps: [usize; MAX_O] = [0; MAX_O];
         let mut pps_idx = 0;
 
         if !skip {

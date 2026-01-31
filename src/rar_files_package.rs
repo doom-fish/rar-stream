@@ -69,6 +69,7 @@ impl RarFilesPackage {
         rar_file: &Arc<dyn FileMedia>,
         opts: &ParseOptions,
     ) -> Result<Vec<ParsedChunk>> {
+        #[allow(unused_mut)]
         let mut offset = 0u64;
 
         // Read enough for both RAR4 and RAR5 signatures
@@ -204,7 +205,7 @@ impl RarFilesPackage {
             })
             .await?;
 
-        let (archive_header, consumed) = Rar5ArchiveHeaderParser::parse(&header_buf)?;
+        let (_archive_header, consumed) = Rar5ArchiveHeaderParser::parse(&header_buf)?;
         offset += consumed as u64;
 
         let mut file_count = 0usize;

@@ -600,23 +600,23 @@ impl Rar5BlockDecoder {
             // num_bits = (slot - 2) >> 1
             // base = (2 | (slot & 1)) << num_bits
             let num_bits = ((slot - 2) >> 1) as usize;
-            let base = ((2 | (slot & 1)) << num_bits) as u32;
+            let base = (2 | (slot & 1)) << num_bits;
 
             if num_bits < NUM_ALIGN_BITS {
                 // Few extra bits - read directly
                 let v = bits.get_value_high32();
-                let extra = bits.read_bits_big(num_bits, v) as u32;
+                let extra = bits.read_bits_big(num_bits, v);
                 Ok((base + extra + 1) as usize)
             } else {
                 // More bits - use alignment table
                 let high_bits_count = num_bits - NUM_ALIGN_BITS;
                 let v = bits.get_value_high32();
-                let high = bits.read_bits_big(high_bits_count, v) as u32;
+                let high = bits.read_bits_big(high_bits_count, v);
 
                 let low = if self.use_align_bits {
                     self.align_table.decode(bits) as u32
                 } else {
-                    bits.read_bits_9fix(NUM_ALIGN_BITS) as u32
+                    bits.read_bits_9fix(NUM_ALIGN_BITS)
                 };
 
                 let offset = base + (high << NUM_ALIGN_BITS) + low + 1;

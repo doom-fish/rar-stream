@@ -12,8 +12,8 @@ All notable changes to this project will be documented in this file.
   - RAR5 compressed file decompression (LZSS-based)
   - RAR5 filters: Delta, E8, E8E9, ARM
   - RAR5 multi-volume archive support
-- MSRV (Minimum Supported Rust Version) set to 1.77
-- CI now tests against both stable and Rust 1.77
+- MSRV (Minimum Supported Rust Version) set to 1.80
+- CI now tests against both stable and Rust 1.80
 
 ### Changed
 
