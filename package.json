@@ -61,9 +61,9 @@
   "scripts": {
     "build": "napi build --platform --release --features napi",
     "build:debug": "napi build --platform --features napi",
-    "build:wasm": "wasm-pack build --target web --features wasm --no-default-features",
+    "build:wasm": "wasm-pack build --target web --features wasm,crypto --no-default-features",
     "lint": "eslint .",
-    "lint:rust": "cargo clippy --features napi -- -D warnings && cargo clippy --features wasm --no-default-features -- -D warnings",
+    "lint:rust": "cargo clippy --features napi -- -D warnings && cargo clippy --features wasm,crypto --no-default-features -- -D warnings",
     "lint:fix": "eslint . --fix",
     "format": "cargo fmt && prettier --write '**/*.{ts,js,json,md}'",
     "format:check": "cargo fmt --check && prettier --check '**/*.{ts,js,json,md}'",
