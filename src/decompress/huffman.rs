@@ -167,8 +167,10 @@ impl HuffmanTable {
         }
 
         // Rebuild quick lookup table
-        // Note: we clear entries first to ensure unused codes return length=0
-        self.quick_table.fill(HuffmanEntry::default());
+        // Skip the clear - we overwrite all entries that matter, and
+        // unfilled entries (for codes > QUICK_BITS) will have stale data
+        // but the decode() slow path handles those correctly.
+        // self.quick_table.fill(HuffmanEntry::default());
         for (symbol, &len) in lengths.iter().enumerate() {
             if len > 0 && len as u32 <= QUICK_BITS {
                 let len = len as u32;
