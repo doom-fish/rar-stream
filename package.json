@@ -2,19 +2,23 @@
   "name": "rar-stream",
   "version": "4.0.3",
   "description": "RAR streaming library - Rust implementation with NAPI and WASM bindings",
-  "main": "index.js",
-  "browser": "browser.js",
-  "types": "index.d.ts",
+  "main": "lib/index.js",
+  "browser": "lib/browser.js",
+  "types": "lib/index.d.ts",
   "exports": {
     ".": {
       "node": {
-        "types": "./index.d.ts",
-        "default": "./index.js"
+        "types": "./lib/index.d.ts",
+        "default": "./lib/index.js"
       },
       "browser": {
-        "types": "./browser.d.ts",
-        "default": "./browser.js"
+        "types": "./lib/browser.d.ts",
+        "default": "./lib/browser.js"
       },
+      "default": "./lib/index.js"
+    },
+    "./native": {
+      "types": "./index.d.ts",
       "default": "./index.js"
     }
   },
@@ -83,6 +87,10 @@
     "vitest": "^2.1.8"
   },
   "files": [
+    "lib/index.js",
+    "lib/index.d.ts",
+    "lib/browser.js",
+    "lib/browser.d.ts",
     "index.js",
     "index.d.ts",
     "browser.js",

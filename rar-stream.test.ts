@@ -4,9 +4,10 @@
 import { expect, test, describe } from "vitest";
 import path from "path";
 import fs from "fs";
+import { Readable } from "stream";
 
-// Import from the built NAPI module
-import { RarFilesPackage, LocalFileMedia } from "./index.js";
+// Import from the wrapper module with stream support
+import { RarFilesPackage, LocalFileMedia } from "./lib/index.js";
 
 const fixturePath = path.resolve(__dirname, "./__fixtures__");
 
@@ -58,6 +59,22 @@ describe("LocalFileMedia", () => {
     const buffer = await media.createReadStream({ start: 0, end: 10 });
     expect(buffer.length).toBe(11); // Inclusive range
   });
+
+  test("getReadableStream returns a Node.js Readable stream", async () => {
+    const media = new LocalFileMedia(singleFilePath);
+    const stream = media.getReadableStream({ start: 0, end: 99 });
+    
+    expect(stream).toBeInstanceOf(Readable);
+    
+    // Collect stream data
+    const chunks: Buffer[] = [];
+    for await (const chunk of stream) {
+      chunks.push(chunk);
+    }
+    const buffer = Buffer.concat(chunks);
+    
+    expect(buffer.length).toBe(100);
+  });
 });
 
 describe("RarFilesPackage - Single RAR with one inner file", () => {
@@ -82,6 +99,45 @@ describe("RarFilesPackage - Single RAR with one inner file", () => {
 
     expect(rarFileBuffer.length).toBe(singleFileBuffer.length);
     expect(Buffer.compare(rarFileBuffer, singleFileBuffer)).toBe(0);
+  });
+
+  test("getReadableStream returns a Node.js Readable stream", async () => {
+    const rarPackage = new RarFilesPackage(singleFileRarWithOneInnerFile);
+    const [file] = await rarPackage.parse();
+    
+    // Stream entire file
+    const stream = file.getReadableStream();
+    expect(stream).toBeInstanceOf(Readable);
+    
+    const chunks: Buffer[] = [];
+    for await (const chunk of stream) {
+      chunks.push(chunk);
+    }
+    const buffer = Buffer.concat(chunks);
+    
+    const singleFileContent = fs.readFileSync(singleFilePath);
+    expect(buffer.length).toBe(singleFileContent.length);
+    expect(Buffer.compare(buffer, singleFileContent)).toBe(0);
+  });
+
+  test("getReadableStream supports byte range", async () => {
+    const rarPackage = new RarFilesPackage(singleFileRarWithOneInnerFile);
+    const [file] = await rarPackage.parse();
+    
+    // Stream a range
+    const stream = file.getReadableStream({ start: 100, end: 199 });
+    
+    const chunks: Buffer[] = [];
+    for await (const chunk of stream) {
+      chunks.push(chunk);
+    }
+    const buffer = Buffer.concat(chunks);
+    
+    const singleFileContent = fs.readFileSync(singleFilePath);
+    const expected = singleFileContent.subarray(100, 200);
+    
+    expect(buffer.length).toBe(100);
+    expect(Buffer.compare(buffer, expected)).toBe(0);
   });
 });
 
