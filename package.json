@@ -1,0 +1,90 @@
+{
+  "name": "rar-stream",
+  "version": "2.0.0",
+  "description": "RAR streaming library - Rust implementation with NAPI and WASM bindings",
+  "main": "index.js",
+  "browser": "browser.js",
+  "types": "index.d.ts",
+  "exports": {
+    ".": {
+      "node": {
+        "types": "./index.d.ts",
+        "default": "./index.js"
+      },
+      "browser": {
+        "types": "./browser.d.ts",
+        "default": "./browser.js"
+      },
+      "default": "./index.js"
+    }
+  },
+  "author": "doom-fish",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/doom-fish/rar-stream"
+  },
+  "homepage": "https://github.com/doom-fish/rar-stream#readme",
+  "bugs": {
+    "url": "https://github.com/doom-fish/rar-stream/issues"
+  },
+  "keywords": [
+    "rar",
+    "archive",
+    "extract",
+    "decompress",
+    "streaming",
+    "wasm",
+    "napi"
+  ],
+  "napi": {
+    "name": "rar-stream",
+    "triples": {
+      "defaults": true,
+      "additional": [
+        "x86_64-unknown-linux-musl",
+        "aarch64-unknown-linux-gnu",
+        "aarch64-apple-darwin",
+        "aarch64-unknown-linux-musl"
+      ]
+    }
+  },
+  "engines": {
+    "node": ">= 18"
+  },
+  "scripts": {
+    "build": "napi build --platform --release --features napi",
+    "build:debug": "napi build --platform --features napi",
+    "build:wasm": "wasm-pack build --target web --features wasm --no-default-features",
+    "lint": "eslint . && cargo clippy --all-features -- -D warnings",
+    "lint:fix": "eslint . --fix",
+    "format": "cargo fmt && prettier --write '**/*.{ts,js,json,md}'",
+    "format:check": "cargo fmt --check && prettier --check '**/*.{ts,js,json,md}'",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:browser": "npx playwright test",
+    "prepublishOnly": "napi prepublish -t npm"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.0.0",
+    "@napi-rs/cli": "^2.18.0",
+    "@playwright/test": "^1.58.1",
+    "@types/node": "^22.10.1",
+    "eslint": "^9.0.0",
+    "prettier": "^3.2.0",
+    "typescript": "^5.4.0",
+    "typescript-eslint": "^8.0.0",
+    "vitest": "^2.1.8"
+  },
+  "files": [
+    "index.js",
+    "index.d.ts",
+    "browser.js",
+    "browser.d.ts",
+    "pkg/rar_stream.js",
+    "pkg/rar_stream.d.ts",
+    "pkg/rar_stream_bg.wasm",
+    "pkg/rar_stream_bg.wasm.d.ts",
+    "*.node"
+  ]
+}

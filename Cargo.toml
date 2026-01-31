@@ -1,0 +1,75 @@
+[package]
+name = "rar-stream"
+version = "2.0.0"
+edition = "2021"
+license = "MIT"
+repository = "https://github.com/doom-fish/rar-stream"
+description = "Zero-dependency RAR streaming library with optional NAPI/WASM bindings"
+keywords = ["rar", "archive", "streaming", "compression"]
+categories = ["compression", "encoding"]
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[features]
+default = []
+# Async file reading support
+async = ["dep:tokio", "dep:futures"]
+# Node.js NAPI bindings
+napi = ["dep:napi", "dep:napi-derive", "async"]
+# Browser WASM bindings
+wasm = ["dep:wasm-bindgen", "dep:js-sys"]
+
+[dependencies]
+# Core: ZERO dependencies!
+
+# Async (optional)
+tokio = { version = "1", features = ["fs", "io-util", "sync"], optional = true }
+futures = { version = "0.3", optional = true }
+
+# NAPI bindings (optional)
+napi = { version = "2", features = ["async", "napi6", "serde-json"], optional = true }
+napi-derive = { version = "2", optional = true }
+
+# WASM bindings (optional)
+wasm-bindgen = { version = "0.2", optional = true }
+js-sys = { version = "0.3", optional = true }
+
+[dev-dependencies]
+tokio = { version = "1", features = ["fs", "io-util", "sync", "rt", "macros"] }
+
+[build-dependencies]
+napi-build = "2"
+
+# Strict linting configuration
+[lints.rust]
+unsafe_code = "forbid"
+missing_docs = "warn"
+
+[lints.clippy]
+all = "warn"
+pedantic = "warn"
+nursery = "warn"
+cargo = "warn"
+# Allow some pedantic lints that are too noisy
+module_name_repetitions = "allow"
+too_many_lines = "allow"
+missing_errors_doc = "allow"
+missing_panics_doc = "allow"
+must_use_candidate = "allow"
+cast_possible_truncation = "allow"
+cast_sign_loss = "allow"
+cast_lossless = "allow"
+similar_names = "allow"
+unreadable_literal = "allow"
+doc_markdown = "allow"
+missing_const_for_fn = "allow"
+items_after_statements = "allow"
+cast_possible_wrap = "allow"
+needless_pass_by_value = "allow"
+return_self_not_must_use = "allow"
+type_complexity = "allow"
+cognitive_complexity = "allow"
+option_if_let_else = "allow"
+if_not_else = "allow"
+use_self = "allow"

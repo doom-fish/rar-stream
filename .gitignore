@@ -1,0 +1,22 @@
+# Build artifacts
+target/
+*.node
+pkg/
+
+# Dependencies
+node_modules/
+
+# Test output
+test-results/
+playwright-report/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# OS
+.DS_Store
+
+# Rust
+Cargo.lock

@@ -1,0 +1,12 @@
+[workspace]
+changelog_config = "cliff.toml"
+allow_dirty = false
+publish_timeout = "10m"
+
+[[package]]
+name = "rar-stream"
+changelog_update = true
+git_release_enable = true
+git_release_draft = false
+git_tag_enable = true
+publish = true

@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>rar-stream WASM Browser Test</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 800px;
+            margin: 40px auto;
+            padding: 0 20px;
+            background: #1a1a2e;
+            color: #eee;
+        }
+        h1 { color: #00d4ff; }
+        .test { 
+            padding: 10px; 
+            margin: 10px 0; 
+            border-radius: 6px;
+            background: #16213e;
+        }
+        .pass { border-left: 4px solid #00ff88; }
+        .fail { border-left: 4px solid #ff4444; }
+        .pending { border-left: 4px solid #ffaa00; }
+        input[type="file"] {
+            padding: 10px;
+            background: #0f3460;
+            border: none;
+            border-radius: 4px;
+            color: #fff;
+            cursor: pointer;
+        }
+        pre {
+            background: #0f0f1a;
+            padding: 15px;
+            border-radius: 6px;
+            overflow-x: auto;
+        }
+        button {
+            background: #00d4ff;
+            color: #000;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+        button:hover { background: #00b8e0; }
+        #output { white-space: pre-wrap; }
+    </style>
+</head>
+<body>
+    <h1>🗜️ rar-stream WASM Test</h1>
+    
+    <div id="tests"></div>
+    
+    <h2>Manual Test</h2>
+    <p>Select a RAR file to test decompression:</p>
+    <input type="file" id="fileInput" accept=".rar">
+    <button onclick="runManualTest()">Decompress</button>
+    
+    <pre id="output"></pre>
+
+    <script type="module">
+        import init, { 
+            is_rar_archive, 
+            get_rar_version, 
+            parse_rar_header,
+            WasmRarDecoder 
+        } from '../pkg/rar_stream.js';
+
+        const testsDiv = document.getElementById('tests');
+        const output = document.getElementById('output');
+        
+        function addTest(name, status, detail = '') {
+            const div = document.createElement('div');
+            div.className = `test ${status}`;
+            div.innerHTML = `<strong>${status === 'pass' ? '✓' : status === 'fail' ? '✗' : '○'}</strong> ${name}${detail ? `: ${detail}` : ''}`;
+            testsDiv.appendChild(div);
+        }
+
+        async function runTests() {
+            addTest('WASM module loading', 'pending');
+            
+            try {
+                await init();
+                testsDiv.lastChild.className = 'test pass';
+                testsDiv.lastChild.innerHTML = '<strong>✓</strong> WASM module loaded successfully';
+            } catch (e) {
+                testsDiv.lastChild.className = 'test fail';
+                testsDiv.lastChild.innerHTML = `<strong>✗</strong> WASM module failed to load: ${e.message}`;
+                return;
+            }
+
+            // Test 1: is_rar_archive with valid signature
+            try {
+                const rarSignature = new Uint8Array([0x52, 0x61, 0x72, 0x21, 0x1A, 0x07, 0x00]);
+                const result = is_rar_archive(rarSignature);
+                if (result === true) {
+                    addTest('is_rar_archive (valid RAR4 signature)', 'pass');
+                } else {
+                    addTest('is_rar_archive (valid RAR4 signature)', 'fail', `expected true, got ${result}`);
+                }
+            } catch (e) {
+                addTest('is_rar_archive (valid RAR4 signature)', 'fail', e.message);
+            }
+
+            // Test 2: is_rar_archive with invalid data
+            try {
+                const invalidData = new Uint8Array([0x50, 0x4B, 0x03, 0x04]); // ZIP signature
+                const result = is_rar_archive(invalidData);
+                if (result === false) {
+                    addTest('is_rar_archive (invalid data)', 'pass');
+                } else {
+                    addTest('is_rar_archive (invalid data)', 'fail', `expected false, got ${result}`);
+                }
+            } catch (e) {
+                addTest('is_rar_archive (invalid data)', 'fail', e.message);
+            }
+
+            // Test 3: get_rar_version
+            try {
+                const rar4Sig = new Uint8Array([0x52, 0x61, 0x72, 0x21, 0x1A, 0x07, 0x00]);
+                const version = get_rar_version(rar4Sig);
+                if (version === 15) {
+                    addTest('get_rar_version (RAR4)', 'pass', 'version 15');
+                } else {
+                    addTest('get_rar_version (RAR4)', 'fail', `expected 15, got ${version}`);
+                }
+            } catch (e) {
+                addTest('get_rar_version (RAR4)', 'fail', e.message);
+            }
+
+            // Test 4: WasmRarDecoder constructor
+            try {
+                const decoder = new WasmRarDecoder(BigInt(1000));
+                if (decoder && typeof decoder.decompress === 'function') {
+                    addTest('WasmRarDecoder constructor', 'pass');
+                    decoder.free();
+                } else {
+                    addTest('WasmRarDecoder constructor', 'fail', 'missing decompress method');
+                }
+            } catch (e) {
+                addTest('WasmRarDecoder constructor', 'fail', e.message);
+            }
+
+            // Test 5: WasmRarDecoder bytes_written
+            try {
+                const decoder = new WasmRarDecoder(BigInt(1000));
+                const bytes = decoder.bytes_written();
+                if (bytes === BigInt(0)) {
+                    addTest('WasmRarDecoder bytes_written (initial)', 'pass');
+                } else {
+                    addTest('WasmRarDecoder bytes_written (initial)', 'fail', `expected 0n, got ${bytes}`);
+                }
+                decoder.free();
+            } catch (e) {
+                addTest('WasmRarDecoder bytes_written (initial)', 'fail', e.message);
+            }
+
+            output.textContent = 'All unit tests completed. Use file input above to test real RAR files.';
+        }
+
+        // Expose for manual testing
+        window.runManualTest = async function() {
+            const fileInput = document.getElementById('fileInput');
+            if (!fileInput.files.length) {
+                output.textContent = 'Please select a RAR file first.';
+                return;
+            }
+
+            const file = fileInput.files[0];
+            output.textContent = `Loading ${file.name} (${file.size} bytes)...\n`;
+
+            try {
+                const buffer = await file.arrayBuffer();
+                const data = new Uint8Array(buffer);
+
+                output.textContent += `Checking RAR signature...\n`;
+                const isRar = is_rar_archive(data);
+                output.textContent += `Is RAR archive: ${isRar}\n`;
+
+                if (!isRar) {
+                    output.textContent += 'ERROR: Not a valid RAR archive.\n';
+                    return;
+                }
+
+                const version = get_rar_version(data);
+                output.textContent += `RAR version: ${version === 15 ? 'RAR4 (v1.5-4.x)' : version === 50 ? 'RAR5' : 'Unknown'}\n`;
+
+                output.textContent += `Parsing header...\n`;
+                const header = parse_rar_header(data);
+                output.textContent += `File name: ${header.name}\n`;
+                output.textContent += `Packed size: ${header.packedSize} bytes\n`;
+                output.textContent += `Unpacked size: ${header.unpackedSize} bytes\n`;
+                output.textContent += `Compression: ${header.isCompressed ? 'Yes (method 0x' + header.method.toString(16) + ')' : 'Store (no compression)'}\n`;
+
+                if (header.isCompressed) {
+                    output.textContent += `\nAttempting decompression...\n`;
+                    
+                    // Find the data offset (after headers)
+                    // This is a simplified version - real implementation needs proper offset calculation
+                    const markerSize = 7;
+                    const archiveHeaderSize = 13;
+                    const fileHeaderSize = 32 + header.name.length + (header.unpackedSize > 0xFFFFFFFF ? 8 : 0);
+                    const dataOffset = markerSize + archiveHeaderSize + fileHeaderSize;
+                    
+                    output.textContent += `Data starts at offset ${dataOffset}\n`;
+                    
+                    const compressedData = data.slice(dataOffset, dataOffset + header.packedSize);
+                    output.textContent += `Compressed data: ${compressedData.length} bytes\n`;
+
+                    const decoder = new WasmRarDecoder(BigInt(header.unpackedSize));
+                    try {
+                        const decompressed = decoder.decompress(compressedData);
+                        output.textContent += `✓ Decompressed: ${decompressed.length} bytes\n`;
+                        
+                        // Show first 200 bytes as text if it looks like text
+                        const preview = new TextDecoder().decode(decompressed.slice(0, 200));
+                        if (/^[\x20-\x7E\n\r\t]+$/.test(preview)) {
+                            output.textContent += `\nPreview (first 200 chars):\n${preview}...\n`;
+                        } else {
+                            output.textContent += `\nFirst 50 bytes (hex): ${Array.from(decompressed.slice(0, 50)).map(b => b.toString(16).padStart(2, '0')).join(' ')}\n`;
+                        }
+                    } catch (e) {
+                        output.textContent += `✗ Decompression failed: ${e.message}\n`;
+                    }
+                    decoder.free();
+                } else {
+                    output.textContent += `\nFile is stored (not compressed). Raw data available.\n`;
+                }
+
+            } catch (e) {
+                output.textContent += `ERROR: ${e.message}\n${e.stack}\n`;
+            }
+        };
+
+        runTests();
+    </script>
+</body>
+</html>
