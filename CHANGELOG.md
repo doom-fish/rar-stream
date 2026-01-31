@@ -4,6 +4,17 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [5.0.0] - 2026-01-31
+
+### Bug Fixes
+
+- Include crypto feature in WASM build
+
+### Styling
+
+- Cargo fmt
+
+
 ### Added
 
 - **RAR5 format support** (Issue #35)
