@@ -1,7 +1,7 @@
 //! RAR 3.x/4.x encryption support.
 //!
 //! RAR 3.x/4.x uses:
-//! - AES-256-CBC encryption
+//! - AES-128-CBC encryption
 //! - Custom SHA-1 based key derivation with 2^18 (262,144) iterations
 //! - 8-byte salt
 //! - No password verification (wrong password produces garbage)
@@ -11,7 +11,7 @@ use sha1::{Digest, Sha1};
 
 use super::CryptoError;
 
-type Aes256CbcDec = cbc::Decryptor<aes::Aes256>;
+type Aes128CbcDec = cbc::Decryptor<aes::Aes128>;
 
 /// RAR 3.x/4.x encryption info from file header.
 #[derive(Debug, Clone)]
@@ -33,74 +33,69 @@ impl Rar4Crypto {
     /// Derive key and IV from password and salt.
     ///
     /// The RAR4 KDF uses 2^18 iterations of SHA-1:
-    /// - Password is encoded as UTF-16LE
-    /// - Each iteration: SHA1.update(salt + password + counter_bytes)
+    /// - Password is encoded as UTF-16LE, concatenated with salt as seed
+    /// - Each iteration: SHA1.update(seed + counter[:3])
     /// - Counter is a 3-byte little-endian integer
-    /// - Every 16384 iterations, we extract an IV byte from the state
-    /// - Final SHA-1 digest is the AES-256 key
+    /// - Every 16384 (0x4000) iterations at j=0, extract byte 19 of digest as IV byte
+    /// - Final SHA-1 digest[:16] is the AES-128 key (with endian swap)
     pub fn derive_key(password: &str, salt: &[u8; 8]) -> Self {
-        const ITERATIONS: u32 = 1 << 18; // 262,144
-
-        // Convert password to UTF-16LE
-        let password_utf16: Vec<u8> = password.encode_utf16().flat_map(|c| c.to_le_bytes()).collect();
+        // Convert password to UTF-16LE and concatenate with salt
+        let seed: Vec<u8> = password
+            .encode_utf16()
+            .flat_map(|c| c.to_le_bytes())
+            .chain(salt.iter().copied())
+            .collect();
 
         let mut hasher = Sha1::new();
         let mut iv = [0u8; 16];
-        let mut iv_index = 0;
 
-        for i in 0..ITERATIONS {
-            hasher.update(salt);
-            hasher.update(&password_utf16);
+        // 16 outer iterations (for IV bytes), each with 0x4000 inner iterations
+        for i in 0..16 {
+            for j in 0..0x4000u32 {
+                let cnt = i * 0x4000 + j;
+                let cnt_bytes = [cnt as u8, (cnt >> 8) as u8, (cnt >> 16) as u8];
 
-            // Counter as 3-byte little-endian
-            let counter_bytes = [i as u8, (i >> 8) as u8, (i >> 16) as u8];
-            hasher.update(counter_bytes);
+                hasher.update(&seed);
+                hasher.update(&cnt_bytes);
 
-            // Every 16384 iterations, extract an IV byte
-            if (i & 0x3FFF) == 0 && iv_index < 16 {
-                // Get the current digest state by cloning the hasher
-                let temp_digest = hasher.clone().finalize();
-                iv[iv_index] = temp_digest[19]; // Last byte of SHA-1 digest
-                iv_index += 1;
+                // At the start of each outer iteration, extract IV byte
+                if j == 0 {
+                    let temp_digest = hasher.clone().finalize();
+                    iv[i as usize] = temp_digest[19];
+                }
             }
         }
 
-        // Final digest is the key (we need 32 bytes for AES-256, SHA-1 produces 20)
-        // RAR4 actually uses the first 16 bytes as AES key (AES-128 in some sources)
-        // but newer versions use full 32 bytes via repeated SHA-1
+        // Final digest - first 16 bytes become the key (with endian swap)
         let digest = hasher.finalize();
+        let key_be: [u8; 16] = digest[..16].try_into().unwrap();
 
-        // For full 32-byte key, we need to do another hash round
-        // Actually, looking at UnRAR source, we use first 16 bytes for AES-128
-        // Let me check again - the unarcrypto shows AES256
-        //
-        // From unarcrypto: "iv b'...' key b'...' (32 hex chars = 16 bytes)
-        // So RAR4 uses AES-128 (16-byte key), not AES-256
-        //
-        // Wait, the readme says "AES256 in CBC mode" for rar 3.x
-        // Let me check the actual implementation...
-        //
-        // Looking more carefully: SHA-1 produces 20 bytes
-        // For AES-256 we need 32 bytes
-        // The full key derivation does additional rounds
+        // Swap endianness: convert from big-endian to little-endian
+        // pack("<LLLL", *unpack(">LLLL", key_be))
+        let key16 = Self::swap_key_endianness(&key_be);
 
-        // For now, let's implement AES-128 version (16-byte key from SHA-1)
+        // Store as 32-byte key for AES-256 compatibility (but only use first 16 for AES-128)
         let mut key = [0u8; 32];
-        key[..20].copy_from_slice(&digest);
-
-        // For the remaining 12 bytes, we need to continue hashing
-        // Actually, let's research this more carefully...
-        // For now, use 16 bytes for AES-128 compatibility
-        let key16: [u8; 16] = digest[..16].try_into().unwrap();
-
-        // Expand to 32 bytes by using first 16 bytes twice (temporary)
         key[..16].copy_from_slice(&key16);
         key[16..32].copy_from_slice(&key16);
 
         Self { key, iv }
     }
 
-    /// Decrypt data in place using AES-256-CBC.
+    /// Swap key bytes from big-endian to little-endian (4 x 32-bit words).
+    fn swap_key_endianness(key_be: &[u8; 16]) -> [u8; 16] {
+        let mut key_le = [0u8; 16];
+        for i in 0..4 {
+            // Each 4-byte word is swapped
+            key_le[i * 4] = key_be[i * 4 + 3];
+            key_le[i * 4 + 1] = key_be[i * 4 + 2];
+            key_le[i * 4 + 2] = key_be[i * 4 + 1];
+            key_le[i * 4 + 3] = key_be[i * 4];
+        }
+        key_le
+    }
+
+    /// Decrypt data in place using AES-128-CBC (using first 16 bytes of key).
     pub fn decrypt(&self, data: &mut [u8]) -> Result<(), CryptoError> {
         if data.is_empty() {
             return Ok(());
@@ -111,7 +106,8 @@ impl Rar4Crypto {
             return Err(CryptoError::DecryptionFailed);
         }
 
-        let decryptor = Aes256CbcDec::new_from_slices(&self.key, &self.iv)
+        // Use only first 16 bytes of key for AES-128
+        let decryptor = Aes128CbcDec::new_from_slices(&self.key[..16], &self.iv)
             .map_err(|_| CryptoError::DecryptionFailed)?;
 
         decryptor

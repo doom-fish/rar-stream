@@ -53,6 +53,8 @@ pub struct InnerFile {
     method: u8,
     /// Packed size (sum of chunk sizes)
     packed_size: u64,
+    /// Unpacked size (original file size before compression/encryption)
+    unpacked_size: u64,
     /// RAR version (4 or 5)
     rar_version: RarVersion,
     /// Whether this file is part of a solid archive
@@ -90,8 +92,9 @@ impl InnerFile {
         let packed_size: u64 = chunks.iter().map(|c| c.length()).sum();
         let chunk_map = Self::calculate_chunk_map(&chunks);
 
-        // For stored files, length = packed_size
+        // For non-encrypted stored files, length = packed_size
         // For compressed files, length = unpacked_size
+        // For encrypted files, we always use unpacked_size
         let length = if method == 0x30 || method == 0 {
             packed_size
         } else {
@@ -105,6 +108,7 @@ impl InnerFile {
             chunk_map,
             method,
             packed_size,
+            unpacked_size,
             rar_version,
             is_solid,
             decompressed_cache: Mutex::new(None),
@@ -154,7 +158,11 @@ impl InnerFile {
         let packed_size: u64 = chunks.iter().map(|c| c.length()).sum();
         let chunk_map = Self::calculate_chunk_map(&chunks);
 
-        let length = if method == 0x30 || method == 0 {
+        // For encrypted files, always use unpacked_size as the logical length
+        // For non-encrypted stored files, use packed_size
+        let length = if encryption.is_some() {
+            unpacked_size
+        } else if method == 0x30 || method == 0 {
             packed_size
         } else {
             unpacked_size
@@ -167,6 +175,7 @@ impl InnerFile {
             chunk_map,
             method,
             packed_size,
+            unpacked_size,
             rar_version,
             is_solid,
             decompressed_cache: Mutex::new(None),
@@ -358,15 +367,24 @@ impl InnerFile {
         }
 
         // Decompress based on RAR version
-        let decompressed = match self.rar_version {
-            RarVersion::Rar4 => {
-                let mut decoder = Rar29Decoder::new();
-                decoder.decompress(&packed, self.length)?
+        let decompressed = if !self.is_compressed() {
+            // Stored file - just return decrypted data (truncated to unpacked size if encrypted)
+            #[cfg(feature = "crypto")]
+            if self.encryption.is_some() {
+                // For encrypted stored files, truncate to unpacked_size (removes AES padding)
+                packed.truncate(self.unpacked_size as usize);
             }
-            RarVersion::Rar5 => {
-                let mut decoder = Rar5Decoder::new();
-                // For RAR5: method is stored directly, not offset by 0x30
-                decoder.decompress(&packed, self.length, self.method, self.is_solid)?
+            packed
+        } else {
+            match self.rar_version {
+                RarVersion::Rar4 => {
+                    let mut decoder = Rar29Decoder::new();
+                    decoder.decompress(&packed, self.unpacked_size)?
+                }
+                RarVersion::Rar5 => {
+                    let mut decoder = Rar5Decoder::new();
+                    decoder.decompress(&packed, self.unpacked_size, self.method, self.is_solid)?
+                }
             }
         };
         let decompressed = Arc::new(decompressed);

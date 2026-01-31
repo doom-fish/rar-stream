@@ -262,7 +262,8 @@ impl RarFilesPackage {
                 break;
             }
 
-            // Check encryption
+            // Check encryption - with crypto feature, we can handle encrypted files
+            #[cfg(not(feature = "crypto"))]
             if file_header.is_encrypted {
                 return Err(RarError::EncryptedNotSupported);
             }
@@ -981,5 +982,87 @@ mod tests {
         assert!(info.has_encrypted_headers);
         assert_eq!(info.version, RarVersion::Rar5);
         // Other flags can't be read when headers are encrypted
+    }
+
+    #[tokio::test]
+    #[cfg(all(feature = "async", feature = "crypto"))]
+    async fn test_parse_rar4_encrypted_stored() {
+        // Test parsing and extracting an encrypted RAR4 file (stored, no compression)
+        let fixture = "__fixtures__/encrypted/rar4-encrypted-stored.rar";
+
+        if !std::path::Path::new(fixture).exists() {
+            eprintln!("Skipping test - RAR4 encrypted fixtures not found");
+            return;
+        }
+
+        let file: Arc<dyn FileMedia> = Arc::new(LocalFileMedia::new(fixture).unwrap());
+        let package = RarFilesPackage::new(vec![file]);
+
+        // Check archive info
+        let info = package.get_archive_info().await.unwrap();
+        assert_eq!(info.version, RarVersion::Rar4);
+
+        let opts = ParseOptions {
+            password: Some("testpass".to_string()),
+            ..Default::default()
+        };
+
+        let parsed = package.parse(opts).await.unwrap();
+        assert_eq!(parsed.len(), 1, "should have 1 inner file");
+
+        let inner_file = &parsed[0];
+        assert_eq!(inner_file.name, "testfile.txt");
+        assert!(inner_file.is_encrypted());
+
+        // Read the decrypted content
+        let content = inner_file.read_decompressed().await.unwrap();
+        let text = std::str::from_utf8(&content).expect("should be valid UTF-8");
+
+        assert!(
+            text.starts_with("Hello, encrypted world!"),
+            "content was: {:?}",
+            text
+        );
+    }
+
+    #[tokio::test]
+    #[cfg(all(feature = "async", feature = "crypto"))]
+    async fn test_parse_rar4_encrypted_compressed() {
+        // Test parsing and extracting an encrypted RAR4 file (compressed)
+        let fixture = "__fixtures__/encrypted/rar4-encrypted.rar";
+
+        if !std::path::Path::new(fixture).exists() {
+            eprintln!("Skipping test - RAR4 encrypted fixtures not found");
+            return;
+        }
+
+        let file: Arc<dyn FileMedia> = Arc::new(LocalFileMedia::new(fixture).unwrap());
+        let package = RarFilesPackage::new(vec![file]);
+
+        // Check archive info
+        let info = package.get_archive_info().await.unwrap();
+        assert_eq!(info.version, RarVersion::Rar4);
+
+        let opts = ParseOptions {
+            password: Some("testpass".to_string()),
+            ..Default::default()
+        };
+
+        let parsed = package.parse(opts).await.unwrap();
+        assert_eq!(parsed.len(), 1, "should have 1 inner file");
+
+        let inner_file = &parsed[0];
+        assert_eq!(inner_file.name, "testfile.txt");
+        assert!(inner_file.is_encrypted());
+
+        // Read the decrypted content
+        let content = inner_file.read_decompressed().await.unwrap();
+        let text = std::str::from_utf8(&content).expect("should be valid UTF-8");
+
+        assert!(
+            text.starts_with("Hello, encrypted world!"),
+            "content was: {:?}",
+            text
+        );
     }
 }
