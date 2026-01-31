@@ -22,6 +22,18 @@ cargo clippy --all-features -- -D warnings
 cargo fmt --check
 ```
 
+## Release Process
+
+Releases are automated via GitHub Actions:
+
+1. **Bump version** in both `package.json` and `Cargo.toml` (keep in sync)
+2. **Commit and push** to main
+3. **Create git tag**: `git tag v4.x.x && git push origin v4.x.x`
+4. **CI automatically**:
+   - Builds native binaries for 6 platforms (linux-x64, linux-arm64, darwin-x64, darwin-arm64, windows-x64, linux-musl)
+   - Publishes to npm via OIDC trusted publishing (no token needed)
+   - Publishes to crates.io via release-plz
+
 ## Architecture
 
 This is a Rust library with bindings for Node.js (NAPI) and browsers (WASM). The core library has **zero dependencies**; all dependencies are optional via Cargo features.
@@ -56,6 +68,7 @@ src/
 - **NAPI pattern**: Rust types prefixed with `Rust` internally, exposed as JS-friendly names (e.g., `RustInnerFile` → `InnerFile`)
 - **Range reads are inclusive**: `{ start: 0, end: 10 }` returns 11 bytes
 - **Multi-volume ordering**: Files are sorted by `.rar` first, then `.r00`, `.r01`, etc.
+- **Version sync**: `package.json` and `Cargo.toml` versions must match
 
 ## Test Fixtures
 
