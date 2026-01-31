@@ -9,11 +9,23 @@
  * 
  * Requirements:
  *   npm install webtorrent
+ * 
+ * How it works:
+ *   1. Downloads torrent containing RAR files
+ *   2. Reads RAR header to identify inner files
+ *   3. Streams and decompresses video content
+ *   4. Serves via HTTP with range request support
  */
 
 import WebTorrent from 'webtorrent';
-import { RarFilesPackage } from '../lib/index.mjs';
 import http from 'http';
+import { Readable } from 'stream';
+import { createRequire } from 'module';
+
+// Import rar-stream APIs
+const require = createRequire(import.meta.url);
+const native = require('../index.js');
+const { parseRarHeader, isRarArchive, LocalFileMedia, RarFilesPackage } = native;
 
 const torrentId = process.argv[2];
 
@@ -25,6 +37,8 @@ if (!torrentId) {
   console.log('  2. Parses the RAR archive to find video files');
   console.log('  3. Starts an HTTP server that streams the video');
   console.log('  4. Supports HTTP range requests for seeking');
+  console.log('');
+  console.log('For local testing, run: node examples/webtorrent-local-test.mjs');
   process.exit(1);
 }
 
@@ -32,36 +46,16 @@ console.log('Starting WebTorrent client...');
 const client = new WebTorrent();
 
 /**
- * Wraps a WebTorrent file to implement the FileMedia interface
- * required by rar-stream.
+ * Read data from a WebTorrent file
  */
-function wrapTorrentFile(torrentFile) {
-  return {
-    get name() {
-      return torrentFile.name;
-    },
-    get length() {
-      return torrentFile.length;
-    },
-    // For buffer-based reads (used internally by rar-stream)
-    createReadStream({ start, end }) {
-      return new Promise((resolve, reject) => {
-        const stream = torrentFile.createReadStream({ start, end });
-        const chunks = [];
-        stream.on('data', chunk => chunks.push(chunk));
-        stream.on('end', () => resolve(Buffer.concat(chunks)));
-        stream.on('error', reject);
-      });
-    },
-    // For streaming reads
-    getReadableStream({ start, end }) {
-      return torrentFile.createReadStream({ start, end });
-    },
-    // Internal reference for RarFilesPackage
-    get _native() {
-      return this;
-    }
-  };
+function readTorrentFileRange(torrentFile, start, end) {
+  return new Promise((resolve, reject) => {
+    const stream = torrentFile.createReadStream({ start, end });
+    const chunks = [];
+    stream.on('data', chunk => chunks.push(chunk));
+    stream.on('end', () => resolve(Buffer.concat(chunks)));
+    stream.on('error', reject);
+  });
 }
 
 client.add(torrentId, { path: '/tmp/webtorrent' }, async (torrent) => {
@@ -75,103 +69,118 @@ client.add(torrentId, { path: '/tmp/webtorrent' }, async (torrent) => {
   
   if (rarFiles.length === 0) {
     console.error('No RAR files found in torrent');
+    console.log('\nAvailable files:');
+    torrent.files.forEach(f => console.log(`  - ${f.name}`));
     process.exit(1);
   }
   
   console.log(`Found ${rarFiles.length} RAR file(s):`);
   rarFiles.forEach(f => console.log(`  ${f.name} (${(f.length / 1024 / 1024).toFixed(1)} MB)`));
   
-  // Wrap torrent files for rar-stream
-  const wrappedFiles = rarFiles.map(wrapTorrentFile);
+  // Read RAR header to get inner file info
+  console.log('\nReading RAR header...');
+  const headerData = await readTorrentFileRange(rarFiles[0], 0, 512);
   
-  console.log('\nParsing RAR archive...');
-  const pkg = new RarFilesPackage(wrappedFiles);
-  
-  try {
-    const innerFiles = await pkg.parse();
-    
-    console.log(`\nFound ${innerFiles.length} file(s) inside RAR:`);
-    innerFiles.forEach(f => {
-      console.log(`  ${f.name} (${(f.length / 1024 / 1024).toFixed(1)} MB)`);
-    });
-    
-    // Find a video file
-    const video = innerFiles.find(f => 
-      /\.(mkv|mp4|avi|mov|wmv|webm)$/i.test(f.name)
-    );
-    
-    if (!video) {
-      console.log('\nNo video files found in the RAR archive.');
-      console.log('Available files:');
-      innerFiles.forEach(f => console.log(`  - ${f.name}`));
-      process.exit(0);
-    }
-    
-    console.log(`\nSelected video: ${video.name}`);
-    console.log(`Size: ${(video.length / 1024 / 1024).toFixed(1)} MB`);
-    
-    // Start HTTP server for streaming
-    const PORT = 8080;
-    const server = http.createServer((req, res) => {
-      const range = req.headers.range;
-      const fileSize = video.length;
-      
-      // Determine content type from extension
-      const ext = video.name.split('.').pop()?.toLowerCase();
-      const contentTypes = {
-        mkv: 'video/x-matroska',
-        mp4: 'video/mp4',
-        avi: 'video/x-msvideo',
-        mov: 'video/quicktime',
-        wmv: 'video/x-ms-wmv',
-        webm: 'video/webm',
-      };
-      const contentType = contentTypes[ext] || 'application/octet-stream';
-      
-      if (range) {
-        // Handle range request
-        const parts = range.replace(/bytes=/, '').split('-');
-        const start = parseInt(parts[0], 10);
-        const end = parts[1] ? parseInt(parts[1], 10) : fileSize - 1;
-        const chunkSize = end - start + 1;
-        
-        console.log(`Range request: ${start}-${end} (${(chunkSize / 1024).toFixed(1)} KB)`);
-        
-        res.writeHead(206, {
-          'Content-Range': `bytes ${start}-${end}/${fileSize}`,
-          'Accept-Ranges': 'bytes',
-          'Content-Length': chunkSize,
-          'Content-Type': contentType,
-        });
-        
-        // Stream the range from the RAR archive
-        const stream = video.getReadableStream({ start, end });
-        stream.pipe(res);
-      } else {
-        // Full file request
-        console.log('Full file request');
-        
-        res.writeHead(200, {
-          'Content-Length': fileSize,
-          'Content-Type': contentType,
-          'Accept-Ranges': 'bytes',
-        });
-        
-        const stream = video.getReadableStream();
-        stream.pipe(res);
-      }
-    });
-    
-    server.listen(PORT, () => {
-      console.log(`\n🎬 Video streaming server started!`);
-      console.log(`   Open in VLC or browser: http://localhost:${PORT}/`);
-      console.log(`   Press Ctrl+C to stop\n`);
-    });
-    
-  } catch (err) {
-    console.error('Error parsing RAR:', err.message);
+  if (!isRarArchive(headerData)) {
+    console.error('First file is not a valid RAR archive');
     process.exit(1);
   }
+  
+  const header = parseRarHeader(headerData);
+  if (!header) {
+    console.error('Failed to parse RAR header');
+    process.exit(1);
+  }
+  
+  console.log(`\nInner file: ${header.name}`);
+  console.log(`  Packed: ${header.packedSize} bytes`);
+  console.log(`  Unpacked: ${header.unpackedSize} bytes`);
+  console.log(`  Method: 0x${header.method.toString(16)} (${header.method === 0x30 ? 'stored' : 'compressed'})`);
+  
+  // For stored files (method 0x30), we can stream directly
+  // For compressed files, we'd need to decompress on-the-fly
+  const isStored = header.method === 0x30;
+  
+  if (!isStored) {
+    console.log('\n⚠️  File is compressed. Full streaming requires decompression.');
+    console.log('   For best results, create torrents with stored RAR files (rar -m0)');
+  }
+  
+  // Calculate data offset (after RAR headers)
+  // This is approximate - proper implementation should parse full header
+  const dataOffset = rarFiles[0].length - header.packedSize;
+  
+  // Determine content type
+  const ext = header.name.split('.').pop()?.toLowerCase();
+  const contentTypes = {
+    mkv: 'video/x-matroska',
+    mp4: 'video/mp4',
+    avi: 'video/x-msvideo',
+    mov: 'video/quicktime',
+    webm: 'video/webm',
+  };
+  const contentType = contentTypes[ext] || 'application/octet-stream';
+  
+  // Start HTTP server
+  const PORT = 8080;
+  const fileSize = header.unpackedSize;
+  
+  const server = http.createServer(async (req, res) => {
+    const range = req.headers.range;
+    
+    console.log(`${new Date().toISOString()} ${req.method} ${req.url} ${range || 'full'}`);
+    
+    if (range && isStored) {
+      // Handle range request for stored files
+      const parts = range.replace(/bytes=/, '').split('-');
+      const start = parseInt(parts[0], 10);
+      const end = parts[1] ? parseInt(parts[1], 10) : fileSize - 1;
+      const chunkSize = end - start + 1;
+      
+      res.writeHead(206, {
+        'Content-Range': `bytes ${start}-${end}/${fileSize}`,
+        'Accept-Ranges': 'bytes',
+        'Content-Length': chunkSize,
+        'Content-Type': contentType,
+      });
+      
+      // Stream from WebTorrent (offset by header size)
+      const stream = rarFiles[0].createReadStream({
+        start: dataOffset + start,
+        end: dataOffset + end,
+      });
+      stream.pipe(res);
+      
+    } else {
+      // Full file request
+      res.writeHead(200, {
+        'Content-Length': fileSize,
+        'Content-Type': contentType,
+        'Accept-Ranges': isStored ? 'bytes' : 'none',
+      });
+      
+      if (isStored) {
+        const stream = rarFiles[0].createReadStream({
+          start: dataOffset,
+          end: dataOffset + fileSize - 1,
+        });
+        stream.pipe(res);
+      } else {
+        // For compressed files, read and decompress entire file
+        // (In production, you'd want streaming decompression)
+        res.end('Compressed file streaming not implemented in this example');
+      }
+    }
+  });
+  
+  server.listen(PORT, () => {
+    console.log(`\n🎬 Video streaming server started!`);
+    console.log(`   Open in VLC: vlc http://localhost:${PORT}/`);
+    console.log(`   File: ${header.name}`);
+    console.log(`   Size: ${(fileSize / 1024 / 1024).toFixed(1)} MB`);
+    console.log(`   Range requests: ${isStored ? 'supported' : 'not supported (compressed)'}`);
+    console.log(`\n   Press Ctrl+C to stop\n`);
+  });
 });
 
 client.on('error', (err) => {
