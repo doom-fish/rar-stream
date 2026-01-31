@@ -7,7 +7,7 @@ import fs from "fs";
 import { Readable } from "stream";
 
 // Import from the wrapper module with stream support
-import { RarFilesPackage, LocalFileMedia } from "./lib/index.js";
+import { RarFilesPackage, LocalFileMedia } from "./lib/index.mjs";
 
 const fixturePath = path.resolve(__dirname, "./__fixtures__");
 

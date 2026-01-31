@@ -15,7 +15,7 @@
 
 import http from 'http';
 import path from 'path';
-import { LocalFileMedia, RarFilesPackage } from '../lib/index.js';
+import { LocalFileMedia, RarFilesPackage } from '../lib/index.mjs';
 
 const rarPath = process.argv[2];
 

@@ -12,7 +12,7 @@
  */
 
 import WebTorrent from 'webtorrent';
-import { RarFilesPackage } from '../lib/index.js';
+import { RarFilesPackage } from '../lib/index.mjs';
 import http from 'http';
 
 const torrentId = process.argv[2];

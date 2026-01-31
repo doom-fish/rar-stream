@@ -2,25 +2,26 @@
   "name": "rar-stream",
   "version": "4.0.3",
   "description": "RAR streaming library - Rust implementation with NAPI and WASM bindings",
-  "type": "module",
-  "main": "lib/index.js",
-  "browser": "lib/browser.js",
+  "main": "lib/index.mjs",
+  "browser": "lib/browser.mjs",
   "types": "lib/index.d.ts",
   "exports": {
     ".": {
       "node": {
         "types": "./lib/index.d.ts",
-        "default": "./lib/index.js"
+        "import": "./lib/index.mjs",
+        "require": "./index.js"
       },
       "browser": {
         "types": "./lib/browser.d.ts",
-        "default": "./lib/browser.js"
+        "import": "./lib/browser.mjs"
       },
-      "default": "./lib/index.js"
+      "import": "./lib/index.mjs",
+      "require": "./index.js"
     },
     "./native": {
       "types": "./index.d.ts",
-      "default": "./index.js"
+      "require": "./index.js"
     }
   },
   "author": "doom-fish",
@@ -85,12 +86,13 @@
     "prettier": "^3.2.0",
     "typescript": "^5.4.0",
     "typescript-eslint": "^8.0.0",
-    "vitest": "^2.1.8"
+    "vitest": "^2.1.8",
+    "webtorrent": "^2.8.5"
   },
   "files": [
-    "lib/index.js",
+    "lib/index.mjs",
     "lib/index.d.ts",
-    "lib/browser.js",
+    "lib/browser.mjs",
     "lib/browser.d.ts",
     "index.js",
     "index.d.ts",
@@ -103,12 +105,12 @@
     "*.node"
   ],
   "optionalDependencies": {
-    "rar-stream-win32-x64-msvc": "4.0.0",
+    "rar-stream-darwin-arm64": "4.0.0",
     "rar-stream-darwin-x64": "4.0.0",
+    "rar-stream-linux-arm64-gnu": "4.0.0",
+    "rar-stream-linux-arm64-musl": "4.0.0",
     "rar-stream-linux-x64-gnu": "4.0.0",
     "rar-stream-linux-x64-musl": "4.0.0",
-    "rar-stream-linux-arm64-gnu": "4.0.0",
-    "rar-stream-darwin-arm64": "4.0.0",
-    "rar-stream-linux-arm64-musl": "4.0.0"
+    "rar-stream-win32-x64-msvc": "4.0.0"
   }
 }
