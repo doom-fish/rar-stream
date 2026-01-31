@@ -92,8 +92,8 @@ async function main() {
         'Content-Type': contentType,
       });
       
-      // Stream the range using getReadableStream
-      const stream = fileToServe.getReadableStream({ start, end });
+      // Stream the range using createReadStream
+      const stream = fileToServe.createReadStream({ start, end });
       stream.pipe(res);
       
     } else {
@@ -105,7 +105,7 @@ async function main() {
       });
       
       // Stream entire file
-      const stream = fileToServe.getReadableStream();
+      const stream = fileToServe.createReadStream();
       stream.pipe(res);
     }
   });

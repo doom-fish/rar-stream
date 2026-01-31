@@ -124,11 +124,11 @@ const files = await pkg.parse();
 const video = files.find(f => f.name.endsWith('.mkv'));
 if (video) {
   // Get a Node.js Readable stream for the entire file
-  const stream = video.getReadableStream();
+  const stream = video.createReadStream();
   stream.pipe(fs.createWriteStream('./extracted-video.mkv'));
   
   // Or stream a specific byte range (for HTTP range requests)
-  const rangeStream = video.getReadableStream({ start: 0, end: 1024 * 1024 - 1 });
+  const rangeStream = video.createReadStream({ start: 0, end: 1024 * 1024 - 1 });
 }
 ```
 
@@ -150,18 +150,10 @@ client.add(magnetUri, (torrent) => {
       // Implement FileMedia interface for torrent files
       get name() { return f.name; },
       get length() { return f.length; },
-      async createReadStream({ start, end }) {
-        return new Promise((resolve, reject) => {
-          const stream = f.createReadStream({ start, end });
-          const chunks = [];
-          stream.on('data', chunk => chunks.push(chunk));
-          stream.on('end', () => resolve(Buffer.concat(chunks)));
-          stream.on('error', reject);
-        });
-      },
-      getReadableStream({ start, end }) {
+      // createReadStream returns a Readable stream
+      createReadStream({ start, end }) {
         return f.createReadStream({ start, end });
-      }
+      },
     }));
 
   const pkg = new RarFilesPackage(rarFiles);
@@ -169,7 +161,7 @@ client.add(magnetUri, (torrent) => {
     const video = innerFiles.find(f => f.name.endsWith('.mkv'));
     if (video) {
       // Stream video content - this returns a Node.js Readable
-      const stream = video.getReadableStream();
+      const stream = video.createReadStream();
       
       // Pipe to HTTP response, media player, etc.
       stream.pipe(process.stdout);
@@ -209,14 +201,14 @@ app.get('/video', (req, res) => {
     });
     
     // Stream the range directly from the RAR archive
-    const stream = video.getReadableStream({ start, end });
+    const stream = video.createReadStream({ start, end });
     stream.pipe(res);
   } else {
     res.writeHead(200, {
       'Content-Length': fileSize,
       'Content-Type': 'video/mp4',
     });
-    video.getReadableStream().pipe(res);
+    video.createReadStream().pipe(res);
   }
 });
 
@@ -300,10 +292,20 @@ class LocalFileMedia {
   readonly length: number;  // File size in bytes
   
   // Read a byte range into a Buffer
-  createReadStream(opts: { start: number; end: number }): Promise<Buffer>;
-  
-  // Get a Node.js Readable stream for a byte range
-  getReadableStream(opts: { start: number; end: number; highWaterMark?: number }): Readable;
+  // Create a Readable stream for a byte range
+  createReadStream(opts: { start: number; end: number }): Readable;
+}
+```
+
+### FileMedia Interface
+
+Custom data sources (WebTorrent, S3, HTTP, etc.) must implement this interface:
+
+```typescript
+interface FileMedia {
+  readonly name: string;
+  readonly length: number;
+  createReadStream(opts: { start: number; end: number }): Readable;
 }
 ```
 
@@ -313,7 +315,7 @@ Parses single or multi-volume RAR archives.
 
 ```typescript
 class RarFilesPackage {
-  constructor(files: LocalFileMedia[]);
+  constructor(files: FileMedia[]);  // LocalFileMedia or custom FileMedia
   
   parse(opts?: {
     maxFiles?: number;  // Limit number of files to parse
@@ -335,14 +337,10 @@ class InnerFile {
   // Read entire file into memory
   readToEnd(): Promise<Buffer>;
   
-  // Read a byte range into a Buffer
-  createReadStream(opts: { start: number; end: number }): Promise<Buffer>;
-  
-  // Get a Node.js Readable stream (for streaming without buffering)
-  getReadableStream(opts?: { 
-    start?: number;           // Default: 0
-    end?: number;             // Default: length - 1
-    highWaterMark?: number;   // Default: 64KB
+  // Create a Readable stream for the entire file or a byte range
+  createReadStream(opts?: { 
+    start?: number;   // Default: 0
+    end?: number;     // Default: length - 1
   }): Readable;
 }
 ```
@@ -355,6 +353,12 @@ function isRarArchive(buffer: Buffer): boolean;
 
 // Parse RAR header from buffer (needs ~300 bytes)
 function parseRarHeader(buffer: Buffer): RarFileInfo | null;
+
+// Convert a Readable stream to a Buffer
+function streamToBuffer(stream: Readable): Promise<Buffer>;
+
+// Create a FileMedia from any source with createReadStream
+function createFileMedia(source: FileMedia): FileMedia;
 
 interface RarFileInfo {
   name: string;

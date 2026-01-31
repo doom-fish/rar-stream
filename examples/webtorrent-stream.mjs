@@ -41,16 +41,8 @@ function wrapTorrentFile(torrentFile) {
     get name() { return torrentFile.name; },
     get length() { return torrentFile.length; },
     createReadStream({ start, end }) {
-      return new Promise((resolve, reject) => {
-        const stream = torrentFile.createReadStream({ start, end });
-        const chunks = [];
-        stream.on('data', chunk => chunks.push(chunk));
-        stream.on('end', () => resolve(Buffer.concat(chunks)));
-        stream.on('error', reject);
-      });
-    },
-    getReadableStream(opts) {
-      return torrentFile.createReadStream(opts);
+      // WebTorrent createReadStream already returns a Readable stream
+      return torrentFile.createReadStream({ start, end });
     },
   };
 }
@@ -138,7 +130,7 @@ client.add(torrentId, { path: '/tmp/webtorrent' }, async (torrent) => {
         });
         
         // Stream the range from the RAR archive
-        const stream = video.getReadableStream({ start, end });
+        const stream = video.createReadStream({ start, end });
         stream.pipe(res);
       } else {
         // Full file request
@@ -148,7 +140,7 @@ client.add(torrentId, { path: '/tmp/webtorrent' }, async (torrent) => {
           'Accept-Ranges': 'bytes',
         });
         
-        const stream = video.getReadableStream();
+        const stream = video.createReadStream();
         stream.pipe(res);
       }
     });

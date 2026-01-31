@@ -56,13 +56,19 @@ describe("LocalFileMedia", () => {
 
   test("can read file range", async () => {
     const media = new LocalFileMedia(singleFilePath);
-    const buffer = await media.createReadStream({ start: 0, end: 10 });
+    const stream = media.createReadStream({ start: 0, end: 10 });
+    
+    const chunks: Buffer[] = [];
+    for await (const chunk of stream) {
+      chunks.push(chunk);
+    }
+    const buffer = Buffer.concat(chunks);
     expect(buffer.length).toBe(11); // Inclusive range
   });
 
-  test("getReadableStream returns a Node.js Readable stream", async () => {
+  test("createReadStream returns a Node.js Readable stream", async () => {
     const media = new LocalFileMedia(singleFilePath);
-    const stream = media.getReadableStream({ start: 0, end: 99 });
+    const stream = media.createReadStream({ start: 0, end: 99 });
     
     expect(stream).toBeInstanceOf(Readable);
     
@@ -88,12 +94,19 @@ describe("RarFilesPackage - Single RAR with one inner file", () => {
     expect(Buffer.compare(rarFileContent, singleFileContent)).toBe(0);
   });
 
-  test("can be read in parts", async () => {
+  test("can be read in parts via stream", async () => {
     const interval = { start: 53, end: 1000 };
 
     const rarPackage = new RarFilesPackage(singleFileRarWithOneInnerFile);
     const [file] = await rarPackage.parse();
-    const rarFileBuffer = await file?.createReadStream(interval);
+    const stream = file?.createReadStream(interval);
+    
+    // Collect stream data
+    const chunks: Buffer[] = [];
+    for await (const chunk of stream) {
+      chunks.push(chunk);
+    }
+    const rarFileBuffer = Buffer.concat(chunks);
     
     const singleFileBuffer = fs.readFileSync(singleFilePath).subarray(interval.start, interval.end + 1);
 
@@ -101,12 +114,12 @@ describe("RarFilesPackage - Single RAR with one inner file", () => {
     expect(Buffer.compare(rarFileBuffer, singleFileBuffer)).toBe(0);
   });
 
-  test("getReadableStream returns a Node.js Readable stream", async () => {
+  test("createReadStream returns a Node.js Readable stream", async () => {
     const rarPackage = new RarFilesPackage(singleFileRarWithOneInnerFile);
     const [file] = await rarPackage.parse();
     
     // Stream entire file
-    const stream = file.getReadableStream();
+    const stream = file.createReadStream();
     expect(stream).toBeInstanceOf(Readable);
     
     const chunks: Buffer[] = [];
@@ -120,12 +133,12 @@ describe("RarFilesPackage - Single RAR with one inner file", () => {
     expect(Buffer.compare(buffer, singleFileContent)).toBe(0);
   });
 
-  test("getReadableStream supports byte range", async () => {
+  test("createReadStream supports byte range", async () => {
     const rarPackage = new RarFilesPackage(singleFileRarWithOneInnerFile);
     const [file] = await rarPackage.parse();
     
     // Stream a range
-    const stream = file.getReadableStream({ start: 100, end: 199 });
+    const stream = file.createReadStream({ start: 100, end: 199 });
     
     const chunks: Buffer[] = [];
     for await (const chunk of stream) {
@@ -177,12 +190,18 @@ describe("RarFilesPackage - Multiple RAR with one inner file", () => {
     expect(Buffer.compare(rarFileBuffer, multiFile)).toBe(0);
   });
 
-  test("can be read in parts", async () => {
+  test("can be read in parts via stream", async () => {
     const interval = { start: 0, end: 100 };
 
     const rarPackage = new RarFilesPackage(multipleRarFileWithOneInnerFile);
     const [file] = await rarPackage.parse();
-    const rarFileBuffer = await file!.createReadStream(interval);
+    const stream = file!.createReadStream(interval);
+    
+    const chunks: Buffer[] = [];
+    for await (const chunk of stream) {
+      chunks.push(chunk);
+    }
+    const rarFileBuffer = Buffer.concat(chunks);
     const multiFileBuffer = fs.readFileSync(multiFilePath).subarray(interval.start, interval.end + 1);
 
     expect(rarFileBuffer.length).toBe(multiFileBuffer.length);

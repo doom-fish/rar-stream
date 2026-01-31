@@ -28,16 +28,8 @@ function wrapTorrentFile(torrentFile) {
     get name() { return torrentFile.name; },
     get length() { return torrentFile.length; },
     createReadStream({ start, end }) {
-      return new Promise((resolve, reject) => {
-        const stream = torrentFile.createReadStream({ start, end });
-        const chunks = [];
-        stream.on('data', chunk => chunks.push(chunk));
-        stream.on('end', () => resolve(Buffer.concat(chunks)));
-        stream.on('error', reject);
-      });
-    },
-    getReadableStream(opts) {
-      return torrentFile.createReadStream(opts);
+      // Returns Readable stream (not Promise<Buffer>)
+      return torrentFile.createReadStream({ start, end });
     },
   };
 }
@@ -79,10 +71,10 @@ seeder.seed(rarPath, { announceList: [] }, (torrent) => {
         console.log(`     - ${f.name} (${f.length} bytes)`);
       });
       
-      console.log('\n4. Reading file content via getReadableStream...');
+      console.log('\n4. Reading file content via createReadStream...');
       
       const file = innerFiles[0];
-      const stream = file.getReadableStream();
+      const stream = file.createReadStream();
       const chunks = [];
       
       for await (const chunk of stream) {
