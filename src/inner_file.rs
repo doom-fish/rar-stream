@@ -118,7 +118,8 @@ impl InnerFile {
     /// Read the entire file.
     pub async fn read_to_end(&self) -> Result<Vec<u8>> {
         if self.is_compressed() {
-            self.read_decompressed().await
+            let data = self.read_decompressed().await?;
+            Ok((*data).clone())
         } else {
             self.read_raw_range(0, self.length.saturating_sub(1)).await
         }

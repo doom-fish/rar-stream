@@ -348,3 +348,22 @@ impl RarFilesPackage {
         Ok(inner_files)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::file_media::LocalFileMedia;
+
+    #[tokio::test]
+    #[cfg(feature = "async")]
+    async fn test_parse_rar5_stored() {
+        // Test parsing a RAR5 stored file
+        let file = Arc::new(LocalFileMedia::new("__fixtures__/rar5/test.rar").unwrap());
+        let package = RarFilesPackage::new(vec![file]);
+        
+        let files = package.parse(ParseOptions::default()).await.unwrap();
+        
+        assert_eq!(files.len(), 1);
+        assert_eq!(files[0].name, "test.txt");
+    }
+}
