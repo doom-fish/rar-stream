@@ -37,9 +37,9 @@ client.add(torrentId, { path: '/tmp/webtorrent' }, async (torrent) => {
   console.log(`Torrent: ${torrent.name}`);
   console.log(`Files: ${torrent.files.length}`);
   
-  // Find RAR files in the torrent
+  // Find RAR files in the torrent (includes .rar, .r00, .r01, etc.)
   const rarFiles = torrent.files
-    .filter(f => /\.rar$/i.test(f.name))
+    .filter(f => /\.(rar|r\d{2})$/i.test(f.name))
     .sort((a, b) => a.name.localeCompare(b.name));
   
   if (rarFiles.length === 0) {

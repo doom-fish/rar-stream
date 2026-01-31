@@ -143,9 +143,11 @@ import { RarFilesPackage } from 'rar-stream';
 const client = new WebTorrent();
 
 client.add(magnetUri, (torrent) => {
-  // Find RAR files - WebTorrent files already implement the FileMedia interface!
-  // They have name, length, and createReadStream({ start, end }) that returns Readable
-  const rarFiles = torrent.files.filter(f => f.name.endsWith('.rar'));
+  // Find RAR files (includes .rar, .r00, .r01, etc. for multi-volume)
+  // WebTorrent files already implement the FileMedia interface!
+  const rarFiles = torrent.files
+    .filter(f => /\.(rar|r\d{2})$/i.test(f.name))
+    .sort((a, b) => a.name.localeCompare(b.name));
 
   // No wrapper needed - pass torrent files directly
   const pkg = new RarFilesPackage(rarFiles);

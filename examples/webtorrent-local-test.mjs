@@ -37,8 +37,10 @@ seeder.seed(rarPath, { announceList: [] }, (torrent) => {
   leecher.add(torrent.magnetURI, { path: '/tmp/webtorrent-test' }, async (downloadedTorrent) => {
     console.log(`   Connected! Files: ${downloadedTorrent.files.length}`);
     
-    // Find RAR files
-    const rarFiles = downloadedTorrent.files.filter(f => f.name.endsWith('.rar'));
+    // Find RAR files (includes .rar, .r00, .r01, etc.)
+    const rarFiles = downloadedTorrent.files
+      .filter(f => /\.(rar|r\d{2})$/i.test(f.name))
+      .sort((a, b) => a.name.localeCompare(b.name));
     console.log(`   RAR files found: ${rarFiles.length}`);
     
     if (rarFiles.length === 0) {
