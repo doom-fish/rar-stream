@@ -41,6 +41,8 @@ export default tseslint.config(
       'browser.d.ts',
       '*.node',
       '*.mjs',
+      'lib/**',
+      'examples/**',
       'node_modules/**',
     ],
   }

@@ -7,13 +7,13 @@ import fs from "fs";
 import { Readable } from "stream";
 
 // Import from the wrapper module with stream support
-import { RarFilesPackage, LocalFileMedia } from "./lib/index.mjs";
+import { RarFilesPackage, LocalFileMedia, InnerFile } from "./lib/index.mjs";
 
 const fixturePath = path.resolve(__dirname, "./__fixtures__");
 
 // Helper to read all files to buffers
-const readToEnd = (files: any[]) =>
-  Promise.all(files.map((file: any) => file.readToEnd()));
+const readToEnd = (files: InnerFile[]) =>
+  Promise.all(files.map((file: InnerFile) => file.readToEnd()));
 
 // File paths
 const singleFilePath = path.resolve(fixturePath, "single/single.txt");
@@ -166,7 +166,7 @@ describe("RarFilesPackage - Single RAR with many inner files", () => {
 
     // Find matching files by name
     const findByName = (name: string) => {
-      const idx = files.findIndex((f: any) => f.name.includes(name));
+      const idx = files.findIndex((f: InnerFile) => f.name.includes(name));
       return idx >= 0 ? buffers[idx] : null;
     };
 
@@ -186,16 +186,18 @@ describe("RarFilesPackage - Multiple RAR with one inner file", () => {
     const [rarFileBuffer] = await rarPackage.parse().then(readToEnd);
     const multiFile = fs.readFileSync(multiFilePath);
     
-    expect(rarFileBuffer!.length).toBe(multiFile.length);
-    expect(Buffer.compare(rarFileBuffer, multiFile)).toBe(0);
+    expect(rarFileBuffer?.length).toBe(multiFile.length);
+    expect(Buffer.compare(rarFileBuffer ?? Buffer.alloc(0), multiFile)).toBe(0);
   });
 
   test("can be read in parts via stream", async () => {
     const interval = { start: 0, end: 100 };
 
     const rarPackage = new RarFilesPackage(multipleRarFileWithOneInnerFile);
-    const [file] = await rarPackage.parse();
-    const stream = file!.createReadStream(interval);
+    const files = await rarPackage.parse();
+    const file = files[0];
+    expect(file).toBeDefined();
+    const stream = file.createReadStream(interval);
     
     const chunks: Buffer[] = [];
     for await (const chunk of stream) {
@@ -222,7 +224,7 @@ describe("RarFilesPackage - Multiple RAR with many inner files", () => {
 
     // Find matching files by name
     const findByName = (name: string) => {
-      const idx = files.findIndex((f: any) => f.name.includes(name));
+      const idx = files.findIndex((f: InnerFile) => f.name.includes(name));
       return idx >= 0 ? buffers[idx] : null;
     };
 

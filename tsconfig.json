@@ -24,8 +24,10 @@
     "noFallthroughCasesInSwitch": true,
     "noUncheckedIndexedAccess": true,
     "noImplicitOverride": true,
-    "noPropertyAccessFromIndexSignature": true
+    "noPropertyAccessFromIndexSignature": true,
+    "allowJs": true,
+    "checkJs": false
   },
-  "include": ["*.ts", "test-browser/**/*.ts"],
-  "exclude": ["node_modules", "pkg"]
+  "include": ["*.ts", "test-browser/**/*.ts", "lib/**/*.d.ts"],
+  "exclude": ["node_modules", "pkg", "examples"]
 }
