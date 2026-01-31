@@ -18,7 +18,7 @@ jobs:
           fetch-depth: 0
       
       - name: Install Rust
-        uses: dtolnay/rust-action@stable
+        uses: dtolnay/rust-toolchain@stable
       
       - name: Run release-plz
         uses: MarcoIeni/release-plz-action@v0.5
