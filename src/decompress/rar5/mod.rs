@@ -6,6 +6,7 @@
 mod bit_decoder;
 mod block_decoder;
 mod decoder;
+mod filter;
 mod range_coder;
 
 pub use decoder::Rar5Decoder;

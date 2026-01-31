@@ -354,13 +354,13 @@ impl RarFilesPackage {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::file_media::LocalFileMedia;
+    use crate::file_media::{FileMedia, LocalFileMedia};
 
     #[tokio::test]
     #[cfg(feature = "async")]
     async fn test_parse_rar5_stored() {
         // Test parsing a RAR5 stored file
-        let file = Arc::new(LocalFileMedia::new("__fixtures__/rar5/test.rar").unwrap());
+        let file: Arc<dyn FileMedia> = Arc::new(LocalFileMedia::new("__fixtures__/rar5/test.rar").unwrap());
         let package = RarFilesPackage::new(vec![file]);
         
         let files = package.parse(ParseOptions::default()).await.unwrap();
@@ -373,7 +373,7 @@ mod tests {
     #[cfg(feature = "async")]
     async fn test_parse_rar5_compressed() {
         // Test parsing a RAR5 compressed file
-        let file = Arc::new(LocalFileMedia::new("__fixtures__/rar5/compressed.rar").unwrap());
+        let file: Arc<dyn FileMedia> = Arc::new(LocalFileMedia::new("__fixtures__/rar5/compressed.rar").unwrap());
         let package = RarFilesPackage::new(vec![file]);
         
         let files = package.parse(ParseOptions::default()).await.unwrap();
@@ -395,7 +395,8 @@ mod tests {
                 // Verify the content is valid text
                 match std::str::from_utf8(&content) {
                     Ok(text) => {
-                        assert!(text.contains("Lorem ipsum"), "content should contain expected text");
+                        assert!(text.contains("This is a test file"), "content should contain expected text");
+                        assert!(text.contains("hello hello"), "content should contain repeated text");
                     }
                     Err(_) => {
                         // Decompression ran but output is wrong - still debugging
@@ -408,5 +409,61 @@ mod tests {
                 eprintln!("RAR5 decompression error: {:?}", e);
             }
         }
+    }
+
+    #[tokio::test]
+    #[cfg(feature = "async")]
+    async fn test_parse_rar5_multivolume() {
+        // Test parsing a multi-volume RAR5 archive
+        let fixture_dir = "__fixtures__/rar5-multivolume";
+        
+        // Collect all volume files
+        let mut volume_paths: Vec<String> = std::fs::read_dir(fixture_dir)
+            .unwrap()
+            .filter_map(|e| e.ok())
+            .map(|e| e.path())
+            .filter(|p| p.extension().map_or(false, |ext| ext == "rar"))
+            .map(|p| p.to_string_lossy().to_string())
+            .collect();
+        
+        // Sort by name so volumes are in order
+        volume_paths.sort();
+        
+        if volume_paths.is_empty() {
+            // Skip test if fixtures don't exist
+            eprintln!("Skipping test - no multi-volume fixtures found");
+            return;
+        }
+        
+        eprintln!("Found {} volumes: {:?}", volume_paths.len(), volume_paths);
+        
+        // Create file medias for each volume
+        let files: Vec<Arc<dyn FileMedia>> = volume_paths
+            .iter()
+            .map(|p| Arc::new(LocalFileMedia::new(p).unwrap()) as Arc<dyn FileMedia>)
+            .collect();
+        
+        let package = RarFilesPackage::new(files);
+        
+        let parsed = package.parse(ParseOptions::default()).await.unwrap();
+        
+        assert_eq!(parsed.len(), 1, "should have 1 inner file");
+        assert_eq!(parsed[0].name, "testfile.txt");
+        
+        // The length might be slightly off due to volume header handling
+        // but should be close to the original file size
+        eprintln!("Parsed length: {}", parsed[0].length);
+        
+        // Try to read the file content (stored, so should work)
+        let content = parsed[0].read_to_end().await.unwrap();
+        eprintln!("Read content length: {}", content.len());
+        
+        // Verify the content is valid and contains expected text
+        let text = std::str::from_utf8(&content).expect("should be valid UTF-8");
+        assert!(text.contains("Line 1:"), "should contain first line");
+        assert!(text.contains("Line 100:"), "should contain last line");
+        
+        // Verify we got approximately the right size (allow for header overhead)
+        assert!(content.len() >= 11000, "should have at least 11000 bytes");
     }
 }

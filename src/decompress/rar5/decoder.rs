@@ -5,6 +5,7 @@
 
 use super::bit_decoder::BitDecoder;
 use super::block_decoder::Rar5BlockDecoder;
+use super::filter::{apply_filter, UnpackFilter};
 use crate::decompress::DecompressError;
 
 /// RAR5 decoder for decompressing RAR5 archives.
@@ -13,6 +14,10 @@ pub struct Rar5Decoder {
     block_decoder: Rar5BlockDecoder,
     /// Dictionary size log (power of 2)
     dict_size_log: u8,
+    /// Pending filters
+    filters: Vec<UnpackFilter>,
+    /// Written file size (for filter offset calculation)
+    written_file_size: u64,
 }
 
 impl Rar5Decoder {
@@ -27,12 +32,16 @@ impl Rar5Decoder {
         Self {
             block_decoder: Rar5BlockDecoder::new(dict_size_log),
             dict_size_log,
+            filters: Vec::new(),
+            written_file_size: 0,
         }
     }
 
     /// Reset decoder state for reuse.
     pub fn reset(&mut self) {
         self.block_decoder.reset();
+        self.filters.clear();
+        self.written_file_size = 0;
     }
 
     /// Decompress stored (uncompressed) data.
@@ -46,6 +55,30 @@ impl Rar5Decoder {
             return Err(DecompressError::IncompleteData);
         }
         Ok(input[..unpacked_size as usize].to_vec())
+    }
+
+    /// Apply pending filters to output data.
+    fn apply_filters(&mut self, output: &mut Vec<u8>) {
+        // Sort filters by block start position
+        self.filters.sort_by_key(|f| f.block_start);
+        
+        for filter in &self.filters {
+            let start = filter.block_start;
+            let end = start + filter.block_length;
+            
+            if end <= output.len() {
+                // Extract the block to filter
+                let mut block = output[start..end].to_vec();
+                
+                // Apply the filter
+                let filtered = apply_filter(&mut block, filter, self.written_file_size + start as u64);
+                
+                // Copy filtered data back
+                output[start..end].copy_from_slice(&filtered);
+            }
+        }
+        
+        self.filters.clear();
     }
 
     /// Decompress RAR5 compressed data.
@@ -69,6 +102,8 @@ impl Rar5Decoder {
         // Reset for non-solid archives
         if !is_solid {
             self.block_decoder.reset();
+            self.filters.clear();
+            self.written_file_size = 0;
         }
 
         // Initialize bit decoder with compressed data
@@ -76,15 +111,25 @@ impl Rar5Decoder {
 
         // Decode blocks until we have enough output
         let start_pos = 0;
-        self.block_decoder
+        let new_filters = self.block_decoder
             .decode_block(&mut bits, unpacked_size as usize)?;
+        
+        // Collect any filters returned
+        self.filters.extend(new_filters);
 
         // Get decompressed output
-        let output = self.block_decoder.get_output(start_pos, unpacked_size as usize);
+        let mut output = self.block_decoder.get_output(start_pos, unpacked_size as usize);
 
         if output.len() != unpacked_size as usize {
             return Err(DecompressError::IncompleteData);
         }
+
+        // Apply any pending filters
+        if !self.filters.is_empty() {
+            self.apply_filters(&mut output);
+        }
+        
+        self.written_file_size += output.len() as u64;
 
         Ok(output)
     }

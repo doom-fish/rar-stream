@@ -410,12 +410,14 @@ impl Rar5BlockDecoder {
     }
 
     /// Decode a block of compressed data.
+    /// Returns a list of pending filters that need to be applied.
     pub fn decode_block(
         &mut self,
         bits: &mut BitDecoder,
         output_size: usize,
-    ) -> Result<(), DecompressError> {
+    ) -> Result<Vec<super::filter::UnpackFilter>, DecompressError> {
         let start_pos = self.window_pos;
+        let mut filters = Vec::new();
 
         // Read block header
         let new_tables = self.read_block_header(bits)?;
@@ -441,16 +443,19 @@ impl Rar5BlockDecoder {
                 // Literal byte
                 self.write_byte(sym as u8);
             } else if sym == 256 {
-                // End of block marker
-                break;
+                // Filter command
+                if let Some(filter) = self.read_filter(bits)? {
+                    filters.push(filter);
+                }
             } else if sym == 257 {
-                // Filter (not implemented - skip for now)
-                return Err(DecompressError::Io(std::io::Error::new(
-                    std::io::ErrorKind::InvalidData,
-                    "Filters not yet implemented",
-                )));
-            } else if sym < 258 + NUM_REPS {
-                // Use recent offset
+                // Repeat last length with last distance
+                if self.last_length != 0 && self.recent_offsets[0] != 0 {
+                    let length = self.last_length as usize;
+                    let offset = self.recent_offsets[0] as usize;
+                    self.copy_bytes(offset, length);
+                }
+            } else if sym < 262 {
+                // Use recent offset (sym 258-261 = offsets 0-3)
                 let rep_idx = sym - 258;
                 let offset = self.recent_offsets[rep_idx] as usize;
                 if offset == 0 {
@@ -473,8 +478,8 @@ impl Rar5BlockDecoder {
                 self.last_length = length as u32;
                 self.copy_bytes(offset, length);
             } else {
-                // New offset with length
-                let len_slot = sym - 258 - NUM_REPS;
+                // New offset with length (sym >= 262)
+                let len_slot = sym - 262;
                 let length = self.slot_to_length(len_slot as u32, bits)?;
                 let offset = self.decode_offset(bits)?;
                 
@@ -489,7 +494,57 @@ impl Rar5BlockDecoder {
             }
         }
 
-        Ok(())
+        Ok(filters)
+    }
+
+    /// Read filter data (variable length integer).
+    fn read_filter_data(&self, bits: &mut BitDecoder) -> u32 {
+        // Read byte count (2 bits + 1)
+        let v = bits.get_value_high32();
+        let byte_count = ((v >> 30) + 1) as usize;
+        bits.read_bits_big(2, v);
+        
+        // Read data bytes
+        let mut data: u32 = 0;
+        for i in 0..byte_count {
+            let v = bits.get_value_high32();
+            let byte_val = bits.read_bits_big(8, v);
+            data |= byte_val << (i * 8);
+        }
+        data
+    }
+
+    /// Read a filter command from the bitstream.
+    fn read_filter(&mut self, bits: &mut BitDecoder) -> Result<Option<super::filter::UnpackFilter>, DecompressError> {
+        use super::filter::{FilterType, UnpackFilter};
+        
+        let block_start = self.read_filter_data(bits) as usize;
+        let block_length = self.read_filter_data(bits) as usize;
+        
+        // Read filter type (3 bits)
+        let v = bits.get_value_high32();
+        let filter_type_bits = bits.read_bits_big(3, v) as u8;
+        
+        let filter_type = match FilterType::from_bits(filter_type_bits) {
+            Some(ft) => ft,
+            None => {
+                // Unknown filter type - skip it
+                return Ok(None);
+            }
+        };
+        
+        // Read channels for delta filter (5 bits + 1)
+        let channels = if filter_type == FilterType::Delta {
+            let v = bits.get_value_high32();
+            (bits.read_bits_big(5, v) + 1) as u8
+        } else {
+            0
+        };
+        
+        // Calculate actual block start relative to current window position
+        let actual_start = (block_start + self.window_pos) % self.dict_size;
+        
+        Ok(Some(UnpackFilter::new(filter_type, actual_start, block_length, channels)))
     }
 
     /// Decode a match length from length table.
