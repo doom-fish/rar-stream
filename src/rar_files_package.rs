@@ -4,7 +4,7 @@ use crate::error::{RarError, Result};
 use crate::file_media::{FileMedia, ReadInterval};
 use crate::inner_file::InnerFile;
 use crate::parsing::{
-    rar5::{Rar5ArchiveHeaderParser, Rar5FileHeaderParser},
+    rar5::{Rar5ArchiveHeaderParser, Rar5EncryptionHeaderParser, Rar5FileHeaderParser},
     ArchiveHeaderParser, FileHeaderParser, MarkerHeaderParser, RarVersion, TerminatorHeaderParser,
 };
 use crate::rar_file_chunk::RarFileChunk;
@@ -317,6 +317,67 @@ impl RarFilesPackage {
         Ok(chunks)
     }
 
+    /// Parse an encrypted header.
+    /// The format is: 16-byte IV + encrypted header data (padded to 16 bytes).
+    #[cfg(feature = "crypto")]
+    fn parse_encrypted_header<T, F>(
+        &self,
+        data: &[u8],
+        crypto: &crate::crypto::Rar5Crypto,
+        parser: F,
+    ) -> Result<(T, usize)>
+    where
+        F: FnOnce(&[u8]) -> Result<(T, usize)>,
+    {
+        use crate::parsing::rar5::VintReader;
+
+        if data.len() < 16 {
+            return Err(RarError::InvalidHeader);
+        }
+
+        // First 16 bytes are the IV
+        let mut iv = [0u8; 16];
+        iv.copy_from_slice(&data[..16]);
+
+        // Read enough encrypted data - we need to determine the header size
+        // RAR5 encrypted headers have their size after CRC and before type
+        // We'll decrypt a reasonable chunk and parse from there
+        let encrypted_start = 16;
+
+        // Read at least 256 bytes of encrypted data (should be enough for most headers)
+        let available = data.len().saturating_sub(encrypted_start);
+        if available < 16 {
+            return Err(RarError::InvalidHeader);
+        }
+
+        // Round up to 16-byte boundary
+        let decrypt_len = (available.min(512) / 16) * 16;
+        if decrypt_len == 0 {
+            return Err(RarError::InvalidHeader);
+        }
+
+        let mut decrypted = data[encrypted_start..encrypted_start + decrypt_len].to_vec();
+        crypto
+            .decrypt(&iv, &mut decrypted)
+            .map_err(|e| RarError::DecryptionFailed(e.to_string()))?;
+
+        // Parse the decrypted header
+        let (result, consumed) = parser(&decrypted)?;
+
+        // Calculate actual header size including CRC, size vint, and content
+        // We need to read the header size from decrypted data
+        let mut reader = VintReader::new(&decrypted[4..]); // Skip CRC32
+        let header_size = reader.read().ok_or(RarError::InvalidHeader)?;
+        let size_vint_len = reader.position();
+
+        // Total encrypted size = CRC(4) + size_vint + header_content, rounded up to 16
+        let plaintext_size = 4 + size_vint_len + header_size as usize;
+        let encrypted_size = ((plaintext_size + 15) / 16) * 16;
+
+        // Total consumed = IV(16) + encrypted_size
+        Ok((result, 16 + encrypted_size))
+    }
+
     /// Parse a RAR5 format file.
     async fn parse_rar5_file(
         &self,
@@ -326,7 +387,7 @@ impl RarFilesPackage {
         let mut chunks = Vec::new();
         let mut offset = 8u64; // RAR5 signature is 8 bytes
 
-        // Read archive header (variable size, read enough for typical header)
+        // Read first header to check for encryption header
         let header_buf = rar_file
             .read_range(ReadInterval {
                 start: offset,
@@ -334,7 +395,54 @@ impl RarFilesPackage {
             })
             .await?;
 
+        // Check if headers are encrypted
+        #[cfg(feature = "crypto")]
+        let header_crypto: Option<crate::crypto::Rar5Crypto> =
+            if Rar5EncryptionHeaderParser::is_encryption_header(&header_buf) {
+                let (enc_header, consumed) = Rar5EncryptionHeaderParser::parse(&header_buf)?;
+                offset += consumed as u64;
+
+                // Need password to decrypt headers
+                let password = opts
+                    .password
+                    .as_ref()
+                    .ok_or(RarError::PasswordRequired)?;
+
+                Some(crate::crypto::Rar5Crypto::derive_key(
+                    password,
+                    &enc_header.salt,
+                    enc_header.lg2_count,
+                ))
+            } else {
+                None
+            };
+
+        #[cfg(not(feature = "crypto"))]
+        if Rar5EncryptionHeaderParser::is_encryption_header(&header_buf) {
+            return Err(RarError::EncryptedArchive);
+        }
+
+        // Read archive header (which may be encrypted)
+        #[cfg(feature = "crypto")]
+        let (archive_header, consumed) = if header_crypto.is_some() {
+            // Read IV (16 bytes) + encrypted header
+            let enc_buf = rar_file
+                .read_range(ReadInterval {
+                    start: offset,
+                    end: (offset + 512 - 1).min(rar_file.length() - 1),
+                })
+                .await?;
+
+            self.parse_encrypted_header(&enc_buf, header_crypto.as_ref().unwrap(), |data| {
+                Rar5ArchiveHeaderParser::parse(data)
+            })?
+        } else {
+            Rar5ArchiveHeaderParser::parse(&header_buf)?
+        };
+
+        #[cfg(not(feature = "crypto"))]
         let (archive_header, consumed) = Rar5ArchiveHeaderParser::parse(&header_buf)?;
+
         let is_solid = archive_header.archive_flags.is_solid;
         offset += consumed as u64;
 
@@ -358,7 +466,23 @@ impl RarFilesPackage {
                 })
                 .await?;
 
-            // Try to parse as file header
+            // Try to parse as file header (may be encrypted)
+            #[cfg(feature = "crypto")]
+            let (file_header, header_consumed) = if header_crypto.is_some() {
+                match self.parse_encrypted_header(&header_buf, header_crypto.as_ref().unwrap(), |data| {
+                    Rar5FileHeaderParser::parse(data)
+                }) {
+                    Ok(h) => h,
+                    Err(_) => break,
+                }
+            } else {
+                match Rar5FileHeaderParser::parse(&header_buf) {
+                    Ok(h) => h,
+                    Err(_) => break,
+                }
+            };
+
+            #[cfg(not(feature = "crypto"))]
             let (file_header, header_consumed) = match Rar5FileHeaderParser::parse(&header_buf) {
                 Ok(h) => h,
                 Err(_) => break,
@@ -790,5 +914,72 @@ mod tests {
             Err(e) => panic!("Expected PasswordRequired error, got: {:?}", e),
             Ok(_) => panic!("Expected error but got success"),
         }
+    }
+
+    #[tokio::test]
+    #[cfg(all(feature = "async", feature = "crypto"))]
+    async fn test_parse_rar5_encrypted_headers() {
+        // Test parsing an archive with encrypted headers (created with rar -hp)
+        let fixture = "__fixtures__/encrypted/rar5-encrypted-headers.rar";
+
+        if !std::path::Path::new(fixture).exists() {
+            eprintln!("Skipping test - encrypted headers fixture not found");
+            return;
+        }
+
+        let file: Arc<dyn FileMedia> = Arc::new(LocalFileMedia::new(fixture).unwrap());
+        let package = RarFilesPackage::new(vec![file]);
+
+        // First check archive info - should show encrypted headers
+        let info = package.get_archive_info().await.unwrap();
+        assert!(info.has_encrypted_headers, "should have encrypted headers");
+        assert_eq!(info.version, RarVersion::Rar5);
+
+        // Parsing without password should fail
+        let result = package.parse(ParseOptions::default()).await;
+        assert!(
+            matches!(result, Err(RarError::PasswordRequired)),
+            "should require password for encrypted headers, got {:?}",
+            result
+        );
+
+        // Parsing with password should succeed
+        let opts = ParseOptions {
+            password: Some("testpass".to_string()),
+            ..Default::default()
+        };
+
+        let parsed = package.parse(opts).await.unwrap();
+        assert_eq!(parsed.len(), 1, "should have 1 inner file");
+        assert_eq!(parsed[0].name, "testfile.txt");
+
+        // File content is also encrypted, so read should work
+        let content = parsed[0].read_decompressed().await.unwrap();
+        let text = std::str::from_utf8(&content).expect("should be valid UTF-8");
+        assert!(
+            text.starts_with("Hello, encrypted world!"),
+            "content was: {:?}",
+            text
+        );
+    }
+
+    #[tokio::test]
+    #[cfg(all(feature = "async", feature = "crypto"))]
+    async fn test_get_archive_info_encrypted_headers() {
+        // Test that get_archive_info detects encrypted headers
+        let fixture = "__fixtures__/encrypted/rar5-encrypted-headers.rar";
+
+        if !std::path::Path::new(fixture).exists() {
+            eprintln!("Skipping test - encrypted headers fixture not found");
+            return;
+        }
+
+        let file: Arc<dyn FileMedia> = Arc::new(LocalFileMedia::new(fixture).unwrap());
+        let package = RarFilesPackage::new(vec![file]);
+
+        let info = package.get_archive_info().await.unwrap();
+        assert!(info.has_encrypted_headers);
+        assert_eq!(info.version, RarVersion::Rar5);
+        // Other flags can't be read when headers are encrypted
     }
 }
