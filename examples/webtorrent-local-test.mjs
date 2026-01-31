@@ -4,6 +4,12 @@
  * 
  * Creates a torrent from a local RAR file and tests the streaming flow.
  * This is a self-contained test that doesn't require internet access.
+ * 
+ * How it works without trackers:
+ * - Two WebTorrent clients run in the same process
+ * - They discover each other via DHT (Distributed Hash Table)
+ * - DHT is enabled by default in WebTorrent
+ * - announceList: [] just disables HTTP/UDP trackers
  */
 
 import WebTorrent from 'webtorrent';
@@ -17,6 +23,7 @@ const rarPath = path.resolve(__dirname, '../__fixtures__/single/single.rar');
 console.log('=== WebTorrent + rar-stream Local Test ===\n');
 
 // Create two WebTorrent clients - one to seed, one to download
+// They find each other via DHT (no tracker needed)
 const seeder = new WebTorrent();
 const leecher = new WebTorrent();
 
