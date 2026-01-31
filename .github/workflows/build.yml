@@ -95,7 +95,6 @@ jobs:
         with:
           node-version: 20
           cache: 'npm'
-          registry-url: 'https://registry.npmjs.org'
       
       - name: Install dependencies
         run: npm ci
@@ -112,10 +111,11 @@ jobs:
           done
           ls -la *.node
       
+      - name: Update npm
+        run: npm install -g npm@latest
+      
       - name: Publish to npm
-        run: npm publish --access public --provenance
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: npm publish --access public
 
   build-wasm:
     name: Build WASM
