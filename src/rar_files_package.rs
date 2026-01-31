@@ -52,6 +52,8 @@ struct ParsedChunk {
     chunk_size: u64,
     method: u8,
     rar_version: RarVersion,
+    /// Whether this file is part of a solid archive
+    is_solid: bool,
     /// Encryption info (if encrypted)
     #[cfg(feature = "crypto")]
     encryption: Option<FileEncryptionInfo>,
@@ -136,6 +138,7 @@ impl RarFilesPackage {
             })
             .await?;
         let archive = ArchiveHeaderParser::parse(&archive_buf)?;
+        let is_solid = archive.has_solid_attributes;
         offset += archive.size as u64;
 
         let mut file_count = 0usize;
@@ -204,6 +207,7 @@ impl RarFilesPackage {
                     chunk_size,
                     method: file_header.method,
                     rar_version: RarVersion::Rar4,
+                    is_solid,
                     #[cfg(feature = "crypto")]
                     encryption,
                 });
@@ -241,7 +245,8 @@ impl RarFilesPackage {
             })
             .await?;
 
-        let (_archive_header, consumed) = Rar5ArchiveHeaderParser::parse(&header_buf)?;
+        let (archive_header, consumed) = Rar5ArchiveHeaderParser::parse(&header_buf)?;
+        let is_solid = archive_header.archive_flags.is_solid;
         offset += consumed as u64;
 
         let mut file_count = 0usize;
@@ -312,6 +317,7 @@ impl RarFilesPackage {
                     chunk_size,
                     method,
                     rar_version: RarVersion::Rar5,
+                    is_solid,
                     #[cfg(feature = "crypto")]
                     encryption,
                 });
@@ -358,6 +364,7 @@ impl RarFilesPackage {
             let chunk_end = last.chunk.end_offset;
             let name = last.name.clone();
             let rar_version = last.rar_version;
+            let is_solid = last.is_solid;
 
             all_parsed.push(chunks);
 
@@ -378,6 +385,7 @@ impl RarFilesPackage {
                         chunk_size,
                         method: 0x30, // Continue chunks are always raw data
                         rar_version,
+                        is_solid,
                         #[cfg(feature = "crypto")]
                         encryption: None, // Continuation chunks don't have encryption headers
                     }]);
@@ -397,10 +405,11 @@ impl RarFilesPackage {
             u8,
             u64,
             RarVersion,
+            bool, // is_solid
             Option<FileEncryptionInfo>,
         );
         #[cfg(not(feature = "crypto"))]
-        type GroupValue = (Vec<RarFileChunk>, u8, u64, RarVersion);
+        type GroupValue = (Vec<RarFileChunk>, u8, u64, RarVersion, bool);
 
         let mut grouped: HashMap<String, GroupValue> = HashMap::new();
         for chunk in all_chunks {
@@ -411,6 +420,7 @@ impl RarFilesPackage {
                     chunk.method,
                     chunk.unpacked_size,
                     chunk.rar_version,
+                    chunk.is_solid,
                     chunk.encryption,
                 )
             });
@@ -421,6 +431,7 @@ impl RarFilesPackage {
                     chunk.method,
                     chunk.unpacked_size,
                     chunk.rar_version,
+                    chunk.is_solid,
                 )
             });
             entry.0.push(chunk.chunk);
@@ -435,7 +446,7 @@ impl RarFilesPackage {
             .map(|(name, value)| {
                 #[cfg(feature = "crypto")]
                 {
-                    let (chunks, method, unpacked_size, rar_version, encryption) = value;
+                    let (chunks, method, unpacked_size, rar_version, is_solid, encryption) = value;
                     let enc_info = encryption.map(|e| match e {
                         FileEncryptionInfo::Rar5 {
                             salt,
@@ -450,7 +461,7 @@ impl RarFilesPackage {
                             crate::inner_file::EncryptionInfo::Rar4 { salt }
                         }
                     });
-                    InnerFile::new_encrypted(
+                    InnerFile::new_encrypted_with_solid(
                         name,
                         chunks,
                         method,
@@ -458,12 +469,13 @@ impl RarFilesPackage {
                         rar_version,
                         enc_info,
                         password.clone(),
+                        is_solid,
                     )
                 }
                 #[cfg(not(feature = "crypto"))]
                 {
-                    let (chunks, method, unpacked_size, rar_version) = value;
-                    InnerFile::new(name, chunks, method, unpacked_size, rar_version)
+                    let (chunks, method, unpacked_size, rar_version, is_solid) = value;
+                    InnerFile::new_with_solid(name, chunks, method, unpacked_size, rar_version, is_solid)
                 }
             })
             .collect();

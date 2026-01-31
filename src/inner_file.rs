@@ -55,6 +55,8 @@ pub struct InnerFile {
     packed_size: u64,
     /// RAR version (4 or 5)
     rar_version: RarVersion,
+    /// Whether this file is part of a solid archive
+    is_solid: bool,
     /// Cached decompressed data (for compressed files) - Arc to avoid cloning
     decompressed_cache: Mutex<Option<Arc<Vec<u8>>>>,
     /// Encryption info (if encrypted)
@@ -72,6 +74,18 @@ impl InnerFile {
         method: u8,
         unpacked_size: u64,
         rar_version: RarVersion,
+    ) -> Self {
+        Self::new_with_solid(name, chunks, method, unpacked_size, rar_version, false)
+    }
+
+    /// Create an InnerFile with solid archive flag.
+    pub fn new_with_solid(
+        name: String,
+        chunks: Vec<RarFileChunk>,
+        method: u8,
+        unpacked_size: u64,
+        rar_version: RarVersion,
+        is_solid: bool,
     ) -> Self {
         let packed_size: u64 = chunks.iter().map(|c| c.length()).sum();
         let chunk_map = Self::calculate_chunk_map(&chunks);
@@ -92,6 +106,7 @@ impl InnerFile {
             method,
             packed_size,
             rar_version,
+            is_solid,
             decompressed_cache: Mutex::new(None),
             #[cfg(feature = "crypto")]
             encryption: None,
@@ -111,6 +126,31 @@ impl InnerFile {
         encryption: Option<EncryptionInfo>,
         password: Option<String>,
     ) -> Self {
+        Self::new_encrypted_with_solid(
+            name,
+            chunks,
+            method,
+            unpacked_size,
+            rar_version,
+            encryption,
+            password,
+            false,
+        )
+    }
+
+    /// Create an InnerFile with encryption info and solid flag.
+    #[cfg(feature = "crypto")]
+    #[allow(clippy::too_many_arguments)]
+    pub fn new_encrypted_with_solid(
+        name: String,
+        chunks: Vec<RarFileChunk>,
+        method: u8,
+        unpacked_size: u64,
+        rar_version: RarVersion,
+        encryption: Option<EncryptionInfo>,
+        password: Option<String>,
+        is_solid: bool,
+    ) -> Self {
         let packed_size: u64 = chunks.iter().map(|c| c.length()).sum();
         let chunk_map = Self::calculate_chunk_map(&chunks);
 
@@ -128,6 +168,7 @@ impl InnerFile {
             method,
             packed_size,
             rar_version,
+            is_solid,
             decompressed_cache: Mutex::new(None),
             encryption,
             password,
@@ -138,6 +179,11 @@ impl InnerFile {
     #[cfg(feature = "crypto")]
     pub fn is_encrypted(&self) -> bool {
         self.encryption.is_some()
+    }
+
+    /// Check if this file is part of a solid archive.
+    pub fn is_solid(&self) -> bool {
+        self.is_solid
     }
 
     /// Returns true if this file is compressed.
@@ -320,8 +366,7 @@ impl InnerFile {
             RarVersion::Rar5 => {
                 let mut decoder = Rar5Decoder::new();
                 // For RAR5: method is stored directly, not offset by 0x30
-                // is_solid = false for now (TODO: track from archive flags)
-                decoder.decompress(&packed, self.length, self.method, false)?
+                decoder.decompress(&packed, self.length, self.method, self.is_solid)?
             }
         };
         let decompressed = Arc::new(decompressed);
