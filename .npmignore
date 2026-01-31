@@ -1,0 +1,28 @@
+# Source files (not needed in published package)
+src/
+target/
+__fixtures__/
+test-browser/
+test-results/
+
+# Config files
+Cargo.toml
+Cargo.lock
+build.rs
+cliff.toml
+release-plz.toml
+tsconfig.json
+vitest.config.ts
+playwright.config.ts
+eslint.config.mjs
+
+# Tests
+*.test.ts
+test-*.mjs
+
+# CI/CD
+.github/
+
+# Dev scripts
+scripts/
+example.mjs

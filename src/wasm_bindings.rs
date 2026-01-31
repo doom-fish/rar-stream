@@ -2,6 +2,8 @@
 //!
 //! Provides browser-compatible API for RAR parsing and decompression.
 
+#![allow(missing_docs)]
+
 use wasm_bindgen::prelude::*;
 
 use crate::decompress::Rar29Decoder;

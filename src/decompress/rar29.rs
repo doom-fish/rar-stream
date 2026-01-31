@@ -162,9 +162,9 @@ impl Rar29Decoder {
                     #[cfg(test)]
                     println!("PPMd initialized: esc_char={}", esc_char);
                 }
-                Err(e) => {
+                Err(_e) => {
                     #[cfg(test)]
-                    println!("PPMd init failed: {}", e);
+                    println!("PPMd init failed: {}", _e);
                     return Err(DecompressError::UnsupportedMethod(0x33));
                 }
             }
@@ -521,9 +521,9 @@ impl Rar29Decoder {
         
         while self.lzss.total_written() < max_size && !reader.is_eof() {
             let ch = ppm.decode_char(coder, reader)
-                .map_err(|e| {
+                .map_err(|_e| {
                     #[cfg(test)]
-                    eprintln!("PPM decode_char failed at pos {}: {}", self.lzss.total_written(), e);
+                    eprintln!("PPM decode_char failed at pos {}: {}", self.lzss.total_written(), _e);
                     DecompressError::InvalidHuffmanCode
                 })?;
             

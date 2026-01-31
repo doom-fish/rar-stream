@@ -2,6 +2,8 @@
 //!
 //! Exposes Rust types to Node.js with the same API as the original rar-stream.
 
+#![allow(missing_docs)]
+
 use napi::bindgen_prelude::*;
 use napi_derive::napi;
 use std::sync::Arc;
@@ -115,6 +117,8 @@ impl InnerFile {
 }
 
 /// FileMedia wrapper for NAPI - wraps any FileMedia implementation.
+/// Currently unused but kept for potential future JS FileMedia implementations.
+#[allow(dead_code)]
 struct JsFileMediaWrapper {
     name: String,
     length: u64,

@@ -44,7 +44,8 @@ napi-build = "2"
 # Strict linting configuration
 [lints.rust]
 unsafe_code = "forbid"
-missing_docs = "warn"
+# missing_docs disabled - NAPI/WASM bindings generate many internal types
+missing_docs = "allow"
 
 [lints.clippy]
 all = "warn"
