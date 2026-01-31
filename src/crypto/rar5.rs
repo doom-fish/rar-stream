@@ -173,7 +173,11 @@ impl Rar5Crypto {
     }
 
     /// Decrypt data in-place using AES-256-CBC.
-    pub fn decrypt(&self, iv: &[u8; SIZE_INITV], data: &mut [u8]) -> Result<(), super::CryptoError> {
+    pub fn decrypt(
+        &self,
+        iv: &[u8; SIZE_INITV],
+        data: &mut [u8],
+    ) -> Result<(), super::CryptoError> {
         // Data must be a multiple of block size
         if data.len() % CRYPT_BLOCK_SIZE != 0 {
             return Err(super::CryptoError::DecryptionFailed);
@@ -228,7 +232,7 @@ mod tests {
         data[0] = 0; // version
         data[1] = 0; // flags
         data[2] = 15; // lg2_count
-        // salt and iv are zeros
+                      // salt and iv are zeros
 
         let info = Rar5EncryptionInfo::parse(&data).unwrap();
         assert_eq!(info.version, 0);
@@ -244,7 +248,7 @@ mod tests {
         data[0] = 0; // version
         data[1] = 1; // flags - password check present
         data[2] = 15; // lg2_count
-        // Fill check value
+                      // Fill check value
         for i in 35..43 {
             data[i] = i as u8;
         }
@@ -282,12 +286,12 @@ mod tests {
 
                 if file_header.is_encrypted() {
                     let enc_data = file_header.encryption_info().unwrap();
-                    
+
                     let enc_info = Rar5EncryptionInfo::parse(enc_data).unwrap();
 
-
                     // Derive key with correct password
-                    let crypto = Rar5Crypto::derive_key("testpass", &enc_info.salt, enc_info.lg2_count);
+                    let crypto =
+                        Rar5Crypto::derive_key("testpass", &enc_info.salt, enc_info.lg2_count);
 
                     // Verify password if check value is present
                     if let Some(ref check) = enc_info.psw_check {
@@ -305,7 +309,9 @@ mod tests {
                         let encrypted_data = &data[data_start..data_end];
 
                         // Decrypt the data
-                        let decrypted = crypto.decrypt_to_vec(&enc_info.init_v, encrypted_data).unwrap();
+                        let decrypted = crypto
+                            .decrypt_to_vec(&enc_info.init_v, encrypted_data)
+                            .unwrap();
 
                         // The decrypted data should be compressed - we can't verify the content
                         // directly without decompressing, but we can verify decryption succeeded
@@ -349,7 +355,10 @@ mod tests {
                 let (file_header, consumed) = Rar5FileHeaderParser::parse(&data[pos..]).unwrap();
 
                 assert!(file_header.is_encrypted());
-                assert!(file_header.is_stored(), "File should be stored (uncompressed)");
+                assert!(
+                    file_header.is_stored(),
+                    "File should be stored (uncompressed)"
+                );
 
                 let enc_data = file_header.encryption_info().unwrap();
                 let enc_info = Rar5EncryptionInfo::parse(enc_data).unwrap();
@@ -358,7 +367,10 @@ mod tests {
 
                 // Verify password
                 if let Some(ref check) = enc_info.psw_check {
-                    assert!(crypto.verify_password(check), "Password verification failed");
+                    assert!(
+                        crypto.verify_password(check),
+                        "Password verification failed"
+                    );
                 }
 
                 // Decrypt the file data
@@ -366,7 +378,9 @@ mod tests {
                 let data_end = data_start + file_header.packed_size as usize;
                 let encrypted_data = &data[data_start..data_end];
 
-                let decrypted = crypto.decrypt_to_vec(&enc_info.init_v, encrypted_data).unwrap();
+                let decrypted = crypto
+                    .decrypt_to_vec(&enc_info.init_v, encrypted_data)
+                    .unwrap();
 
                 // For stored files, decrypted data IS the original content (with padding)
                 // The original file is "Hello, encrypted world!\n" (24 bytes)

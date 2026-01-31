@@ -195,7 +195,10 @@ impl fmt::Display for RarError {
             }
             #[cfg(feature = "crypto")]
             Self::EncryptedHeaders => {
-                write!(f, "Archive has encrypted headers, password required to list files")
+                write!(
+                    f,
+                    "Archive has encrypted headers, password required to list files"
+                )
             }
         }
     }

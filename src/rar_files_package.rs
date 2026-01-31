@@ -414,7 +414,9 @@ impl RarFilesPackage {
                 // Parse encryption info if present (RAR4)
                 #[cfg(feature = "crypto")]
                 let encryption = if file_header.is_encrypted {
-                    file_header.salt.map(|salt| FileEncryptionInfo::Rar4 { salt })
+                    file_header
+                        .salt
+                        .map(|salt| FileEncryptionInfo::Rar4 { salt })
                 } else {
                     None
                 };
@@ -534,10 +536,7 @@ impl RarFilesPackage {
                 offset += consumed as u64;
 
                 // Need password to decrypt headers
-                let password = opts
-                    .password
-                    .as_ref()
-                    .ok_or(RarError::PasswordRequired)?;
+                let password = opts.password.as_ref().ok_or(RarError::PasswordRequired)?;
 
                 Some(crate::crypto::Rar5Crypto::derive_key(
                     password,
@@ -641,13 +640,13 @@ impl RarFilesPackage {
                 #[cfg(feature = "crypto")]
                 let encryption = if file_header.is_encrypted() {
                     file_header.encryption_info().and_then(|data| {
-                        crate::crypto::Rar5EncryptionInfo::parse(data).ok().map(|info| {
-                            FileEncryptionInfo::Rar5 {
+                        crate::crypto::Rar5EncryptionInfo::parse(data)
+                            .ok()
+                            .map(|info| FileEncryptionInfo::Rar5 {
                                 salt: info.salt,
                                 init_v: info.init_v,
                                 lg2_count: info.lg2_count,
-                            }
-                        })
+                            })
                     })
                 } else {
                     None
@@ -819,7 +818,14 @@ impl RarFilesPackage {
                 #[cfg(not(feature = "crypto"))]
                 {
                     let (chunks, method, unpacked_size, rar_version, is_solid) = value;
-                    InnerFile::new_with_solid(name, chunks, method, unpacked_size, rar_version, is_solid)
+                    InnerFile::new_with_solid(
+                        name,
+                        chunks,
+                        method,
+                        unpacked_size,
+                        rar_version,
+                        is_solid,
+                    )
                 }
             })
             .collect();

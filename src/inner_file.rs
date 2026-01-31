@@ -119,10 +119,10 @@ pub enum EncryptionInfo {
 pub struct InnerFile {
     /// Full path of the file inside the archive.
     pub name: String,
-    
+
     /// Uncompressed size in bytes.
     pub length: u64,
-    
+
     chunks: Vec<RarFileChunk>,
     /// Sorted by start offset for binary search
     chunk_map: Vec<ChunkMapEntry>,

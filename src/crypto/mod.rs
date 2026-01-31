@@ -105,7 +105,9 @@ impl std::fmt::Display for CryptoError {
             CryptoError::WrongPassword => write!(f, "Wrong password"),
             CryptoError::InvalidHeader => write!(f, "Invalid encryption header"),
             CryptoError::DecryptionFailed => write!(f, "Decryption failed"),
-            CryptoError::UnsupportedVersion(v) => write!(f, "Unsupported encryption version: {}", v),
+            CryptoError::UnsupportedVersion(v) => {
+                write!(f, "Unsupported encryption version: {}", v)
+            }
         }
     }
 }
