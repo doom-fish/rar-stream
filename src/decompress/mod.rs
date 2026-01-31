@@ -1,32 +1,83 @@
 //! RAR decompression algorithms.
 //!
-//! This module provides decompression support for RAR archives.
-//! Implements LZSS + Huffman, PPMd, and various filters.
+//! This module provides decompression support for RAR archives, implementing
+//! the LZSS + Huffman and PPMd algorithms used by RAR 2.9-5.x.
 //!
 //! ## Decoders
 //!
-//! - [`Rar29Decoder`] - RAR 2.9/3.x/4.x decompression (LZSS, PPMd)
-//! - [`Rar5Decoder`] - RAR 5.0+ decompression (LZSS with filters)
+//! | Decoder | Format | Algorithms |
+//! |---------|--------|------------|
+//! | [`Rar29Decoder`] | RAR 2.9-4.x | LZSS + Huffman, PPMd, VM filters |
+//! | [`Rar5Decoder`] | RAR 5.0+ | LZSS + Huffman, byte filters |
+//!
+//! ## Compression Methods
+//!
+//! RAR uses a single byte to identify the compression method:
+//!
+//! | Value | Name | Description |
+//! |-------|------|-------------|
+//! | `0x30` | Store | No compression (data is stored as-is) |
+//! | `0x31` | Fastest | LZSS with minimal dictionary |
+//! | `0x32` | Fast | LZSS with small dictionary |
+//! | `0x33` | Normal | LZSS with medium dictionary (default) |
+//! | `0x34` | Good | LZSS with large dictionary |
+//! | `0x35` | Best | LZSS with maximum dictionary |
+//!
+//! ## Filter Support
+//!
+//! RAR applies preprocessing filters before compression to improve ratios:
+//!
+//! | Filter | RAR4 | RAR5 | Description |
+//! |--------|------|------|-------------|
+//! | Delta | ✅ | ✅ | Byte delta encoding (audio, images) |
+//! | E8/E8E9 | ✅ | ✅ | x86 CALL/JMP instruction preprocessing |
+//! | ARM | — | ✅ | ARM branch instruction preprocessing |
+//! | Audio | ✅ | — | Multi-channel audio predictor |
+//! | RGB | ✅ | — | Predictive color filter (images) |
 //!
 //! ## Example
 //!
 //! ```rust
 //! use rar_stream::Rar29Decoder;
 //!
+//! // Create a new decoder (reusable for multiple files)
 //! let mut decoder = Rar29Decoder::new();
+//!
+//! // Decompress data (compressed_data from file header's data area)
 //! // let decompressed = decoder.decompress(&compressed_data, expected_size)?;
 //! ```
 //!
-//! ## Compression Methods
+//! ## Architecture
 //!
-//! | Method | Value | Description |
-//! |--------|-------|-------------|
-//! | Store | 0x30 | No compression |
-//! | Fastest | 0x31 | LZSS minimal |
-//! | Fast | 0x32 | LZSS fast |
-//! | Normal | 0x33 | LZSS normal |
-//! | Good | 0x34 | LZSS good |
-//! | Best | 0x35 | LZSS best |
+//! The decompression pipeline:
+//!
+//! ```text
+//! Compressed Data
+//!       ↓
+//! ┌─────────────┐
+//! │ BitReader   │ ← Bit-level access to compressed stream
+//! └─────────────┘
+//!       ↓
+//! ┌─────────────┐
+//! │ Huffman     │ ← Decode variable-length symbols
+//! └─────────────┘
+//!       ↓
+//! ┌─────────────┐
+//! │ LZSS/PPMd   │ ← Expand literals and back-references
+//! └─────────────┘
+//!       ↓
+//! ┌─────────────┐
+//! │ Filters     │ ← Apply inverse preprocessing (E8, Delta, etc.)
+//! └─────────────┘
+//!       ↓
+//! Decompressed Data
+//! ```
+//!
+//! ## Performance Notes
+//!
+//! - Decoders are reusable and maintain internal state
+//! - Window size is 4MB for RAR4, up to 4GB for RAR5
+//! - PPMd uses significant memory (~100MB for order-8 model)
 
 // Work-in-progress: Some filters not fully integrated yet
 #![allow(dead_code)]

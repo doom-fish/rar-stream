@@ -1,7 +1,77 @@
 //! Multi-volume RAR archive parser.
 //!
 //! This module provides the main entry point for parsing RAR archives.
-//! Use [`RarFilesPackage`] to open and parse RAR archives.
+//! The [`RarFilesPackage`] struct handles single and multi-volume archives,
+//! automatically stitching files that span multiple volumes.
+//!
+//! ## Quick Start
+//!
+//! ```rust,ignore
+//! use rar_stream::{RarFilesPackage, ParseOptions, LocalFileMedia, FileMedia};
+//! use std::sync::Arc;
+//!
+//! // Open a single RAR file
+//! let file: Arc<dyn FileMedia> = Arc::new(LocalFileMedia::new("archive.rar")?);
+//! let package = RarFilesPackage::new(vec![file]);
+//!
+//! // Parse with default options
+//! let files = package.parse(ParseOptions::default()).await?;
+//!
+//! // Read file content
+//! let content = files[0].read_to_end().await?;
+//! ```
+//!
+//! ## Multi-Volume Archives
+//!
+//! For split archives, provide all volumes in order:
+//!
+//! ```rust,ignore
+//! let volumes: Vec<Arc<dyn FileMedia>> = vec![
+//!     Arc::new(LocalFileMedia::new("archive.part1.rar")?),
+//!     Arc::new(LocalFileMedia::new("archive.part2.rar")?),
+//!     Arc::new(LocalFileMedia::new("archive.part3.rar")?),
+//! ];
+//! let package = RarFilesPackage::new(volumes);
+//! let files = package.parse(ParseOptions::default()).await?;
+//! ```
+//!
+//! ## Filtering Files
+//!
+//! Use [`ParseOptions`] to filter or limit results:
+//!
+//! ```rust,ignore
+//! let opts = ParseOptions {
+//!     // Only include .txt files
+//!     filter: Some(Box::new(|name, _index| name.ends_with(".txt"))),
+//!     // Limit to first 10 matches
+//!     max_files: Some(10),
+//!     ..Default::default()
+//! };
+//! let txt_files = package.parse(opts).await?;
+//! ```
+//!
+//! ## Encrypted Archives
+//!
+//! With the `crypto` feature enabled:
+//!
+//! ```rust,ignore
+//! let opts = ParseOptions {
+//!     password: Some("secret".to_string()),
+//!     ..Default::default()
+//! };
+//! let files = package.parse(opts).await?;
+//! ```
+//!
+//! ## Archive Information
+//!
+//! Get metadata about the archive without parsing all files:
+//!
+//! ```rust,ignore
+//! let info = package.get_archive_info().await?;
+//! println!("Format: {:?}", info.version);
+//! println!("Solid: {}", info.is_solid);
+//! println!("Has recovery: {}", info.has_recovery_record);
+//! ```
 
 use crate::error::{RarError, Result};
 use crate::file_media::{FileMedia, ReadInterval};
@@ -17,30 +87,85 @@ use std::sync::Arc;
 /// Archive metadata returned by [`RarFilesPackage::get_archive_info`].
 ///
 /// Contains information about the archive format, flags, and capabilities.
+/// All fields are read from the archive header without decompressing any files.
+///
+/// # Example
+///
+/// ```rust,ignore
+/// let info = package.get_archive_info().await?;
+/// if info.has_encrypted_headers {
+///     println!("Archive requires password to list files");
+/// }
+/// if info.is_solid {
+///     println!("Solid archive: files must be extracted in order");
+/// }
+/// ```
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct ArchiveInfo {
     /// Whether the archive has a recovery record for error correction.
+    ///
+    /// Recovery records allow repairing damaged archives using Reed-Solomon codes.
     pub has_recovery_record: bool,
-    /// Whether the archive uses solid compression (files depend on previous files).
+
+    /// Whether the archive uses solid compression.
+    ///
+    /// In solid archives, files are compressed together as a single stream.
+    /// This improves compression ratio but requires extracting files in order.
     pub is_solid: bool,
+
     /// Whether the archive is locked (cannot be modified).
+    ///
+    /// Locked archives cannot have files added, deleted, or modified.
     pub is_locked: bool,
+
     /// Whether the archive is split across multiple volumes.
+    ///
+    /// Multi-volume archives have files that span multiple `.rar`/`.rXX` files.
     pub is_multivolume: bool,
+
     /// Whether file headers are encrypted (requires password to list files).
+    ///
+    /// Only RAR5 archives created with `rar -hp` have encrypted headers.
+    /// Without the password, even file names cannot be read.
     pub has_encrypted_headers: bool,
+
     /// RAR format version (RAR4 or RAR5).
     pub version: RarVersion,
 }
 
-/// Filter options for parsing.
+/// Options for parsing RAR archives.
+///
+/// Use this struct to customize parsing behavior, including filtering,
+/// limiting results, and providing passwords for encrypted archives.
+///
+/// # Example
+///
+/// ```rust,ignore
+/// let opts = ParseOptions {
+///     filter: Some(Box::new(|name, _| name.ends_with(".mp4"))),
+///     max_files: Some(100),
+///     #[cfg(feature = "crypto")]
+///     password: Some("secret".to_string()),
+/// };
+/// ```
 #[derive(Default)]
 pub struct ParseOptions {
-    /// Filter function: return true to include a file.
+    /// Filter function: return `true` to include a file.
+    ///
+    /// The function receives the file name and its index (0-based).
+    /// Only files where the filter returns `true` are included in results.
     pub filter: Option<Box<dyn Fn(&str, usize) -> bool + Send + Sync>>,
+
     /// Maximum number of files to return.
+    ///
+    /// Parsing stops after this many files are found. Useful for previewing
+    /// large archives without parsing everything.
     pub max_files: Option<usize>,
+
     /// Password for encrypted archives.
+    ///
+    /// Required for archives with encrypted file data or headers.
+    /// If the password is wrong, [`RarError::DecryptionFailed`] is returned.
     #[cfg(feature = "crypto")]
     pub password: Option<String>,
 }

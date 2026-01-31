@@ -1,7 +1,48 @@
-//! InnerFile - a logical file inside a RAR archive.
+//! Logical files inside RAR archives.
 //!
-//! An inner file may span multiple RarFileChunks across multiple volumes.
-//! Optimized for streaming and seeking with binary search chunk lookup.
+//! This module provides the [`InnerFile`] type which represents a file inside
+//! a RAR archive. An inner file may span multiple chunks across multiple volumes
+//! and is optimized for streaming with fast seeking via binary search.
+//!
+//! ## Reading Files
+//!
+//! ```rust,ignore
+//! // Read entire file into memory
+//! let content = file.read_to_end().await?;
+//!
+//! // Read a specific byte range (efficient for large files)
+//! let chunk = file.read_range(0, 1024).await?;
+//!
+//! // Read decompressed content (for compressed files)
+//! let data = file.read_decompressed().await?;
+//! ```
+//!
+//! ## File Properties
+//!
+//! ```rust,ignore
+//! println!("Name: {}", file.name);
+//! println!("Size: {} bytes", file.length);
+//! println!("Encrypted: {}", file.is_encrypted());
+//! println!("Compressed: {}", !file.is_stored());
+//! println!("Solid: {}", file.is_solid());
+//! ```
+//!
+//! ## Streaming
+//!
+//! For large files, use streaming to avoid loading everything into memory:
+//!
+//! ```rust,ignore
+//! let stream = file.create_stream();
+//! while let Some(chunk) = stream.next_chunk().await? {
+//!     process(chunk);
+//! }
+//! ```
+//!
+//! ## Performance
+//!
+//! - **Binary search**: Chunk lookup is O(log n) for fast seeking
+//! - **Caching**: Decompressed data is cached for repeated reads
+//! - **Streaming**: Only reads data that's actually needed
 
 use crate::decompress::rar5::Rar5Decoder;
 use crate::decompress::Rar29Decoder;
@@ -12,40 +53,76 @@ use crate::rar_file_chunk::RarFileChunk;
 use std::sync::{Arc, Mutex};
 
 /// Mapping of a chunk within the logical file.
-/// Stored sorted by start offset for binary search.
+///
+/// Used internally to map byte offsets to physical chunks.
+/// Stored sorted by `start` offset to enable binary search.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ChunkMapEntry {
+    /// Index into the chunks array.
     pub index: usize,
+    /// Start offset within the logical file (inclusive).
     pub start: u64,
+    /// End offset within the logical file (inclusive).
     pub end: u64,
 }
 
-/// Encryption info for a file.
+/// Encryption information for a file.
+///
+/// Contains the parameters needed to derive the decryption key.
+/// The actual password is stored separately in [`InnerFile`].
 #[cfg(feature = "crypto")]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum EncryptionInfo {
-    /// RAR5 encryption (AES-256-CBC with PBKDF2)
+    /// RAR5 encryption (AES-256-CBC with PBKDF2-HMAC-SHA256).
     Rar5 {
-        /// 16-byte salt for key derivation
+        /// 16-byte random salt for key derivation.
         salt: [u8; 16],
-        /// 16-byte initialization vector
+        /// 16-byte initialization vector for AES-CBC.
         init_v: [u8; 16],
-        /// Log2 of PBKDF2 iteration count
+        /// Log2 of PBKDF2 iteration count (e.g., 15 = 32768 iterations).
         lg2_count: u8,
     },
-    /// RAR4 encryption (AES-256-CBC with custom SHA-1 KDF)
+    /// RAR4 encryption (AES-128-CBC with custom SHA-1 KDF).
     Rar4 {
-        /// 8-byte salt for key derivation
+        /// 8-byte random salt for key derivation.
         salt: [u8; 8],
     },
 }
 
-/// A file inside a RAR archive, potentially spanning multiple chunks/volumes.
-/// Optimized for streaming video with fast seeking.
+/// A file inside a RAR archive.
+///
+/// Represents a logical file that may span multiple physical chunks across
+/// multiple archive volumes. Provides methods for reading file content with
+/// automatic decompression and decryption.
+///
+/// # Example
+///
+/// ```rust,ignore
+/// // Get file from parsed archive
+/// let files = package.parse(opts).await?;
+/// let file = &files[0];
+///
+/// // Check properties
+/// println!("{}: {} bytes", file.name, file.length);
+///
+/// // Read content
+/// let content = file.read_to_end().await?;
+/// ```
+///
+/// # Caching
+///
+/// Decompressed content is cached internally. Subsequent calls to
+/// [`read_decompressed`] return the cached data without re-decompressing.
+///
+/// [`read_decompressed`]: InnerFile::read_decompressed
 #[derive(Debug)]
 pub struct InnerFile {
+    /// Full path of the file inside the archive.
     pub name: String,
+    
+    /// Uncompressed size in bytes.
     pub length: u64,
+    
     chunks: Vec<RarFileChunk>,
     /// Sorted by start offset for binary search
     chunk_map: Vec<ChunkMapEntry>,

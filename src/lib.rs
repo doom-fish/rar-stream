@@ -4,23 +4,47 @@
 //!
 //! This library provides streaming access to files within RAR archives, optimized for
 //! video streaming with fast seeking via binary search. It supports both RAR4 (1.5-4.x)
-//! and RAR5 (5.0+) formats.
+//! and RAR5 (5.0+) formats with full decompression and optional encryption support.
 //!
 //! ## Features
 //!
-//! | Feature | Description |
-//! |---------|-------------|
-//! | `async` | Async file reading with tokio (enables [`RarFilesPackage`], [`InnerFile`]) |
-//! | `crypto` | Encrypted archive support (AES-256 for RAR5, AES-128 for RAR4) |
-//! | `napi` | Node.js native bindings |
-//! | `wasm` | Browser WebAssembly bindings |
+//! | Feature | Default | Description |
+//! |---------|---------|-------------|
+//! | `async` | No | Async file reading with tokio ([`RarFilesPackage`], [`InnerFile`]) |
+//! | `crypto` | No | Encrypted archive support (AES-256 for RAR5, AES-128 for RAR4) |
+//! | `napi` | No | Node.js native bindings via napi-rs |
+//! | `wasm` | No | Browser WebAssembly bindings |
 //!
 //! ## Supported Formats
 //!
-//! - **RAR4** (versions 1.5-4.x): LZSS, PPMd compression, AES-128-CBC encryption
-//! - **RAR5** (version 5.0+): LZSS with filters, AES-256-CBC encryption with PBKDF2
+//! | Format | Versions | Compression | Encryption |
+//! |--------|----------|-------------|------------|
+//! | RAR4 | 1.5-4.x | LZSS, PPMd | AES-128-CBC (SHA-1 KDF) |
+//! | RAR5 | 5.0+ | LZSS + filters | AES-256-CBC (PBKDF2-HMAC-SHA256) |
+//!
+//! ## Architecture
+//!
+//! The library is organized into layers:
+//!
+//! ```text
+//! ┌─────────────────────────────────────────────────────┐
+//! │  Application Layer (async feature)                  │
+//! │  RarFilesPackage → InnerFile → read_to_end()        │
+//! ├─────────────────────────────────────────────────────┤
+//! │  Parsing Layer                                      │
+//! │  MarkerHeader → ArchiveHeader → FileHeader          │
+//! ├─────────────────────────────────────────────────────┤
+//! │  Decompression Layer                                │
+//! │  Rar29Decoder (RAR4) / Rar5Decoder (RAR5)           │
+//! ├─────────────────────────────────────────────────────┤
+//! │  Crypto Layer (crypto feature)                      │
+//! │  Rar4Crypto (AES-128) / Rar5Crypto (AES-256)        │
+//! └─────────────────────────────────────────────────────┘
+//! ```
 //!
 //! ## Quick Start
+//!
+//! ### High-Level API (requires `async` feature)
 //!
 //! ```rust,ignore
 //! use rar_stream::{RarFilesPackage, ParseOptions, LocalFileMedia, FileMedia};
@@ -38,10 +62,22 @@
 //!         println!("{}: {} bytes", f.name, f.length);
 //!     }
 //!
-//!     // Read file content
+//!     // Read file content (automatically decompresses)
 //!     let content = files[0].read_to_end().await?;
 //!     Ok(())
 //! }
+//! ```
+//!
+//! ### Low-Level Decompression (no features required)
+//!
+//! ```rust
+//! use rar_stream::Rar29Decoder;
+//!
+//! // Create a decoder for RAR4 LZSS data
+//! let mut decoder = Rar29Decoder::new();
+//!
+//! // Decompress raw compressed data (obtained from file header)
+//! // let decompressed = decoder.decompress(&compressed_data, expected_size)?;
 //! ```
 //!
 //! ## Encrypted Archives
@@ -56,20 +92,34 @@
 //!     ..Default::default()
 //! };
 //! let files = package.parse(opts).await?;
-//! let decrypted = files[0].read_decompressed().await?;
+//!
+//! // Content is automatically decrypted and decompressed
+//! let content = files[0].read_decompressed().await?;
 //! ```
 //!
-//! ## Decompression Only
+//! ## Error Handling
 //!
-//! For low-level decompression without async I/O:
+//! All operations return [`Result<T, RarError>`]. Common errors include:
 //!
-//! ```rust
-//! use rar_stream::{Rar29Decoder, CompressionMethod};
+//! - [`RarError::InvalidSignature`] - Not a valid RAR file
+//! - [`RarError::PasswordRequired`] - Encrypted archive, no password provided
+//! - [`RarError::DecryptionFailed`] - Wrong password or corrupt data
+//! - [`RarError::DecompressionNotSupported`] - Unsupported compression method
 //!
-//! // Decompress RAR4 LZSS data
-//! let mut decoder = Rar29Decoder::new();
-//! // decoder.decompress(&compressed_data, expected_size)?;
-//! ```
+//! ## Module Overview
+//!
+//! - [`error`] - Error types for all operations
+//! - [`parsing`] - RAR header parsing (both RAR4 and RAR5)
+//! - [`decompress`] - Decompression algorithms (LZSS, PPMd, filters)
+//! - [`crypto`] - Encryption/decryption (requires `crypto` feature)
+//! - [`formats`] - Low-level format constants and utilities
+//!
+//! ## Performance Notes
+//!
+//! - **Streaming**: Files are read on-demand, not loaded entirely into memory
+//! - **Binary search**: Chunk lookup uses binary search for O(log n) seeking
+//! - **Zero-copy parsing**: Headers are parsed without unnecessary allocations
+//! - **Cached decompression**: Decompressed data is cached for repeated reads
 //!
 //! ## Browser/WASM Usage
 //!
