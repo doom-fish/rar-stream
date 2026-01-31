@@ -414,6 +414,7 @@ impl InnerFile {
         }
 
         // Read all packed data
+        #[allow(unused_mut)]
         let mut packed = self.read_all_raw().await?;
 
         // Decrypt if encrypted

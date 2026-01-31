@@ -550,7 +550,7 @@ impl RarFilesPackage {
 
         #[cfg(not(feature = "crypto"))]
         if Rar5EncryptionHeaderParser::is_encryption_header(&header_buf) {
-            return Err(RarError::EncryptedArchive);
+            return Err(RarError::PasswordRequired);
         }
 
         // Read archive header (which may be encrypted)
