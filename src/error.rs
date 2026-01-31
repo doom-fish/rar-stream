@@ -36,7 +36,10 @@ impl fmt::Display for RarError {
             Self::Io(e) => write!(f, "IO error: {}", e),
             Self::NoFilesFound => write!(f, "No files found in archive"),
             Self::Rar5NotFullySupported => {
-                write!(f, "RAR5 format detected but decompression not yet supported")
+                write!(
+                    f,
+                    "RAR5 format detected but decompression not yet supported"
+                )
             }
         }
     }

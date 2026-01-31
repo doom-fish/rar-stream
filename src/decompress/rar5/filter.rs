@@ -48,7 +48,12 @@ pub struct UnpackFilter {
 
 impl UnpackFilter {
     /// Create a new filter.
-    pub fn new(filter_type: FilterType, block_start: usize, block_length: usize, channels: u8) -> Self {
+    pub fn new(
+        filter_type: FilterType,
+        block_start: usize,
+        block_length: usize,
+        channels: u8,
+    ) -> Self {
         Self {
             filter_type,
             block_start,
@@ -154,12 +159,8 @@ fn apply_arm_filter(data: &mut [u8], file_offset: u32) -> Vec<u8> {
     while cur_pos + 3 < data.len() {
         // Check for BL instruction (0xEB in high byte with condition 1110 = Always)
         if data[cur_pos + 3] == 0xEB {
-            let offset = u32::from_le_bytes([
-                data[cur_pos],
-                data[cur_pos + 1],
-                data[cur_pos + 2],
-                0,
-            ]);
+            let offset =
+                u32::from_le_bytes([data[cur_pos], data[cur_pos + 1], data[cur_pos + 2], 0]);
             let new_offset = offset.wrapping_sub((file_offset.wrapping_add(cur_pos as u32)) / 4);
             data[cur_pos] = (new_offset & 0xFF) as u8;
             data[cur_pos + 1] = ((new_offset >> 8) & 0xFF) as u8;

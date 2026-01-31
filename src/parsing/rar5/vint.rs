@@ -75,8 +75,7 @@ impl<'a> VintReader<'a> {
     pub fn read_u64_le(&mut self) -> Option<u64> {
         let bytes = self.read_bytes(8)?;
         Some(u64::from_le_bytes([
-            bytes[0], bytes[1], bytes[2], bytes[3],
-            bytes[4], bytes[5], bytes[6], bytes[7],
+            bytes[0], bytes[1], bytes[2], bytes[3], bytes[4], bytes[5], bytes[6], bytes[7],
         ]))
     }
 

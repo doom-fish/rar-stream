@@ -1039,58 +1039,58 @@ impl PpmModel {
                             );
                         }
 
-                    #[cfg(test)]
-                    if self.debug_count == 13 || self.debug_count == 58 {
-                        let (code, low, range) = coder.debug_state();
-                        eprintln!(
-                            "[DS2 pos={}] FOUND lo={} hi={} scale={}",
-                            self.debug_count, lo_cnt, cum, scale
-                        );
-                        eprintln!(
-                            "[DS2 pos={}] Before decode: low={} range={} code={}",
-                            self.debug_count, low, range, code
-                        );
-                    }
+                        #[cfg(test)]
+                        if self.debug_count == 13 || self.debug_count == 58 {
+                            let (code, low, range) = coder.debug_state();
+                            eprintln!(
+                                "[DS2 pos={}] FOUND lo={} hi={} scale={}",
+                                self.debug_count, lo_cnt, cum, scale
+                            );
+                            eprintln!(
+                                "[DS2 pos={}] Before decode: low={} range={} code={}",
+                                self.debug_count, low, range, code
+                            );
+                        }
 
-                    let sub = SubRange {
-                        low_count: lo_cnt,
-                        high_count: cum,
-                        scale,
-                    };
-                    coder.decode(&sub);
+                        let sub = SubRange {
+                            low_count: lo_cnt,
+                            high_count: cum,
+                            scale,
+                        };
+                        coder.decode(&sub);
 
-                    #[cfg(test)]
-                    if self.debug_count == 13 || self.debug_count == 58 {
-                        let (code, low, range) = coder.debug_state();
-                        eprintln!(
-                            "[DS2 pos={}] After decode: low={} range={} code={}",
-                            self.debug_count, low, range, code
-                        );
-                    }
+                        #[cfg(test)]
+                        if self.debug_count == 13 || self.debug_count == 58 {
+                            let (code, low, range) = coder.debug_state();
+                            eprintln!(
+                                "[DS2 pos={}] After decode: low={} range={} code={}",
+                                self.debug_count, low, range, code
+                            );
+                        }
 
-                    // Update SEE2 context (matching unrar's psee2c->update())
-                    if !is_root {
-                        self.see2_cont[see2_row][see2_col].update();
-                    }
+                        // Update SEE2 context (matching unrar's psee2c->update())
+                        if !is_root {
+                            self.see2_cont[see2_row][see2_col].update();
+                        }
 
-                    self.found_state = state_ptr as u32;
+                        self.found_state = state_ptr as u32;
 
-                    // Update frequency and check for rescale (update2)
-                    let new_freq = freq + 4;
-                    self.write_state_freq(state_ptr, new_freq as u8);
+                        // Update frequency and check for rescale (update2)
+                        let new_freq = freq + 4;
+                        self.write_state_freq(state_ptr, new_freq as u8);
 
-                    let summ = self.read_context_summ_freq(self.min_context as usize);
-                    self.write_context_summ_freq(self.min_context as usize, summ + 4);
+                        let summ = self.read_context_summ_freq(self.min_context as usize);
+                        self.write_context_summ_freq(self.min_context as usize, summ + 4);
 
-                    // Check if rescale needed
-                    if new_freq > MAX_FREQ {
-                        self.rescale();
-                    }
+                        // Check if rescale needed
+                        if new_freq > MAX_FREQ {
+                            self.rescale();
+                        }
 
-                    self.esc_count = self.esc_count.wrapping_add(1);
-                    self.run_length = self.init_rl;
+                        self.esc_count = self.esc_count.wrapping_add(1);
+                        self.run_length = self.init_rl;
 
-                    return Ok(());
+                        return Ok(());
                     }
                 }
             }

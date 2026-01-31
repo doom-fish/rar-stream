@@ -127,7 +127,7 @@ impl HuffmanTable {
         if self.symbols.len() != lengths.len() {
             self.symbols.resize(lengths.len(), 0);
         }
-        
+
         // Reset array fields
         self.length_counts = [0; MAX_CODE_LENGTH + 1];
         self.first_code = [0; MAX_CODE_LENGTH + 1];

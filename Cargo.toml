@@ -2,7 +2,7 @@
 name = "rar-stream"
 version = "4.0.3"
 edition = "2021"
-rust-version = "1.70"
+rust-version = "1.77"
 license = "MIT"
 repository = "https://github.com/doom-fish/rar-stream"
 description = "Zero-dependency RAR streaming library with optional NAPI/WASM bindings"

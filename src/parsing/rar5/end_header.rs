@@ -53,7 +53,7 @@ impl Rar5EndHeaderParser {
 
         // Read header size (vint) - this is the size of header content AFTER this vint
         let header_size = reader.read().ok_or(RarError::InvalidHeader)?;
-        
+
         // Record position after reading header_size vint
         let header_content_start = reader.position();
 

@@ -9,13 +9,13 @@
 mod vint;
 
 pub mod archive_header;
-pub mod file_header;
 pub mod end_header;
+pub mod file_header;
 
-pub use vint::{read_vint, VintReader};
 pub use archive_header::{Rar5ArchiveHeader, Rar5ArchiveHeaderParser};
-pub use file_header::{Rar5FileHeader, Rar5FileHeaderParser};
 pub use end_header::{Rar5EndHeader, Rar5EndHeaderParser};
+pub use file_header::{Rar5FileHeader, Rar5FileHeaderParser};
+pub use vint::{read_vint, VintReader};
 
 /// RAR5 header type codes.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

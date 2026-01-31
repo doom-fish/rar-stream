@@ -70,7 +70,7 @@ impl Rar5ArchiveHeaderParser {
 
         // Read header size (vint) - this is the size of header content AFTER this vint
         let header_size = reader.read().ok_or(RarError::InvalidHeader)?;
-        
+
         // Record position after reading header_size vint
         // Total consumed = this position + header_size
         let header_content_start = reader.position();
@@ -162,11 +162,11 @@ mod tests {
         // Header starts at offset 8: 33 92 b5 e5 0a 01 05 06 00 05 01 01 80 80 00
         let header = [
             0x33, 0x92, 0xb5, 0xe5, // CRC32
-            0x0a,                   // header_size = 10 (vint)
-            0x01,                   // type = 1 (main archive header)
-            0x05,                   // header_flags = 5 (has_extra_area | skip_if_unknown)
-            0x06,                   // extra_area_size = 6
-            0x00,                   // archive_flags = 0
+            0x0a, // header_size = 10 (vint)
+            0x01, // type = 1 (main archive header)
+            0x05, // header_flags = 5 (has_extra_area | skip_if_unknown)
+            0x06, // extra_area_size = 6
+            0x00, // archive_flags = 0
             0x05, 0x01, 0x01, 0x80, 0x80, 0x00, // extra area (6 bytes)
         ];
 

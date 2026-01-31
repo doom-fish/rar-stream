@@ -66,7 +66,7 @@ impl HuffTable {
         for i in num_symbols..self.num_symbols {
             self.code_lengths[i] = 0;
         }
-        
+
         // Find max length
         self.max_length = 0;
         for &len in &self.code_lengths[..num_symbols] {
@@ -98,17 +98,17 @@ impl HuffTable {
 
         // Build quick table
         self.quick_table.fill(0);
-        
+
         for (symbol, &len) in self.code_lengths[..num_symbols].iter().enumerate() {
             if len > 0 && (len as usize) <= self.quick_bits {
                 let code = next_code[len as usize];
                 next_code[len as usize] += 1;
-                
+
                 // Fill all entries that start with this code
                 let fill_bits = self.quick_bits - len as usize;
                 let base_idx = (code as usize) << fill_bits;
                 let fill_count = 1 << fill_bits;
-                
+
                 // Pack symbol and length: symbol in high bits, length in low 8 bits
                 let entry = ((symbol as u32) << 8) | (len as u32);
                 for i in 0..fill_count {
@@ -129,7 +129,7 @@ impl HuffTable {
         let peek = bits.get_value_15() as usize;
         let idx = peek >> (15 - self.quick_bits);
         let entry = self.quick_table.get(idx).copied().unwrap_or(0);
-        
+
         if entry != 0 {
             let len = (entry & 0xFF) as usize;
             let symbol = (entry >> 8) as u16;
@@ -250,11 +250,11 @@ impl Rar5BlockDecoder {
     /// Returns Ok(true) if new tables, Ok(false) if reusing previous.
     fn read_block_header(&mut self, bits: &mut BitDecoder) -> Result<bool, DecompressError> {
         bits.align_to_byte();
-        
+
         let flags = bits.read_byte_aligned();
         let checksum = bits.read_byte_aligned();
         let mut check = flags ^ checksum;
-        
+
         let num = ((flags >> 3) & 3) as usize;
         if num >= 3 {
             return Err(DecompressError::Io(std::io::Error::new(
@@ -262,10 +262,10 @@ impl Rar5BlockDecoder {
                 "Invalid block header flags",
             )));
         }
-        
+
         let mut block_size = bits.read_byte_aligned() as usize;
         check ^= block_size as u8;
-        
+
         if num >= 1 {
             let b = bits.read_byte_aligned();
             check ^= b;
@@ -276,14 +276,14 @@ impl Rar5BlockDecoder {
             check ^= b;
             block_size += (b as usize) << 16;
         }
-        
+
         if check != 0x5A {
             return Err(DecompressError::Io(std::io::Error::new(
                 std::io::ErrorKind::InvalidData,
                 "Block header checksum mismatch",
             )));
         }
-        
+
         let block_size_bits7 = ((flags & 7) + 1) as usize;
         block_size += block_size_bits7 >> 3;
         if block_size == 0 {
@@ -294,10 +294,10 @@ impl Rar5BlockDecoder {
         }
         block_size -= 1;
         let block_end_bits = block_size_bits7 & 7;
-        
+
         bits.set_block_end(bits.position() + block_size, block_end_bits);
         self.is_last_block = (flags & 0x40) != 0;
-        
+
         // Flag 0x80 indicates new tables
         let new_tables = (flags & 0x80) != 0;
         Ok(new_tables)
@@ -324,15 +324,15 @@ impl Rar5BlockDecoder {
             level_lens[i] = len;
             i += 1;
         }
-        
+
         if !self.level_table.build(&level_lens) {
             // Empty level table is OK for empty blocks
         }
-        
+
         // Total table size (main + dist + align + len)
         let table_size = MAIN_TABLE_SIZE + DIST_TABLE_SIZE + ALIGN_TABLE_SIZE + LEN_TABLE_SIZE;
         let mut lens = vec![0u8; table_size];
-        
+
         // Decode all table lengths using level table
         i = 0;
         while i < table_size {
@@ -342,9 +342,9 @@ impl Rar5BlockDecoder {
                     "Block overread while reading tables",
                 )));
             }
-            
+
             let sym = self.level_table.decode(bits) as usize;
-            
+
             if sym < 16 {
                 lens[i] = sym as u8;
                 i += 1;
@@ -383,28 +383,31 @@ impl Rar5BlockDecoder {
                 }
             }
         }
-        
+
         // Build the four tables from the combined lengths
         let mut offset = 0;
-        self.main_table.build(&lens[offset..offset + MAIN_TABLE_SIZE]);
+        self.main_table
+            .build(&lens[offset..offset + MAIN_TABLE_SIZE]);
         offset += MAIN_TABLE_SIZE;
-        
-        self.dist_table.build(&lens[offset..offset + DIST_TABLE_SIZE]);
+
+        self.dist_table
+            .build(&lens[offset..offset + DIST_TABLE_SIZE]);
         offset += DIST_TABLE_SIZE;
-        
+
         // Check if align table has non-default values
         self.use_align_bits = false;
         for k in 0..ALIGN_TABLE_SIZE {
             if lens[offset + k] != NUM_ALIGN_BITS as u8 {
-                self.align_table.build(&lens[offset..offset + ALIGN_TABLE_SIZE]);
+                self.align_table
+                    .build(&lens[offset..offset + ALIGN_TABLE_SIZE]);
                 self.use_align_bits = true;
                 break;
             }
         }
         offset += ALIGN_TABLE_SIZE;
-        
+
         self.len_table.build(&lens[offset..offset + LEN_TABLE_SIZE]);
-        
+
         self.tables_valid = true;
         Ok(())
     }
@@ -421,7 +424,7 @@ impl Rar5BlockDecoder {
 
         // Read block header
         let new_tables = self.read_block_header(bits)?;
-        
+
         if new_tables {
             self.read_tables(bits)?;
         } else if !self.tables_valid {
@@ -464,9 +467,9 @@ impl Rar5BlockDecoder {
                         "Invalid zero offset",
                     )));
                 }
-                
+
                 let length = self.decode_length(bits)?;
-                
+
                 // Rotate recent offsets
                 if rep_idx > 0 {
                     let off = self.recent_offsets[rep_idx];
@@ -482,14 +485,14 @@ impl Rar5BlockDecoder {
                 let len_slot = sym - 262;
                 let length = self.slot_to_length(len_slot as u32, bits)?;
                 let offset = self.decode_offset(bits)?;
-                
+
                 // Update recent offsets
                 for j in (1..NUM_REPS).rev() {
                     self.recent_offsets[j] = self.recent_offsets[j - 1];
                 }
                 self.recent_offsets[0] = offset as u64;
                 self.last_length = length as u32;
-                
+
                 self.copy_bytes(offset, length);
             }
         }
@@ -503,7 +506,7 @@ impl Rar5BlockDecoder {
         let v = bits.get_value_high32();
         let byte_count = ((v >> 30) + 1) as usize;
         bits.read_bits_big(2, v);
-        
+
         // Read data bytes
         let mut data: u32 = 0;
         for i in 0..byte_count {
@@ -515,16 +518,19 @@ impl Rar5BlockDecoder {
     }
 
     /// Read a filter command from the bitstream.
-    fn read_filter(&mut self, bits: &mut BitDecoder) -> Result<Option<super::filter::UnpackFilter>, DecompressError> {
+    fn read_filter(
+        &mut self,
+        bits: &mut BitDecoder,
+    ) -> Result<Option<super::filter::UnpackFilter>, DecompressError> {
         use super::filter::{FilterType, UnpackFilter};
-        
+
         let block_start = self.read_filter_data(bits) as usize;
         let block_length = self.read_filter_data(bits) as usize;
-        
+
         // Read filter type (3 bits)
         let v = bits.get_value_high32();
         let filter_type_bits = bits.read_bits_big(3, v) as u8;
-        
+
         let filter_type = match FilterType::from_bits(filter_type_bits) {
             Some(ft) => ft,
             None => {
@@ -532,7 +538,7 @@ impl Rar5BlockDecoder {
                 return Ok(None);
             }
         };
-        
+
         // Read channels for delta filter (5 bits + 1)
         let channels = if filter_type == FilterType::Delta {
             let v = bits.get_value_high32();
@@ -540,11 +546,16 @@ impl Rar5BlockDecoder {
         } else {
             0
         };
-        
+
         // Calculate actual block start relative to current window position
         let actual_start = (block_start + self.window_pos) % self.dict_size;
-        
-        Ok(Some(UnpackFilter::new(filter_type, actual_start, block_length, channels)))
+
+        Ok(Some(UnpackFilter::new(
+            filter_type,
+            actual_start,
+            block_length,
+            channels,
+        )))
     }
 
     /// Decode a match length from length table.
@@ -574,13 +585,13 @@ impl Rar5BlockDecoder {
     }
 
     /// Decode a match offset.
-    /// 
+    ///
     /// Based on unrar5j logic:
     /// - slot < 4: offset = slot + 1 (no extra bits)
     /// - slot >= 4: offset has extra bits based on slot value
     fn decode_offset(&mut self, bits: &mut BitDecoder) -> Result<usize, DecompressError> {
         let slot = self.dist_table.decode(bits) as u32;
-        
+
         if slot < 4 {
             // Small offsets: directly slot + 1
             Ok((slot + 1) as usize)
@@ -590,7 +601,7 @@ impl Rar5BlockDecoder {
             // base = (2 | (slot & 1)) << num_bits
             let num_bits = ((slot - 2) >> 1) as usize;
             let base = ((2 | (slot & 1)) << num_bits) as u32;
-            
+
             if num_bits < NUM_ALIGN_BITS {
                 // Few extra bits - read directly
                 let v = bits.get_value_high32();
@@ -601,13 +612,13 @@ impl Rar5BlockDecoder {
                 let high_bits_count = num_bits - NUM_ALIGN_BITS;
                 let v = bits.get_value_high32();
                 let high = bits.read_bits_big(high_bits_count, v) as u32;
-                
+
                 let low = if self.use_align_bits {
                     self.align_table.decode(bits) as u32
                 } else {
                     bits.read_bits_9fix(NUM_ALIGN_BITS) as u32
                 };
-                
+
                 let offset = base + (high << NUM_ALIGN_BITS) + low + 1;
                 Ok(offset as usize)
             }
@@ -629,7 +640,7 @@ mod tests {
     #[test]
     fn test_write_and_copy() {
         let mut decoder = Rar5BlockDecoder::new(10); // 1KB dictionary
-        
+
         // Write some bytes
         decoder.write_byte(b'H');
         decoder.write_byte(b'e');
@@ -638,11 +649,11 @@ mod tests {
         decoder.write_byte(b'o');
 
         assert_eq!(decoder.window_pos, 5);
-        
+
         // Copy from offset 5, length 5 (repeat "Hello")
         decoder.copy_bytes(5, 5);
         assert_eq!(decoder.window_pos, 10);
-        
+
         let output = decoder.get_output(0, 10);
         assert_eq!(&output, b"HelloHello");
     }
@@ -656,4 +667,3 @@ mod tests {
         assert_eq!(table.max_length, 3);
     }
 }
-

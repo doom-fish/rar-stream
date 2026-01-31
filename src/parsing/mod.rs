@@ -9,5 +9,5 @@ pub mod terminator_header;
 pub use archive_header::ArchiveHeaderParser;
 pub use file_header::FileHeaderParser;
 pub use marker_header::{MarkerHeaderParser, RarVersion};
+pub use rar5::{Rar5ArchiveHeader, Rar5EndHeader, Rar5FileHeader};
 pub use terminator_header::TerminatorHeaderParser;
-pub use rar5::{Rar5ArchiveHeader, Rar5FileHeader, Rar5EndHeader};

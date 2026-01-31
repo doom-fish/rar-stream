@@ -61,23 +61,24 @@ impl Rar5Decoder {
     fn apply_filters(&mut self, output: &mut Vec<u8>) {
         // Sort filters by block start position
         self.filters.sort_by_key(|f| f.block_start);
-        
+
         for filter in &self.filters {
             let start = filter.block_start;
             let end = start + filter.block_length;
-            
+
             if end <= output.len() {
                 // Extract the block to filter
                 let mut block = output[start..end].to_vec();
-                
+
                 // Apply the filter
-                let filtered = apply_filter(&mut block, filter, self.written_file_size + start as u64);
-                
+                let filtered =
+                    apply_filter(&mut block, filter, self.written_file_size + start as u64);
+
                 // Copy filtered data back
                 output[start..end].copy_from_slice(&filtered);
             }
         }
-        
+
         self.filters.clear();
     }
 
@@ -111,14 +112,17 @@ impl Rar5Decoder {
 
         // Decode blocks until we have enough output
         let start_pos = 0;
-        let new_filters = self.block_decoder
+        let new_filters = self
+            .block_decoder
             .decode_block(&mut bits, unpacked_size as usize)?;
-        
+
         // Collect any filters returned
         self.filters.extend(new_filters);
 
         // Get decompressed output
-        let mut output = self.block_decoder.get_output(start_pos, unpacked_size as usize);
+        let mut output = self
+            .block_decoder
+            .get_output(start_pos, unpacked_size as usize);
 
         if output.len() != unpacked_size as usize {
             return Err(DecompressError::IncompleteData);
@@ -128,7 +132,7 @@ impl Rar5Decoder {
         if !self.filters.is_empty() {
             self.apply_filters(&mut output);
         }
-        
+
         self.written_file_size += output.len() as u64;
 
         Ok(output)
@@ -172,25 +176,28 @@ mod tests {
         // Should fail with error (invalid block header)
         assert!(result.is_err());
     }
-    
+
     #[test]
     fn test_decompress_real_file() {
         // Test with actual RAR5 compressed data from fixtures
         let data = std::fs::read("__fixtures__/rar5/compressed.rar").unwrap();
-        
+
         // Compressed data starts at byte 75, 104 bytes
         let compressed = &data[75..179];
         let unpacked_size = 152;
         let dict_bits = 17; // 128KB dictionary
-        
+
         let mut decoder = Rar5Decoder::new();
         let result = decoder.decompress(compressed, unpacked_size, dict_bits, false);
-        
+
         match result {
             Ok(output) => {
                 assert_eq!(output.len(), 152, "output size should match unpacked size");
                 let text = std::str::from_utf8(&output).expect("output should be valid UTF-8");
-                assert!(text.starts_with("This is a test file"), "should start with expected text");
+                assert!(
+                    text.starts_with("This is a test file"),
+                    "should start with expected text"
+                );
                 assert!(text.contains("hello hello"), "should contain repeated text");
             }
             Err(e) => {

@@ -3,8 +3,8 @@
 //! An inner file may span multiple RarFileChunks across multiple volumes.
 //! Optimized for streaming and seeking with binary search chunk lookup.
 
-use crate::decompress::Rar29Decoder;
 use crate::decompress::rar5::Rar5Decoder;
+use crate::decompress::Rar29Decoder;
 use crate::error::{RarError, Result};
 use crate::file_media::ReadInterval;
 use crate::parsing::RarVersion;
@@ -40,7 +40,13 @@ pub struct InnerFile {
 }
 
 impl InnerFile {
-    pub fn new(name: String, chunks: Vec<RarFileChunk>, method: u8, unpacked_size: u64, rar_version: RarVersion) -> Self {
+    pub fn new(
+        name: String,
+        chunks: Vec<RarFileChunk>,
+        method: u8,
+        unpacked_size: u64,
+        rar_version: RarVersion,
+    ) -> Self {
         let packed_size: u64 = chunks.iter().map(|c| c.length()).sum();
         let chunk_map = Self::calculate_chunk_map(&chunks);
 

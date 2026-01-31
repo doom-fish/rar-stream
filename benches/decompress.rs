@@ -5,8 +5,8 @@
 //! Compare against baseline: `cargo bench -- --baseline main`
 
 use criterion::{black_box, criterion_group, criterion_main, Criterion, Throughput};
-use rar_stream::Rar29Decoder;
 use rar_stream::parsing::file_header::FileHeaderParser;
+use rar_stream::Rar29Decoder;
 
 /// RAR4 marker header signature.
 const RAR4_MARKER: &[u8] = &[0x52, 0x61, 0x72, 0x21, 0x1a, 0x07, 0x00];
@@ -44,10 +44,10 @@ fn parse_rar4_file(data: &[u8]) -> Option<(rar_stream::parsing::file_header::Fil
 fn bench_lzss(c: &mut Criterion) {
     let data = include_bytes!("../__fixtures__/compressed/lipsum_rar4_max.rar");
     let (header, compressed) = parse_rar4_file(data).expect("Failed to parse");
-    
+
     let mut group = c.benchmark_group("decompress");
     group.throughput(Throughput::Bytes(header.unpacked_size as u64));
-    
+
     group.bench_function("lzss_3kb", |b| {
         b.iter(|| {
             let mut decoder = Rar29Decoder::new();
@@ -55,7 +55,7 @@ fn bench_lzss(c: &mut Criterion) {
             black_box(result)
         });
     });
-    
+
     // Benchmark decoder reuse - amortize allocation across iterations
     group.bench_function("lzss_3kb_reuse", |b| {
         let mut decoder = Rar29Decoder::new();
@@ -65,7 +65,7 @@ fn bench_lzss(c: &mut Criterion) {
             black_box(result)
         });
     });
-    
+
     group.finish();
 }
 
@@ -73,10 +73,10 @@ fn bench_lzss(c: &mut Criterion) {
 fn bench_ppmd(c: &mut Criterion) {
     let data = include_bytes!("../__fixtures__/compressed/lipsum_rar4_ppmd.rar");
     let (header, compressed) = parse_rar4_file(data).expect("Failed to parse");
-    
+
     let mut group = c.benchmark_group("decompress");
     group.throughput(Throughput::Bytes(header.unpacked_size as u64));
-    
+
     group.bench_function("ppmd_3kb", |b| {
         b.iter(|| {
             let mut decoder = Rar29Decoder::new();
@@ -84,7 +84,7 @@ fn bench_ppmd(c: &mut Criterion) {
             black_box(result)
         });
     });
-    
+
     // Benchmark decoder reuse - amortize allocation across iterations
     group.bench_function("ppmd_3kb_reuse", |b| {
         let mut decoder = Rar29Decoder::new();
@@ -94,14 +94,14 @@ fn bench_ppmd(c: &mut Criterion) {
             black_box(result)
         });
     });
-    
+
     group.finish();
 }
 
 /// Benchmark RAR header parsing
 fn bench_header_parsing(c: &mut Criterion) {
     let data = include_bytes!("../__fixtures__/compressed/lipsum_rar4_default.rar");
-    
+
     c.bench_function("parse_header", |b| {
         b.iter(|| {
             let result = parse_rar4_file(black_box(data));
@@ -114,17 +114,17 @@ fn bench_header_parsing(c: &mut Criterion) {
 fn bench_stored(c: &mut Criterion) {
     let data = include_bytes!("../__fixtures__/compressed/lipsum_rar4_store.rar");
     let (header, stored_data) = parse_rar4_file(data).expect("Failed to parse");
-    
+
     let mut group = c.benchmark_group("stored");
     group.throughput(Throughput::Bytes(header.unpacked_size as u64));
-    
+
     group.bench_function("passthrough_3kb", |b| {
         b.iter(|| {
             let result = black_box(stored_data).to_vec();
             black_box(result)
         });
     });
-    
+
     group.finish();
 }
 

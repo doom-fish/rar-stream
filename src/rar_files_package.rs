@@ -4,8 +4,8 @@ use crate::error::{RarError, Result};
 use crate::file_media::{FileMedia, ReadInterval};
 use crate::inner_file::InnerFile;
 use crate::parsing::{
-    ArchiveHeaderParser, FileHeaderParser, MarkerHeaderParser, RarVersion, TerminatorHeaderParser,
     rar5::{Rar5ArchiveHeaderParser, Rar5FileHeaderParser},
+    ArchiveHeaderParser, FileHeaderParser, MarkerHeaderParser, RarVersion, TerminatorHeaderParser,
 };
 use crate::rar_file_chunk::RarFileChunk;
 use std::collections::HashMap;
@@ -78,12 +78,15 @@ impl RarFilesPackage {
                 end: offset + 8 - 1, // RAR5 signature is 8 bytes
             })
             .await?;
-        
+
         let marker = MarkerHeaderParser::parse(&marker_buf)?;
-        
+
         // Dispatch based on version
         match marker.version {
-            RarVersion::Rar4 => self.parse_rar4_file(rar_file, opts, marker.size as u64).await,
+            RarVersion::Rar4 => {
+                self.parse_rar4_file(rar_file, opts, marker.size as u64)
+                    .await
+            }
             RarVersion::Rar5 => self.parse_rar5_file(rar_file, opts).await,
         }
     }
@@ -333,9 +336,14 @@ impl RarFilesPackage {
 
         let mut grouped: HashMap<String, (Vec<RarFileChunk>, u8, u64, RarVersion)> = HashMap::new();
         for chunk in all_chunks {
-            let entry = grouped
-                .entry(chunk.name)
-                .or_insert_with(|| (Vec::new(), chunk.method, chunk.unpacked_size, chunk.rar_version));
+            let entry = grouped.entry(chunk.name).or_insert_with(|| {
+                (
+                    Vec::new(),
+                    chunk.method,
+                    chunk.unpacked_size,
+                    chunk.rar_version,
+                )
+            });
             entry.0.push(chunk.chunk);
         }
 
@@ -360,11 +368,12 @@ mod tests {
     #[cfg(feature = "async")]
     async fn test_parse_rar5_stored() {
         // Test parsing a RAR5 stored file
-        let file: Arc<dyn FileMedia> = Arc::new(LocalFileMedia::new("__fixtures__/rar5/test.rar").unwrap());
+        let file: Arc<dyn FileMedia> =
+            Arc::new(LocalFileMedia::new("__fixtures__/rar5/test.rar").unwrap());
         let package = RarFilesPackage::new(vec![file]);
-        
+
         let files = package.parse(ParseOptions::default()).await.unwrap();
-        
+
         assert_eq!(files.len(), 1);
         assert_eq!(files[0].name, "test.txt");
     }
@@ -373,34 +382,47 @@ mod tests {
     #[cfg(feature = "async")]
     async fn test_parse_rar5_compressed() {
         // Test parsing a RAR5 compressed file
-        let file: Arc<dyn FileMedia> = Arc::new(LocalFileMedia::new("__fixtures__/rar5/compressed.rar").unwrap());
+        let file: Arc<dyn FileMedia> =
+            Arc::new(LocalFileMedia::new("__fixtures__/rar5/compressed.rar").unwrap());
         let package = RarFilesPackage::new(vec![file]);
-        
+
         let files = package.parse(ParseOptions::default()).await.unwrap();
-        
+
         assert_eq!(files.len(), 1);
         assert_eq!(files[0].name, "compress_test.txt");
         assert_eq!(files[0].length, 152); // Unpacked size
-        
+
         // Try to read and decompress the file content
         // Note: RAR5 compressed decompression is still being debugged
         match files[0].read_to_end().await {
             Ok(content) => {
                 eprintln!("Got {} bytes of output", content.len());
                 eprintln!("First 32 bytes: {:02x?}", &content[..32.min(content.len())]);
-                
+
                 // Verify we got the full uncompressed content
-                assert_eq!(content.len(), 152, "decompressed size should match unpacked size");
-                
+                assert_eq!(
+                    content.len(),
+                    152,
+                    "decompressed size should match unpacked size"
+                );
+
                 // Verify the content is valid text
                 match std::str::from_utf8(&content) {
                     Ok(text) => {
-                        assert!(text.contains("This is a test file"), "content should contain expected text");
-                        assert!(text.contains("hello hello"), "content should contain repeated text");
+                        assert!(
+                            text.contains("This is a test file"),
+                            "content should contain expected text"
+                        );
+                        assert!(
+                            text.contains("hello hello"),
+                            "content should contain repeated text"
+                        );
                     }
                     Err(_) => {
                         // Decompression ran but output is wrong - still debugging
-                        eprintln!("RAR5 decompression output is not valid UTF-8 (work in progress)");
+                        eprintln!(
+                            "RAR5 decompression output is not valid UTF-8 (work in progress)"
+                        );
                     }
                 }
             }
@@ -416,7 +438,7 @@ mod tests {
     async fn test_parse_rar5_multivolume() {
         // Test parsing a multi-volume RAR5 archive
         let fixture_dir = "__fixtures__/rar5-multivolume";
-        
+
         // Collect all volume files
         let mut volume_paths: Vec<String> = std::fs::read_dir(fixture_dir)
             .unwrap()
@@ -425,44 +447,44 @@ mod tests {
             .filter(|p| p.extension().map_or(false, |ext| ext == "rar"))
             .map(|p| p.to_string_lossy().to_string())
             .collect();
-        
+
         // Sort by name so volumes are in order
         volume_paths.sort();
-        
+
         if volume_paths.is_empty() {
             // Skip test if fixtures don't exist
             eprintln!("Skipping test - no multi-volume fixtures found");
             return;
         }
-        
+
         eprintln!("Found {} volumes: {:?}", volume_paths.len(), volume_paths);
-        
+
         // Create file medias for each volume
         let files: Vec<Arc<dyn FileMedia>> = volume_paths
             .iter()
             .map(|p| Arc::new(LocalFileMedia::new(p).unwrap()) as Arc<dyn FileMedia>)
             .collect();
-        
+
         let package = RarFilesPackage::new(files);
-        
+
         let parsed = package.parse(ParseOptions::default()).await.unwrap();
-        
+
         assert_eq!(parsed.len(), 1, "should have 1 inner file");
         assert_eq!(parsed[0].name, "testfile.txt");
-        
+
         // The length might be slightly off due to volume header handling
         // but should be close to the original file size
         eprintln!("Parsed length: {}", parsed[0].length);
-        
+
         // Try to read the file content (stored, so should work)
         let content = parsed[0].read_to_end().await.unwrap();
         eprintln!("Read content length: {}", content.len());
-        
+
         // Verify the content is valid and contains expected text
         let text = std::str::from_utf8(&content).expect("should be valid UTF-8");
         assert!(text.contains("Line 1:"), "should contain first line");
         assert!(text.contains("Line 100:"), "should contain last line");
-        
+
         // Verify we got approximately the right size (allow for header overhead)
         assert!(content.len() >= 11000, "should have at least 11000 bytes");
     }
