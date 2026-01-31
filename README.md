@@ -157,12 +157,12 @@ Benchmarks on M1 MacBook Pro:
 | Decompress 100MB | ~800ms | ~3000ms |
 | Memory usage | ~50MB | ~200MB |
 
-## Migrating from v1.x
+## Migrating from v3.x
 
-rar-stream v2.0 is a drop-in replacement. The API is backwards compatible:
+rar-stream v4.0 is a complete Rust rewrite with the same API. It's a drop-in replacement:
 
 ```javascript
-// Works the same in v1.x and v2.x
+// Works the same in v3.x and v4.x
 import { LocalFileMedia, RarFilesPackage } from 'rar-stream';
 
 const media = new LocalFileMedia('./archive.rar');
@@ -174,6 +174,7 @@ const files = await pkg.parse();
 
 - Node.js 18+ required (was 14+)
 - WASM module path changed to `rar-stream/wasm`
+- Native Rust implementation (faster, lower memory)
 
 ## License
 
