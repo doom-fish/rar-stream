@@ -56,7 +56,7 @@ impl Rar4Crypto {
                 let cnt_bytes = [cnt as u8, (cnt >> 8) as u8, (cnt >> 16) as u8];
 
                 hasher.update(&seed);
-                hasher.update(&cnt_bytes);
+                hasher.update(cnt_bytes);
 
                 // At the start of each outer iteration, extract IV byte
                 if j == 0 {
@@ -102,7 +102,7 @@ impl Rar4Crypto {
         }
 
         // Data must be multiple of 16 bytes
-        if !data.len().is_multiple_of(16) {
+        if data.len() % 16 != 0 {
             return Err(CryptoError::DecryptionFailed);
         }
 

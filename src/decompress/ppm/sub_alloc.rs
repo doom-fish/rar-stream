@@ -189,7 +189,7 @@ impl SubAllocator {
 
             // Debug trace
             #[cfg(test)]
-            if ptr >= 1024 && ptr < 2560 {
+            if (1024..2560).contains(&ptr) {
                 eprintln!("[ALLOC] WARNING: alloc_units({}) from FREE LIST returned {} which overlaps root stats [1024, 2560)", nu, ptr);
             }
 
@@ -214,7 +214,7 @@ impl SubAllocator {
 
             // Debug trace
             #[cfg(test)]
-            if ptr >= 1024 && ptr < 2560 {
+            if (1024..2560).contains(&ptr) {
                 eprintln!("[ALLOC] WARNING: alloc_units({}) from LO_UNIT returned {} which overlaps root stats [1024, 2560)", nu, ptr);
             }
 
@@ -225,7 +225,7 @@ impl SubAllocator {
 
         // Debug trace
         #[cfg(test)]
-        if ptr >= 1024 && ptr < 2560 {
+        if (1024..2560).contains(&ptr) {
             eprintln!("[ALLOC] WARNING: alloc_units({}) from RARE returned {} which overlaps root stats [1024, 2560)", nu, ptr);
         }
 

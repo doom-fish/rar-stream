@@ -93,7 +93,7 @@ impl Rar5EncryptionHeaderParser {
             }
             let mut check = [0u8; 12];
             check.copy_from_slice(&data[pos..pos + 12]);
-            pos += 12;
+            // pos += 12; // Not needed - last use of pos
             Some(check)
         } else {
             None

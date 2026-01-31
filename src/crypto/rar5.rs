@@ -174,7 +174,7 @@ impl Rar5Crypto {
     /// Decrypt data in-place using AES-256-CBC.
     pub fn decrypt(&self, iv: &[u8; SIZE_INITV], data: &mut [u8]) -> Result<(), super::CryptoError> {
         // Data must be a multiple of block size
-        if !data.len().is_multiple_of(CRYPT_BLOCK_SIZE) {
+        if data.len() % CRYPT_BLOCK_SIZE != 0 {
             return Err(super::CryptoError::DecryptionFailed);
         }
 
@@ -268,9 +268,7 @@ mod tests {
         // Find the file header (type 2)
         let mut pos = 8; // After signature
         loop {
-            if pos + 7 > data.len() {
-                panic!("Could not find file header");
-            }
+            assert!(pos + 7 <= data.len(), "Could not find file header");
 
             // Read header: CRC32 (4) + header_size (vint) + header_type (vint)
             let mut reader = VintReader::new(&data[pos + 4..]);
@@ -280,8 +278,6 @@ mod tests {
             if header_type == 2 {
                 // File header found
                 let (file_header, _) = Rar5FileHeaderParser::parse(&data[pos..]).unwrap();
-                if let Some(ref extra) = file_header.extra_area {
-                }
 
                 if file_header.is_encrypted() {
                     let enc_data = file_header.encryption_info().unwrap();
@@ -342,9 +338,7 @@ mod tests {
         // Find the file header (type 2)
         let mut pos = 8; // After signature
         loop {
-            if pos + 7 > data.len() {
-                panic!("Could not find file header");
-            }
+            assert!(pos + 7 <= data.len(), "Could not find file header");
 
             let mut reader = VintReader::new(&data[pos + 4..]);
             let header_size = reader.read().unwrap();

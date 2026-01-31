@@ -368,7 +368,7 @@ impl RarFilesPackage {
             .map_err(|e| RarError::DecryptionFailed(e.to_string()))?;
 
         // Parse the decrypted header
-        let (result, consumed) = parser(&decrypted)?;
+        let (result, _) = parser(&decrypted)?;
 
         // Calculate actual header size including CRC, size vint, and content
         // We need to read the header size from decrypted data
@@ -378,7 +378,7 @@ impl RarFilesPackage {
 
         // Total encrypted size = CRC(4) + size_vint + header_content, rounded up to 16
         let plaintext_size = 4 + size_vint_len + header_size as usize;
-        let encrypted_size = ((plaintext_size + 15) / 16) * 16;
+        let encrypted_size = plaintext_size.div_ceil(16) * 16;
 
         // Total consumed = IV(16) + encrypted_size
         Ok((result, 16 + encrypted_size))
@@ -430,7 +430,7 @@ impl RarFilesPackage {
 
         // Read archive header (which may be encrypted)
         #[cfg(feature = "crypto")]
-        let (archive_header, consumed) = if header_crypto.is_some() {
+        let (archive_header, consumed) = if let Some(ref crypto) = header_crypto {
             // Read IV (16 bytes) + encrypted header
             let enc_buf = rar_file
                 .read_range(ReadInterval {
@@ -439,7 +439,7 @@ impl RarFilesPackage {
                 })
                 .await?;
 
-            self.parse_encrypted_header(&enc_buf, header_crypto.as_ref().unwrap(), |data| {
+            self.parse_encrypted_header(&enc_buf, crypto, |data| {
                 Rar5ArchiveHeaderParser::parse(data)
             })?
         } else {
@@ -474,8 +474,8 @@ impl RarFilesPackage {
 
             // Try to parse as file header (may be encrypted)
             #[cfg(feature = "crypto")]
-            let (file_header, header_consumed) = if header_crypto.is_some() {
-                match self.parse_encrypted_header(&header_buf, header_crypto.as_ref().unwrap(), |data| {
+            let (file_header, header_consumed) = if let Some(ref crypto) = header_crypto {
+                match self.parse_encrypted_header(&header_buf, crypto, |data| {
                     Rar5FileHeaderParser::parse(data)
                 }) {
                     Ok(h) => h,

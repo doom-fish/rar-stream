@@ -3,6 +3,9 @@
 //! Implements the LZSS + Huffman decompression used in RAR versions 2.x-4.x.
 //! This is the most common format for scene releases.
 
+// Allow disabled debug blocks in test code (written >= 0 && written < 0 is intentionally false)
+#![cfg_attr(test, allow(clippy::logic_bug))]
+
 use super::{
     bit_reader::BitReader,
     huffman::HuffmanDecoder,
@@ -156,9 +159,11 @@ impl Rar29Decoder {
                     #[cfg(test)]
                     println!("PPMd initialized: esc_char={}", esc_char);
                 }
-                Err(_e) => {
+                Err(e) => {
                     #[cfg(test)]
-                    println!("PPMd init failed: {}", _e);
+                    println!("PPMd init failed: {}", e);
+                    #[cfg(not(test))]
+                    let _ = e;
                     return Err(DecompressError::UnsupportedMethod(0x33));
                 }
             }
@@ -553,13 +558,15 @@ impl Rar29Decoder {
         let esc_char = self.ppm_esc_char;
 
         while self.lzss.total_written() < max_size && !reader.is_eof() {
-            let ch = ppm.decode_char(coder, reader).map_err(|_e| {
+            let ch = ppm.decode_char(coder, reader).map_err(|e| {
                 #[cfg(test)]
                 eprintln!(
                     "PPM decode_char failed at pos {}: {}",
                     self.lzss.total_written(),
-                    _e
+                    e
                 );
+                #[cfg(not(test))]
+                let _ = e;
                 DecompressError::InvalidHuffmanCode
             })?;
 
