@@ -7,7 +7,7 @@ use super::{Rar5HeaderFlags, VintReader};
 use crate::error::{RarError, Result};
 
 /// RAR5 archive flags (specific to main header).
-#[derive(Debug, Clone, Copy, Default)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct Rar5ArchiveFlags {
     /// Archive is part of multi-volume set
     pub is_volume: bool,
@@ -34,7 +34,7 @@ impl From<u64> for Rar5ArchiveFlags {
 }
 
 /// Parsed RAR5 main archive header.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Rar5ArchiveHeader {
     /// Header CRC32
     pub crc32: u32,

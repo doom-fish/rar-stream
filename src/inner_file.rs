@@ -13,7 +13,7 @@ use std::sync::{Arc, Mutex};
 
 /// Mapping of a chunk within the logical file.
 /// Stored sorted by start offset for binary search.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ChunkMapEntry {
     pub index: usize,
     pub start: u64,
@@ -22,7 +22,7 @@ pub struct ChunkMapEntry {
 
 /// Encryption info for a file.
 #[cfg(feature = "crypto")]
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum EncryptionInfo {
     /// RAR5 encryption (AES-256-CBC with PBKDF2)
     Rar5 {

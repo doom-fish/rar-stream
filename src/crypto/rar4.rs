@@ -14,14 +14,14 @@ use super::CryptoError;
 type Aes128CbcDec = cbc::Decryptor<aes::Aes128>;
 
 /// RAR 3.x/4.x encryption info from file header.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Rar4EncryptionInfo {
     /// 8-byte salt from file header
     pub salt: [u8; 8],
 }
 
 /// RAR 3.x/4.x crypto handler.
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Rar4Crypto {
     /// Derived AES-256 key (32 bytes)
     key: [u8; 32],

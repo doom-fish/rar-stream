@@ -31,7 +31,7 @@ pub const CRYPT5_KDF_LG2_COUNT: u32 = 15;
 pub const CRYPT5_KDF_LG2_COUNT_MAX: u32 = 24;
 
 /// RAR5 encryption information parsed from file header.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Rar5EncryptionInfo {
     /// Encryption version (must be 0)
     pub version: u8,
@@ -120,6 +120,7 @@ impl Rar5EncryptionInfo {
 }
 
 /// RAR5 cryptographic operations.
+#[derive(Clone, Debug)]
 pub struct Rar5Crypto {
     /// Derived AES-256 key
     key: [u8; 32],

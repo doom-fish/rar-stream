@@ -8,7 +8,7 @@ use crate::error::{RarError, Result};
 /// File header type constant.
 pub const FILE_HEADER_TYPE: u8 = 0x74; // 116
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FileHeader {
     pub crc: u16,
     pub header_type: u8,

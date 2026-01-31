@@ -51,7 +51,7 @@ impl TryFrom<u64> for Rar5HeaderType {
 }
 
 /// RAR5 common header flags.
-#[derive(Debug, Clone, Copy, Default)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct Rar5HeaderFlags {
     /// Extra area is present after header
     pub has_extra_area: bool,

@@ -5,7 +5,7 @@
 
 use crate::error::{RarError, Result};
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ArchiveHeader {
     pub crc: u16,
     pub header_type: u8,

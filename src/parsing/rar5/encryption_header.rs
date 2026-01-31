@@ -7,7 +7,7 @@ use super::VintReader;
 use crate::error::{RarError, Result};
 
 /// Archive encryption header (type 4).
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Rar5EncryptionHeader {
     /// Encryption version (currently 0 for AES-256)
     pub version: u8,

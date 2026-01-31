@@ -2,9 +2,13 @@
 
 > Fast RAR archive streaming for Rust, Node.js, and browsers. Zero dependencies core.
 
+[![CI](https://github.com/doom-fish/rar-stream/actions/workflows/ci.yml/badge.svg)](https://github.com/doom-fish/rar-stream/actions/workflows/ci.yml)
 [![npm version](https://badge.fury.io/js/rar-stream.svg)](https://www.npmjs.com/package/rar-stream)
+[![npm downloads](https://img.shields.io/npm/dm/rar-stream.svg)](https://www.npmjs.com/package/rar-stream)
 [![crates.io](https://img.shields.io/crates/v/rar-stream.svg)](https://crates.io/crates/rar-stream)
+[![crates.io downloads](https://img.shields.io/crates/d/rar-stream.svg)](https://crates.io/crates/rar-stream)
 [![docs.rs](https://docs.rs/rar-stream/badge.svg)](https://docs.rs/rar-stream)
+[![MSRV](https://img.shields.io/badge/MSRV-1.85-blue.svg)](https://blog.rust-lang.org/2025/02/20/Rust-1.85.0.html)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 ## Features

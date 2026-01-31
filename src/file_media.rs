@@ -4,13 +4,14 @@ use crate::error::Result;
 use std::io::{Read, Seek, SeekFrom};
 
 /// Interval for reading a byte range.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct ReadInterval {
     pub start: u64,
     pub end: u64,
 }
 
 /// Local file implementation.
+#[derive(Debug, Clone)]
 pub struct LocalFileMedia {
     path: String,
     name: String,

@@ -45,7 +45,7 @@ pub enum EncryptionMethod {
 }
 
 /// Error type for cryptographic operations.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CryptoError {
     /// Wrong password provided
     WrongPassword,

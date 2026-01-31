@@ -7,7 +7,7 @@ use super::{Rar5HeaderFlags, VintReader};
 use crate::error::{RarError, Result};
 
 /// RAR5 file flags (specific to file header).
-#[derive(Debug, Clone, Copy, Default)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct Rar5FileFlags {
     /// File is a directory
     pub is_directory: bool,
@@ -31,7 +31,7 @@ impl From<u64> for Rar5FileFlags {
 }
 
 /// RAR5 compression information.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Rar5CompressionInfo {
     /// Compression algorithm version
     pub version: u8,
@@ -87,7 +87,7 @@ impl TryFrom<u64> for Rar5HostOs {
 }
 
 /// Parsed RAR5 file header.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Rar5FileHeader {
     /// Header CRC32
     pub crc32: u32,

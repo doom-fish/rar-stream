@@ -32,7 +32,7 @@ impl RarVersion {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MarkerHeader {
     pub crc: u16,
     pub header_type: u8,

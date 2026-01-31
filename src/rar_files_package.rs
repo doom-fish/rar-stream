@@ -17,7 +17,7 @@ use std::sync::Arc;
 /// Archive metadata returned by [`RarFilesPackage::get_archive_info`].
 ///
 /// Contains information about the archive format, flags, and capabilities.
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct ArchiveInfo {
     /// Whether the archive has a recovery record for error correction.
     pub has_recovery_record: bool,
@@ -47,7 +47,7 @@ pub struct ParseOptions {
 
 /// Encryption info for a file.
 #[cfg(feature = "crypto")]
-#[derive(Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum FileEncryptionInfo {
     /// RAR5 encryption (AES-256-CBC with PBKDF2)
     Rar5 {
