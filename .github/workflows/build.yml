@@ -94,7 +94,7 @@ jobs:
         run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
       
       - name: Build WASM
-        run: wasm-pack build --target web --features wasm --no-default-features
+        run: wasm-pack build --target web --features "wasm,crypto" --no-default-features
       
       - name: Upload artifact
         uses: actions/upload-artifact@v4

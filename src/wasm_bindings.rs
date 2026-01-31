@@ -27,6 +27,56 @@ pub fn get_rar_version(data: &[u8]) -> u8 {
     }
 }
 
+/// WASM-compatible RAR5 decryptor.
+#[cfg(feature = "crypto")]
+#[wasm_bindgen]
+pub struct WasmRar5Crypto {
+    crypto: crate::crypto::Rar5Crypto,
+}
+
+#[cfg(feature = "crypto")]
+#[wasm_bindgen]
+impl WasmRar5Crypto {
+    /// Create a new RAR5 decryptor with the given password, salt, and iteration count.
+    /// The salt must be 16 bytes, lg2_count is the log2 of iteration count (typically 15).
+    #[wasm_bindgen(constructor)]
+    pub fn new(password: &str, salt: &[u8], lg2_count: u8) -> Result<WasmRar5Crypto, JsError> {
+        if salt.len() != 16 {
+            return Err(JsError::new("Salt must be exactly 16 bytes"));
+        }
+        let mut salt_arr = [0u8; 16];
+        salt_arr.copy_from_slice(salt);
+        Ok(Self {
+            crypto: crate::crypto::Rar5Crypto::derive_key(password, &salt_arr, lg2_count),
+        })
+    }
+
+    /// Decrypt data in place. The IV must be 16 bytes.
+    /// Returns the decrypted data (same length as input, may include padding).
+    #[wasm_bindgen]
+    pub fn decrypt(&self, iv: &[u8], data: &[u8]) -> Result<Vec<u8>, JsError> {
+        if iv.len() != 16 {
+            return Err(JsError::new("IV must be exactly 16 bytes"));
+        }
+        let mut iv_arr = [0u8; 16];
+        iv_arr.copy_from_slice(iv);
+        self.crypto
+            .decrypt_to_vec(&iv_arr, data)
+            .map_err(|e| JsError::new(&e.to_string()))
+    }
+
+    /// Verify password using the check value from the encryption header.
+    /// The check value is 12 bytes (8-byte check + 4-byte checksum).
+    #[wasm_bindgen]
+    pub fn verify_password(&self, check_value: &[u8]) -> bool {
+        if check_value.len() < 8 {
+            return false;
+        }
+        let expected: [u8; 8] = check_value[..8].try_into().unwrap();
+        self.crypto.verify_password(&expected)
+    }
+}
+
 /// WASM-compatible RAR decompressor.
 #[wasm_bindgen]
 pub struct WasmRarDecoder {

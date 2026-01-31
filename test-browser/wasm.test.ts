@@ -163,4 +163,37 @@ test.describe('rar-stream WASM decompression', () => {
     expect(result.version).toBe(50); // RAR 5.0
     expect(result.isRar5).toBe(true);
   });
+
+  test('WasmRar5Crypto can be constructed', async ({ page }) => {
+    await page.goto('http://localhost:8765/test-browser/index.html');
+    await page.waitForFunction(() => document.querySelector('.test.pass') !== null);
+
+    const result = await page.evaluate(async () => {
+      const { WasmRar5Crypto } = await import('../pkg/rar_stream.js');
+
+      // Check if the crypto class is available
+      if (typeof WasmRar5Crypto !== 'function') {
+        return { error: 'WasmRar5Crypto not available' };
+      }
+
+      try {
+        // Create a test decryptor with a dummy password and salt
+        const salt = new Uint8Array(16).fill(0);
+        const crypto = new WasmRar5Crypto('testpassword', salt, 15);
+
+        // Check that decrypt method exists
+        if (typeof crypto.decrypt !== 'function') {
+          return { error: 'decrypt method not found' };
+        }
+
+        crypto.free();
+        return { success: true };
+      } catch (e) {
+        return { error: e.message };
+      }
+    });
+
+    expect(result.error).toBeUndefined();
+    expect(result.success).toBe(true);
+  });
 });
