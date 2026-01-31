@@ -54,14 +54,21 @@ jobs:
   test-rust:
     name: Test Rust
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        rust: [stable, "1.70"]
     steps:
       - uses: actions/checkout@v4
       
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
+      - name: Install Rust ${{ matrix.rust }}
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ matrix.rust }}
       
       - name: Cache cargo
         uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.rust }}
       
       - name: Run tests
         run: cargo test --lib
