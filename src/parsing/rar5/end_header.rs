@@ -51,8 +51,11 @@ impl Rar5EndHeaderParser {
         // Read CRC32 (4 bytes, not vint)
         let crc32 = reader.read_u32_le().ok_or(RarError::InvalidHeader)?;
 
-        // Read header size (vint)
+        // Read header size (vint) - this is the size of header content AFTER this vint
         let header_size = reader.read().ok_or(RarError::InvalidHeader)?;
+        
+        // Record position after reading header_size vint
+        let header_content_start = reader.position();
 
         // Read header type (vint) - should be 5 for end header
         let header_type = reader.read().ok_or(RarError::InvalidHeader)?;
@@ -69,7 +72,8 @@ impl Rar5EndHeaderParser {
         let end_flags = Rar5EndFlags::from(end_flags_raw);
 
         // Calculate total bytes consumed
-        let total_consumed = 4 + header_size as usize;
+        // header_size indicates bytes after the header_size vint itself
+        let total_consumed = header_content_start + header_size as usize;
 
         Ok((
             Rar5EndHeader {
@@ -101,6 +105,6 @@ mod tests {
         let (parsed, consumed) = Rar5EndHeaderParser::parse(&header).unwrap();
         assert_eq!(parsed.header_size, 4);
         assert!(!parsed.end_flags.has_next_volume);
-        assert_eq!(consumed, 8); // 4 + 4
+        assert_eq!(consumed, 9); // 4 (CRC) + 1 (header_size vint) + 4 (header content)
     }
 }

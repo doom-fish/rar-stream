@@ -68,8 +68,12 @@ impl Rar5ArchiveHeaderParser {
         // Read CRC32 (4 bytes, not vint)
         let crc32 = reader.read_u32_le().ok_or(RarError::InvalidHeader)?;
 
-        // Read header size (vint)
+        // Read header size (vint) - this is the size of header content AFTER this vint
         let header_size = reader.read().ok_or(RarError::InvalidHeader)?;
+        
+        // Record position after reading header_size vint
+        // Total consumed = this position + header_size
+        let header_content_start = reader.position();
 
         // Read header type (vint) - should be 1 for main header
         let header_type = reader.read().ok_or(RarError::InvalidHeader)?;
@@ -109,9 +113,9 @@ impl Rar5ArchiveHeaderParser {
             None
         };
 
-        // Calculate total bytes consumed (CRC32 + header_size bytes)
-        // The header_size includes everything after CRC32
-        let total_consumed = 4 + header_size as usize;
+        // Calculate total bytes consumed
+        // header_size indicates bytes after the header_size vint itself
+        let total_consumed = header_content_start + header_size as usize;
 
         Ok((
             Rar5ArchiveHeader {
@@ -148,7 +152,7 @@ mod tests {
         assert_eq!(parsed.header_size, 5);
         assert!(!parsed.header_flags.has_extra_area);
         assert!(!parsed.archive_flags.is_volume);
-        assert_eq!(consumed, 9); // 4 + 5
+        assert_eq!(consumed, 10); // 4 (CRC) + 1 (header_size vint) + 5 (content)
     }
 
     #[test]
@@ -171,6 +175,6 @@ mod tests {
         assert_eq!(parsed.header_size, 10);
         assert!(parsed.header_flags.has_extra_area);
         assert!(!parsed.archive_flags.is_volume);
-        assert_eq!(consumed, 14); // 4 + 10
+        assert_eq!(consumed, 15); // 4 (CRC) + 1 (header_size vint) + 10 (header content)
     }
 }

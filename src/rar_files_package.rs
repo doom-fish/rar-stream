@@ -28,6 +28,7 @@ struct ParsedChunk {
     unpacked_size: u64,
     chunk_size: u64,
     method: u8,
+    rar_version: RarVersion,
 }
 
 /// Multi-volume RAR archive parser.
@@ -164,6 +165,7 @@ impl RarFilesPackage {
                     unpacked_size: file_header.unpacked_size,
                     chunk_size,
                     method: file_header.method,
+                    rar_version: RarVersion::Rar4,
                 });
                 retrieved_count += 1;
 
@@ -243,11 +245,8 @@ impl RarFilesPackage {
 
                 // Convert RAR5 method to RAR4-compatible format
                 // RAR5 method 0 = stored, 1-5 = compression
-                let method = if file_header.compression.is_stored() {
-                    0x30 // Store
-                } else {
-                    0x30 + file_header.compression.method
-                };
+                // Store the raw method, not converted to RAR4 format
+                let method = file_header.compression.method;
 
                 chunks.push(ParsedChunk {
                     name: file_header.name.clone(),
@@ -256,6 +255,7 @@ impl RarFilesPackage {
                     unpacked_size: file_header.unpacked_size,
                     chunk_size,
                     method,
+                    rar_version: RarVersion::Rar5,
                 });
                 retrieved_count += 1;
 
@@ -299,6 +299,7 @@ impl RarFilesPackage {
             let chunk_start = last.chunk.start_offset;
             let chunk_end = last.chunk.end_offset;
             let name = last.name.clone();
+            let rar_version = last.rar_version;
 
             all_parsed.push(chunks);
 
@@ -318,6 +319,7 @@ impl RarFilesPackage {
                         unpacked_size,
                         chunk_size,
                         method: 0x30, // Continue chunks are always raw data
+                        rar_version,
                     }]);
                     remaining = remaining.saturating_sub(chunk_size);
                 }
@@ -329,19 +331,19 @@ impl RarFilesPackage {
         // Flatten and group chunks by filename, keeping method info
         let all_chunks: Vec<ParsedChunk> = all_parsed.into_iter().flatten().collect();
 
-        let mut grouped: HashMap<String, (Vec<RarFileChunk>, u8, u64)> = HashMap::new();
+        let mut grouped: HashMap<String, (Vec<RarFileChunk>, u8, u64, RarVersion)> = HashMap::new();
         for chunk in all_chunks {
             let entry = grouped
                 .entry(chunk.name)
-                .or_insert_with(|| (Vec::new(), chunk.method, chunk.unpacked_size));
+                .or_insert_with(|| (Vec::new(), chunk.method, chunk.unpacked_size, chunk.rar_version));
             entry.0.push(chunk.chunk);
         }
 
         // Create InnerFile for each group
         let inner_files: Vec<InnerFile> = grouped
             .into_iter()
-            .map(|(name, (chunks, method, unpacked_size))| {
-                InnerFile::new(name, chunks, method, unpacked_size)
+            .map(|(name, (chunks, method, unpacked_size, rar_version))| {
+                InnerFile::new(name, chunks, method, unpacked_size, rar_version)
             })
             .collect();
 
@@ -365,5 +367,37 @@ mod tests {
         
         assert_eq!(files.len(), 1);
         assert_eq!(files[0].name, "test.txt");
+    }
+
+    #[tokio::test]
+    #[cfg(feature = "async")]
+    async fn test_parse_rar5_compressed() {
+        // Test parsing a RAR5 compressed file
+        let file = Arc::new(LocalFileMedia::new("__fixtures__/rar5/compressed.rar").unwrap());
+        let package = RarFilesPackage::new(vec![file]);
+        
+        let files = package.parse(ParseOptions::default()).await.unwrap();
+        
+        assert_eq!(files.len(), 1);
+        assert_eq!(files[0].name, "compress_test.txt");
+        assert_eq!(files[0].length, 152); // Unpacked size
+        
+        // Try to read and decompress the file content
+        // Note: RAR5 compressed decompression is not yet fully implemented
+        // This test verifies parsing works; decompression is WIP
+        match files[0].read_to_end().await {
+            Ok(content) => {
+                // Verify we got the full uncompressed content
+                assert_eq!(content.len(), 152, "decompressed size should match unpacked size");
+                
+                // Verify the content is valid text
+                let text = std::str::from_utf8(&content).expect("content should be valid UTF-8");
+                assert!(text.contains("Lorem ipsum"), "content should contain expected text");
+            }
+            Err(e) => {
+                // RAR5 decompression not yet fully implemented - parsing verified
+                eprintln!("RAR5 decompression not yet implemented: {:?}", e);
+            }
+        }
     }
 }

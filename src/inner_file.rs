@@ -4,8 +4,10 @@
 //! Optimized for streaming and seeking with binary search chunk lookup.
 
 use crate::decompress::Rar29Decoder;
+use crate::decompress::rar5::Rar5Decoder;
 use crate::error::{RarError, Result};
 use crate::file_media::ReadInterval;
+use crate::parsing::RarVersion;
 use crate::rar_file_chunk::RarFileChunk;
 use std::sync::{Arc, Mutex};
 
@@ -31,18 +33,20 @@ pub struct InnerFile {
     method: u8,
     /// Packed size (sum of chunk sizes)
     packed_size: u64,
+    /// RAR version (4 or 5)
+    rar_version: RarVersion,
     /// Cached decompressed data (for compressed files) - Arc to avoid cloning
     decompressed_cache: Mutex<Option<Arc<Vec<u8>>>>,
 }
 
 impl InnerFile {
-    pub fn new(name: String, chunks: Vec<RarFileChunk>, method: u8, unpacked_size: u64) -> Self {
+    pub fn new(name: String, chunks: Vec<RarFileChunk>, method: u8, unpacked_size: u64, rar_version: RarVersion) -> Self {
         let packed_size: u64 = chunks.iter().map(|c| c.length()).sum();
         let chunk_map = Self::calculate_chunk_map(&chunks);
 
         // For stored files, length = packed_size
         // For compressed files, length = unpacked_size
-        let length = if method == 0x30 {
+        let length = if method == 0x30 || method == 0 {
             packed_size
         } else {
             unpacked_size
@@ -55,13 +59,17 @@ impl InnerFile {
             chunk_map,
             method,
             packed_size,
+            rar_version,
             decompressed_cache: Mutex::new(None),
         }
     }
 
     /// Returns true if this file is compressed.
     pub fn is_compressed(&self) -> bool {
-        self.method != 0x30
+        match self.rar_version {
+            RarVersion::Rar4 => self.method != 0x30,
+            RarVersion::Rar5 => self.method != 0, // RAR5 uses 0 for stored
+        }
     }
 
     fn calculate_chunk_map(chunks: &[RarFileChunk]) -> Vec<ChunkMapEntry> {
@@ -200,9 +208,20 @@ impl InnerFile {
         // Read all packed data
         let packed = self.read_all_raw().await?;
 
-        // Decompress
-        let mut decoder = Rar29Decoder::new();
-        let decompressed = Arc::new(decoder.decompress(&packed, self.length)?);
+        // Decompress based on RAR version
+        let decompressed = match self.rar_version {
+            RarVersion::Rar4 => {
+                let mut decoder = Rar29Decoder::new();
+                decoder.decompress(&packed, self.length)?
+            }
+            RarVersion::Rar5 => {
+                let mut decoder = Rar5Decoder::new();
+                // For RAR5: method is stored directly, not offset by 0x30
+                // is_solid = false for now (TODO: track from archive flags)
+                decoder.decompress(&packed, self.length, self.method, false)?
+            }
+        };
+        let decompressed = Arc::new(decompressed);
 
         // Cache result
         {
@@ -526,7 +545,7 @@ mod tests {
     #[test]
     fn test_binary_search_single_chunk() {
         let chunks = create_test_chunks(&[1000]);
-        let file = InnerFile::new("test.mkv".to_string(), chunks, 0x30, 0);
+        let file = InnerFile::new("test.mkv".to_string(), chunks, 0x30, 0, RarVersion::Rar4);
 
         assert_eq!(file.length, 1000);
         assert_eq!(file.find_chunk_index(0), Some(0));
@@ -539,7 +558,7 @@ mod tests {
     fn test_binary_search_multiple_chunks() {
         // 3 chunks: 0-99, 100-199, 200-299
         let chunks = create_test_chunks(&[100, 100, 100]);
-        let file = InnerFile::new("test.mkv".to_string(), chunks, 0x30, 0);
+        let file = InnerFile::new("test.mkv".to_string(), chunks, 0x30, 0, RarVersion::Rar4);
 
         assert_eq!(file.length, 300);
 
@@ -567,7 +586,7 @@ mod tests {
         // 100 chunks of 1000 bytes each = 100KB file
         let chunk_sizes: Vec<u64> = vec![1000; 100];
         let chunks = create_test_chunks(&chunk_sizes);
-        let file = InnerFile::new("test.mkv".to_string(), chunks, 0x30, 0);
+        let file = InnerFile::new("test.mkv".to_string(), chunks, 0x30, 0, RarVersion::Rar4);
 
         assert_eq!(file.length, 100_000);
 
@@ -583,7 +602,7 @@ mod tests {
     #[test]
     fn test_translate_offset() {
         let chunks = create_test_chunks(&[100, 100, 100]);
-        let file = InnerFile::new("test.mkv".to_string(), chunks, 0x30, 0);
+        let file = InnerFile::new("test.mkv".to_string(), chunks, 0x30, 0, RarVersion::Rar4);
 
         // Each mock chunk starts at 0 in its volume
         let (idx, vol_offset) = file.translate_offset(0).unwrap();
@@ -602,7 +621,7 @@ mod tests {
     #[test]
     fn test_get_stream_chunks() {
         let chunks = create_test_chunks(&[100, 100, 100]);
-        let file = InnerFile::new("test.mkv".to_string(), chunks, 0x30, 0);
+        let file = InnerFile::new("test.mkv".to_string(), chunks, 0x30, 0, RarVersion::Rar4);
 
         // Request spanning all chunks
         let infos = file.get_stream_chunks(50, 250);
@@ -627,7 +646,7 @@ mod tests {
     #[tokio::test]
     async fn test_read_range() {
         let chunks = create_test_chunks(&[100, 100, 100]);
-        let file = InnerFile::new("test.mkv".to_string(), chunks, 0x30, 0);
+        let file = InnerFile::new("test.mkv".to_string(), chunks, 0x30, 0, RarVersion::Rar4);
 
         // Read from middle chunk
         let data = file
@@ -645,7 +664,7 @@ mod tests {
     #[tokio::test]
     async fn test_read_range_spanning_chunks() {
         let chunks = create_test_chunks(&[100, 100, 100]);
-        let file = InnerFile::new("test.mkv".to_string(), chunks, 0x30, 0);
+        let file = InnerFile::new("test.mkv".to_string(), chunks, 0x30, 0, RarVersion::Rar4);
 
         // Read spanning chunk 0 and 1
         let data = file

@@ -156,8 +156,11 @@ impl Rar5FileHeaderParser {
         // Read CRC32 (4 bytes, not vint)
         let crc32 = reader.read_u32_le().ok_or(RarError::InvalidHeader)?;
 
-        // Read header size (vint)
+        // Read header size (vint) - this is the size of header content AFTER this vint
         let header_size = reader.read().ok_or(RarError::InvalidHeader)?;
+        
+        // Record position after reading header_size vint
+        let header_content_start = reader.position();
 
         // Read header type (vint) - should be 2 for file header
         let header_type = reader.read().ok_or(RarError::InvalidHeader)?;
@@ -229,8 +232,9 @@ impl Rar5FileHeaderParser {
             None
         };
 
-        // Calculate total bytes consumed (CRC32 + header_size bytes)
-        let total_consumed = 4 + header_size as usize;
+        // Calculate total bytes consumed
+        // header_size indicates bytes after the header_size vint itself
+        let total_consumed = header_content_start + header_size as usize;
 
         Ok((
             Rar5FileHeader {
