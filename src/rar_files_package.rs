@@ -1,4 +1,7 @@
-//! RarFilesPackage - multi-volume RAR archive parser.
+//! Multi-volume RAR archive parser.
+//!
+//! This module provides the main entry point for parsing RAR archives.
+//! Use [`RarFilesPackage`] to open and parse RAR archives.
 
 use crate::error::{RarError, Result};
 use crate::file_media::{FileMedia, ReadInterval};
@@ -11,20 +14,22 @@ use crate::rar_file_chunk::RarFileChunk;
 use std::collections::HashMap;
 use std::sync::Arc;
 
-/// Archive metadata.
+/// Archive metadata returned by [`RarFilesPackage::get_archive_info`].
+///
+/// Contains information about the archive format, flags, and capabilities.
 #[derive(Debug, Clone, Default)]
 pub struct ArchiveInfo {
-    /// Whether the archive has a recovery record.
+    /// Whether the archive has a recovery record for error correction.
     pub has_recovery_record: bool,
-    /// Whether the archive is solid.
+    /// Whether the archive uses solid compression (files depend on previous files).
     pub is_solid: bool,
-    /// Whether the archive is locked.
+    /// Whether the archive is locked (cannot be modified).
     pub is_locked: bool,
-    /// Whether the archive is a multi-volume set.
+    /// Whether the archive is split across multiple volumes.
     pub is_multivolume: bool,
-    /// Whether headers are encrypted (requires password to list files).
+    /// Whether file headers are encrypted (requires password to list files).
     pub has_encrypted_headers: bool,
-    /// RAR format version.
+    /// RAR format version (RAR4 or RAR5).
     pub version: RarVersion,
 }
 

@@ -1,9 +1,34 @@
 //! RAR decompression algorithms.
 //!
-//! Implements LZSS + Huffman decompression for RAR archives.
-//! Pure Rust implementation for WASM compatibility.
+//! This module provides decompression support for RAR archives.
+//! Implements LZSS + Huffman, PPMd, and various filters.
+//!
+//! ## Decoders
+//!
+//! - [`Rar29Decoder`] - RAR 2.9/3.x/4.x decompression (LZSS, PPMd)
+//! - [`Rar5Decoder`] - RAR 5.0+ decompression (LZSS with filters)
+//!
+//! ## Example
+//!
+//! ```rust
+//! use rar_stream::Rar29Decoder;
+//!
+//! let mut decoder = Rar29Decoder::new();
+//! // let decompressed = decoder.decompress(&compressed_data, expected_size)?;
+//! ```
+//!
+//! ## Compression Methods
+//!
+//! | Method | Value | Description |
+//! |--------|-------|-------------|
+//! | Store | 0x30 | No compression |
+//! | Fastest | 0x31 | LZSS minimal |
+//! | Fast | 0x32 | LZSS fast |
+//! | Normal | 0x33 | LZSS normal |
+//! | Good | 0x34 | LZSS good |
+//! | Best | 0x35 | LZSS best |
 
-// Work-in-progress: PPM and RAR29 decompression not fully integrated yet
+// Work-in-progress: Some filters not fully integrated yet
 #![allow(dead_code)]
 
 mod bit_reader;

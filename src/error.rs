@@ -1,23 +1,50 @@
-//! Error types for RAR parsing.
+//! Error types for RAR parsing and decompression.
+//!
+//! The main error type is [`RarError`], which covers all possible errors
+//! that can occur when parsing or extracting RAR archives.
 
 use std::fmt;
 use std::io;
 
+/// Error type for RAR operations.
+///
+/// This enum covers all possible errors that can occur when parsing,
+/// decompressing, or decrypting RAR archives.
 #[derive(Debug)]
 pub enum RarError {
+    /// The file does not have a valid RAR signature.
     InvalidSignature,
+    /// A header in the archive is malformed or corrupt.
     InvalidHeader,
+    /// An unknown or unsupported header type was encountered.
     InvalidHeaderType(u8),
+    /// The compression method is not supported.
     DecompressionNotSupported(u8),
+    /// The archive is encrypted but the `crypto` feature is not enabled.
     EncryptedNotSupported,
-    /// Encrypted file but no password provided
+    /// The archive is encrypted but no password was provided.
     PasswordRequired,
-    /// Decryption failed (wrong password or corrupt data)
+    /// Decryption failed (wrong password or corrupt data).
     DecryptionFailed(String),
-    BufferTooSmall { needed: usize, have: usize },
-    InvalidOffset { offset: u64, length: u64 },
+    /// The provided buffer is too small.
+    BufferTooSmall {
+        /// Bytes needed
+        needed: usize,
+        /// Bytes available
+        have: usize,
+    },
+    /// An invalid file offset was requested.
+    InvalidOffset {
+        /// Requested offset
+        offset: u64,
+        /// File length
+        length: u64,
+    },
+    /// An I/O error occurred.
     Io(io::Error),
+    /// No files were found in the archive.
     NoFilesFound,
+    /// RAR5 format detected but a specific feature is not supported.
     Rar5NotFullySupported,
 }
 

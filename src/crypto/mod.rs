@@ -1,7 +1,31 @@
 //! Cryptographic support for encrypted RAR archives.
 //!
-//! RAR5 uses AES-256-CBC with PBKDF2-HMAC-SHA256 key derivation.
-//! RAR4 uses AES-256-CBC with a custom SHA-1 based KDF.
+//! This module provides decryption support for both RAR4 and RAR5 encrypted archives.
+//!
+//! ## RAR5 Encryption
+//!
+//! RAR5 uses AES-256-CBC encryption with PBKDF2-HMAC-SHA256 for key derivation.
+//! The iteration count is configurable (default 2^15 = 32768 rounds).
+//!
+//! ```rust,ignore
+//! use rar_stream::crypto::{Rar5Crypto, Rar5EncryptionInfo};
+//!
+//! let info = Rar5EncryptionInfo::parse(&encryption_data)?;
+//! let crypto = Rar5Crypto::derive_key("password", &info.salt, info.lg2_count);
+//! crypto.decrypt(&info.init_v, &mut encrypted_data)?;
+//! ```
+//!
+//! ## RAR4 Encryption
+//!
+//! RAR4 uses AES-128-CBC encryption with a custom SHA-1 based key derivation
+//! (262,144 iterations). The IV is derived alongside the key.
+//!
+//! ```rust,ignore
+//! use rar_stream::crypto::Rar4Crypto;
+//!
+//! let crypto = Rar4Crypto::derive_key("password", &salt);
+//! crypto.decrypt(&mut encrypted_data)?;
+//! ```
 
 mod rar4;
 mod rar5;

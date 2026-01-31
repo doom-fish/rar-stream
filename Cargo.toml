@@ -2,11 +2,22 @@
 name = "rar-stream"
 version = "4.0.3"
 edition = "2021"
+rust-version = "1.85"
 license = "MIT"
 repository = "https://github.com/doom-fish/rar-stream"
-description = "Zero-dependency RAR streaming library with optional NAPI/WASM bindings"
-keywords = ["rar", "archive", "streaming", "compression"]
-categories = ["compression", "encoding"]
+documentation = "https://docs.rs/rar-stream"
+readme = "README.md"
+description = "High-performance RAR streaming library with optional async, crypto, NAPI, and WASM support"
+keywords = ["rar", "archive", "streaming", "compression", "encryption"]
+categories = ["compression", "encoding", "parser-implementations"]
+
+[package.metadata.docs.rs]
+# Build docs.rs with all features except napi (conflicts with wasm)
+features = ["async", "crypto"]
+# Document all features
+all-features = false
+# Show feature flags in docs
+rustdoc-args = ["--cfg", "docsrs"]
 
 [lib]
 crate-type = ["cdylib", "rlib"]

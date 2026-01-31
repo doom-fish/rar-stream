@@ -34,10 +34,10 @@ impl Rar4Crypto {
     ///
     /// The RAR4 KDF uses 2^18 iterations of SHA-1:
     /// - Password is encoded as UTF-16LE, concatenated with salt as seed
-    /// - Each iteration: SHA1.update(seed + counter[:3])
+    /// - Each iteration: `SHA1.update(seed + counter[0..3])`
     /// - Counter is a 3-byte little-endian integer
     /// - Every 16384 (0x4000) iterations at j=0, extract byte 19 of digest as IV byte
-    /// - Final SHA-1 digest[:16] is the AES-128 key (with endian swap)
+    /// - Final SHA-1 digest (first 16 bytes) is the AES-128 key (with endian swap)
     pub fn derive_key(password: &str, salt: &[u8; 8]) -> Self {
         // Convert password to UTF-16LE and concatenate with salt
         let seed: Vec<u8> = password

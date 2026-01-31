@@ -1,16 +1,80 @@
-//! RAR streaming library with NAPI bindings.
+//! # rar-stream
 //!
-//! Rust port of rar-stream for streaming files from RAR archives.
-//! Optimized for video streaming with fast seeking via binary search.
+//! A high-performance RAR archive streaming library for Rust, Node.js, and browsers.
 //!
-//! Supports RAR15 (RAR 1.5-4.x) and RAR50 (RAR 5.0+) formats.
+//! This library provides streaming access to files within RAR archives, optimized for
+//! video streaming with fast seeking via binary search. It supports both RAR4 (1.5-4.x)
+//! and RAR5 (5.0+) formats.
 //!
 //! ## Features
-//! - Core library has **zero dependencies**
-//! - `async` - Async file reading with tokio
-//! - `napi` - Node.js bindings
-//! - `wasm` - Browser WASM bindings
-//! - `crypto` - Encrypted archive support
+//!
+//! | Feature | Description |
+//! |---------|-------------|
+//! | `async` | Async file reading with tokio (enables [`RarFilesPackage`], [`InnerFile`]) |
+//! | `crypto` | Encrypted archive support (AES-256 for RAR5, AES-128 for RAR4) |
+//! | `napi` | Node.js native bindings |
+//! | `wasm` | Browser WebAssembly bindings |
+//!
+//! ## Supported Formats
+//!
+//! - **RAR4** (versions 1.5-4.x): LZSS, PPMd compression, AES-128-CBC encryption
+//! - **RAR5** (version 5.0+): LZSS with filters, AES-256-CBC encryption with PBKDF2
+//!
+//! ## Quick Start
+//!
+//! ```rust,ignore
+//! use rar_stream::{RarFilesPackage, ParseOptions, LocalFileMedia, FileMedia};
+//! use std::sync::Arc;
+//!
+//! #[tokio::main]
+//! async fn main() -> Result<(), Box<dyn std::error::Error>> {
+//!     // Open a RAR archive
+//!     let file: Arc<dyn FileMedia> = Arc::new(LocalFileMedia::new("archive.rar")?);
+//!     let package = RarFilesPackage::new(vec![file]);
+//!
+//!     // Parse and list files
+//!     let files = package.parse(ParseOptions::default()).await?;
+//!     for f in &files {
+//!         println!("{}: {} bytes", f.name, f.length);
+//!     }
+//!
+//!     // Read file content
+//!     let content = files[0].read_to_end().await?;
+//!     Ok(())
+//! }
+//! ```
+//!
+//! ## Encrypted Archives
+//!
+//! With the `crypto` feature, you can read encrypted archives:
+//!
+//! ```rust,ignore
+//! use rar_stream::{RarFilesPackage, ParseOptions};
+//!
+//! let opts = ParseOptions {
+//!     password: Some("secret".to_string()),
+//!     ..Default::default()
+//! };
+//! let files = package.parse(opts).await?;
+//! let decrypted = files[0].read_decompressed().await?;
+//! ```
+//!
+//! ## Decompression Only
+//!
+//! For low-level decompression without async I/O:
+//!
+//! ```rust
+//! use rar_stream::{Rar29Decoder, CompressionMethod};
+//!
+//! // Decompress RAR4 LZSS data
+//! let mut decoder = Rar29Decoder::new();
+//! // decoder.decompress(&compressed_data, expected_size)?;
+//! ```
+//!
+//! ## Browser/WASM Usage
+//!
+//! With the `wasm` feature, the library compiles to WebAssembly for browser use.
+//! See the npm package documentation for JavaScript API details.
 
 // Note: unsafe_code = "warn" in Cargo.toml allows targeted unsafe for performance
 // All unsafe blocks should be minimal and well-documented with SAFETY comments

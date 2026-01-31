@@ -1,23 +1,34 @@
 # rar-stream
 
-> Fast RAR archive streaming for Node.js and browsers. Zero dependencies, pure Rust.
+> Fast RAR archive streaming for Rust, Node.js, and browsers. Zero dependencies core.
 
 [![npm version](https://badge.fury.io/js/rar-stream.svg)](https://www.npmjs.com/package/rar-stream)
+[![crates.io](https://img.shields.io/crates/v/rar-stream.svg)](https://crates.io/crates/rar-stream)
+[![docs.rs](https://docs.rs/rar-stream/badge.svg)](https://docs.rs/rar-stream)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 ## Features
 
 - 🚀 **Fast**: Native Rust implementation with NAPI bindings
-- 📦 **Zero dependencies**: No external runtime dependencies
+- 📦 **Zero dependencies**: Core library has no external dependencies
 - 🌐 **Cross-platform**: Works on Linux, macOS, Windows
 - 🔄 **Streaming**: Stream files directly from RAR archives
 - 📚 **Multi-volume**: Supports split archives (.rar, .r00, .r01, ...)
 - 🗜️ **Full decompression**: LZSS, PPMd, and filters
-- 🔐 **Encrypted archives**: AES-256 decryption (with `crypto` feature)
+- 🔐 **Encrypted archives**: AES-256/AES-128 decryption for RAR4 & RAR5
 - 🆕 **RAR4 + RAR5**: Full support for both RAR formats
 - 🌍 **Browser support**: WASM build available
 
 ## Installation
+
+### Rust
+
+```toml
+[dependencies]
+rar-stream = { version = "4", features = ["async", "crypto"] }
+```
+
+### Node.js
 
 ```bash
 npm install rar-stream
@@ -47,6 +58,31 @@ for (const file of files) {
   
   // Or read a specific byte range (for streaming)
   const chunk = await file.createReadStream({ start: 0, end: 1023 });
+}
+```
+
+### Rust Quick Start
+
+```rust
+use rar_stream::{RarFilesPackage, ParseOptions, LocalFileMedia, FileMedia};
+use std::sync::Arc;
+
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    // Open a RAR archive
+    let file: Arc<dyn FileMedia> = Arc::new(LocalFileMedia::new("archive.rar")?);
+    let package = RarFilesPackage::new(vec![file]);
+
+    // Parse and list files
+    let files = package.parse(ParseOptions::default()).await?;
+    for f in &files {
+        println!("{}: {} bytes", f.name, f.length);
+    }
+
+    // Read file content
+    let content = files[0].read_to_end().await?;
+    println!("Read {} bytes", content.len());
+    Ok(())
 }
 ```
 
@@ -255,16 +291,19 @@ interface RarFileInfo {
 
 | Feature | RAR4 | RAR5 | Notes |
 |---------|------|------|-------|
-| Encrypted files | 🔜 | ✅ | `crypto` feature |
-| Encrypted headers | — | 🔜 | Coming soon |
+| Encrypted files | ✅ | ✅ | `crypto` feature |
+| Encrypted headers | — | ✅ | RAR5 `-hp` archives |
 | Algorithm | AES-128-CBC | AES-256-CBC | — |
-| Key derivation | SHA-1 based | PBKDF2-HMAC-SHA256 | — |
+| Key derivation | SHA-1 (262k rounds) | PBKDF2-HMAC-SHA256 | — |
 
-To enable encryption support, use the `crypto` feature:
+To enable encryption support:
 
+**Node.js/npm:** Encryption is always available.
+
+**Rust:**
 ```toml
 [dependencies]
-rar-stream = { version = "4", features = ["crypto"] }
+rar-stream = { version = "4", features = ["async", "crypto"] }
 ```
 
 ## Performance
