@@ -121,6 +121,84 @@ impl HuffmanTable {
         Ok(table)
     }
 
+    /// Rebuild the table from new code lengths, reusing existing allocations.
+    pub fn rebuild(&mut self, lengths: &[u8]) -> Result<()> {
+        // Resize symbols vec if needed (no fill - we overwrite valid entries)
+        if self.symbols.len() != lengths.len() {
+            self.symbols.resize(lengths.len(), 0);
+        }
+        
+        // Reset array fields
+        self.length_counts = [0; MAX_CODE_LENGTH + 1];
+        self.first_code = [0; MAX_CODE_LENGTH + 1];
+        self.first_symbol = [0; MAX_CODE_LENGTH + 1];
+
+        // Count code lengths
+        for &len in lengths {
+            if len > 0 && (len as usize) <= MAX_CODE_LENGTH {
+                self.length_counts[len as usize] += 1;
+            }
+        }
+
+        // Calculate first code for each length (canonical Huffman)
+        let mut code = 0u32;
+        for i in 1..=MAX_CODE_LENGTH {
+            code = (code + self.length_counts[i - 1] as u32) << 1;
+            self.first_code[i] = code;
+        }
+
+        // Calculate first symbol index for each length
+        let mut idx = 0u16;
+        for i in 1..=MAX_CODE_LENGTH {
+            self.first_symbol[i] = idx;
+            idx += self.length_counts[i];
+        }
+
+        // Build symbol list sorted by code
+        let mut indices = self.first_symbol;
+        for (symbol, &len) in lengths.iter().enumerate() {
+            if len > 0 && (len as usize) <= MAX_CODE_LENGTH {
+                let i = indices[len as usize] as usize;
+                if i < self.symbols.len() {
+                    self.symbols[i] = symbol as u16;
+                    indices[len as usize] += 1;
+                }
+            }
+        }
+
+        // Rebuild quick lookup table
+        // Note: we clear entries first to ensure unused codes return length=0
+        self.quick_table.fill(HuffmanEntry::default());
+        for (symbol, &len) in lengths.iter().enumerate() {
+            if len > 0 && len as u32 <= QUICK_BITS {
+                let len = len as u32;
+                let symbol_idx = self.symbols[..self.first_symbol[len as usize + 1] as usize]
+                    .iter()
+                    .position(|&s| s == symbol as u16);
+
+                if let Some(idx) = symbol_idx {
+                    let code = self.first_code[len as usize] + idx as u32
+                        - self.first_symbol[len as usize] as u32;
+                    let fill_bits = QUICK_BITS - len;
+                    let start = (code << fill_bits) as usize;
+                    let count = 1 << fill_bits;
+
+                    for j in 0..count {
+                        let entry_idx = start + j;
+                        if entry_idx < QUICK_SIZE {
+                            self.quick_table[entry_idx] = HuffmanEntry {
+                                symbol: symbol as u16,
+                                length: len as u8,
+                            };
+                        }
+                    }
+                }
+            }
+        }
+
+        Ok(())
+    }
+
     /// Debug: dump the canonical codes for each symbol
     #[cfg(test)]
     pub fn dump_codes(&self, name: &str, lengths: &[u8]) {
@@ -331,16 +409,23 @@ impl HuffmanDecoder {
         eprintln!("length_table first 20: {:?}", &self.length_table[..20]);
 
         // Build the four Huffman tables from length_table
+        // Use rebuild() if table exists to avoid allocation
         let mut offset = 0;
 
-        self.main_table = Some(HuffmanTable::new(
-            &self.length_table[offset..offset + MAINCODE_SIZE],
-        )?);
+        let main_lengths = &self.length_table[offset..offset + MAINCODE_SIZE];
+        if let Some(ref mut table) = self.main_table {
+            table.rebuild(main_lengths)?;
+        } else {
+            self.main_table = Some(HuffmanTable::new(main_lengths)?);
+        }
         offset += MAINCODE_SIZE;
 
-        self.dist_table = Some(HuffmanTable::new(
-            &self.length_table[offset..offset + OFFSETCODE_SIZE],
-        )?);
+        let dist_lengths = &self.length_table[offset..offset + OFFSETCODE_SIZE];
+        if let Some(ref mut table) = self.dist_table {
+            table.rebuild(dist_lengths)?;
+        } else {
+            self.dist_table = Some(HuffmanTable::new(dist_lengths)?);
+        }
         offset += OFFSETCODE_SIZE;
 
         #[cfg(test)]
@@ -349,9 +434,12 @@ impl HuffmanDecoder {
             eprintln!("low_dist_table lengths: {:?}", low_lengths);
         }
 
-        self.low_dist_table = Some(HuffmanTable::new(
-            &self.length_table[offset..offset + LOWOFFSETCODE_SIZE],
-        )?);
+        let low_lengths = &self.length_table[offset..offset + LOWOFFSETCODE_SIZE];
+        if let Some(ref mut table) = self.low_dist_table {
+            table.rebuild(low_lengths)?;
+        } else {
+            self.low_dist_table = Some(HuffmanTable::new(low_lengths)?);
+        }
 
         #[cfg(test)]
         {
@@ -364,9 +452,12 @@ impl HuffmanDecoder {
 
         offset += LOWOFFSETCODE_SIZE;
 
-        self.len_table = Some(HuffmanTable::new(
-            &self.length_table[offset..offset + LENGTHCODE_SIZE],
-        )?);
+        let len_lengths = &self.length_table[offset..offset + LENGTHCODE_SIZE];
+        if let Some(ref mut table) = self.len_table {
+            table.rebuild(len_lengths)?;
+        } else {
+            self.len_table = Some(HuffmanTable::new(len_lengths)?);
+        }
 
         Ok(())
     }

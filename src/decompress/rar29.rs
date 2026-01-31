@@ -147,11 +147,10 @@ impl Rar29Decoder {
 
         if self.ppm_mode {
             // DON'T consume the PPM flag bit - it's part of the MaxOrder byte
-            // Initialize PPMd model (which will read MaxOrder byte including the flag)
-            let mut ppm = PpmModel::new();
+            // Initialize or reuse PPMd model
+            let ppm = self.ppm.get_or_insert_with(PpmModel::new);
             match ppm.init(reader) {
                 Ok((coder, esc_char)) => {
-                    self.ppm = Some(ppm);
                     self.ppm_coder = Some(coder);
                     self.ppm_esc_char = esc_char;
                     #[cfg(test)]
@@ -695,7 +694,7 @@ impl Rar29Decoder {
     pub fn reset(&mut self) {
         self.lzss.reset();
         self.vm.reset();
-        self.ppm = None;
+        // Keep ppm model for reuse (SubAllocator reuses buffer if same size)
         self.ppm_coder = None;
         self.ppm_esc_char = -1;
         self.old_dist = [0; 4];

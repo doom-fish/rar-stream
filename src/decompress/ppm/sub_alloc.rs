@@ -135,6 +135,18 @@ impl SubAllocator {
         self.hi_unit = self.heap_end;
     }
 
+    /// Resize the allocator if the new size is different.
+    /// Reuses existing buffer if size matches, avoiding reallocation.
+    pub fn resize(&mut self, size_mb: usize) {
+        let size = size_mb * 1024 * 1024;
+        if self.heap.len() != size {
+            self.heap = vec![0u8; size];
+            self.heap_end = size;
+            self.init_tables();
+        }
+        self.init();
+    }
+
     /// Get heap end pointer.
     pub fn heap_end(&self) -> usize {
         self.heap_end

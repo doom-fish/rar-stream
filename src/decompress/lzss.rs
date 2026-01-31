@@ -44,6 +44,15 @@ impl LzssDecoder {
         Self::new(WINDOW_SIZE_50)
     }
 
+    /// Reset the decoder for reuse, avoiding reallocation.
+    /// Note: Window contents are NOT cleared - we only read after writing.
+    #[inline]
+    pub fn reset(&mut self) {
+        self.pos = 0;
+        self.total_written = 0;
+        // No need to clear window - we validate reads against total_written
+    }
+
     /// Write a literal byte to the output.
     #[inline]
     pub fn write_literal(&mut self, byte: u8) {
@@ -56,7 +65,8 @@ impl LzssDecoder {
     /// Optimized for both overlapping and non-overlapping copies.
     #[inline]
     pub fn copy_match(&mut self, distance: u32, length: u32) -> Result<()> {
-        if distance == 0 || distance as usize > self.window.len() {
+        // Validate distance against bytes actually written, not window size
+        if distance == 0 || distance as u64 > self.total_written {
             return Err(DecompressError::InvalidBackReference {
                 offset: distance,
                 position: self.pos as u32,
@@ -146,13 +156,6 @@ impl LzssDecoder {
         }
 
         output
-    }
-
-    /// Reset the decoder state.
-    pub fn reset(&mut self) {
-        self.window.fill(0);
-        self.pos = 0;
-        self.total_written = 0;
     }
 }
 

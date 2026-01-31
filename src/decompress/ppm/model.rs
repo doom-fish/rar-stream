@@ -198,8 +198,8 @@ impl PpmModel {
                 return Err("Invalid max order");
             }
 
-            // Reinitialize sub-allocator
-            self.sub_alloc = SubAllocator::new(max_mb + 1);
+            // Resize sub-allocator (reuses buffer if size matches)
+            self.sub_alloc.resize(max_mb + 1);
             self.start_model(max_order);
         }
 

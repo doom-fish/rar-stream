@@ -56,6 +56,16 @@ fn bench_lzss(c: &mut Criterion) {
         });
     });
     
+    // Benchmark decoder reuse - amortize allocation across iterations
+    group.bench_function("lzss_3kb_reuse", |b| {
+        let mut decoder = Rar29Decoder::new();
+        b.iter(|| {
+            decoder.reset();
+            let result = decoder.decompress(black_box(compressed), header.unpacked_size);
+            black_box(result)
+        });
+    });
+    
     group.finish();
 }
 
@@ -70,6 +80,16 @@ fn bench_ppmd(c: &mut Criterion) {
     group.bench_function("ppmd_3kb", |b| {
         b.iter(|| {
             let mut decoder = Rar29Decoder::new();
+            let result = decoder.decompress(black_box(compressed), header.unpacked_size);
+            black_box(result)
+        });
+    });
+    
+    // Benchmark decoder reuse - amortize allocation across iterations
+    group.bench_function("ppmd_3kb_reuse", |b| {
+        let mut decoder = Rar29Decoder::new();
+        b.iter(|| {
+            decoder.reset();
             let result = decoder.decompress(black_box(compressed), header.unpacked_size);
             black_box(result)
         });
