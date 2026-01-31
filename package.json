@@ -2,6 +2,7 @@
   "name": "rar-stream",
   "version": "4.0.3",
   "description": "RAR streaming library - Rust implementation with NAPI and WASM bindings",
+  "type": "module",
   "main": "lib/index.js",
   "browser": "lib/browser.js",
   "types": "lib/index.d.ts",
