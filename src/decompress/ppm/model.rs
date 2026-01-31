@@ -542,7 +542,7 @@ impl PpmModel {
         for i in 0..num_stats {
             let state_ptr = stats as usize + (i as usize) * 6;
             let freq = self.read_state_freq(state_ptr) as u32;
-            let _sym = self.read_state_symbol(state_ptr);
+            let sym = self.read_state_symbol(state_ptr);
             hi_cnt += freq;
 
             #[cfg(test)]
@@ -1033,7 +1033,7 @@ impl PpmModel {
                 cum += freq;
                 if cum > count {
                     let lo_cnt = cum - freq;
-                    let _sym = self.read_state_symbol(state_ptr);
+                    let sym = self.read_state_symbol(state_ptr);
 
                     #[cfg(test)]
                     if self.debug_count == 0 || self.debug_count == 58 {

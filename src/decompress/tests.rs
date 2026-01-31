@@ -3,7 +3,7 @@
 //! Tests decompression of real RAR archives from __fixtures__/compressed/.
 
 use super::*;
-use crate::parsing::file_header::{FileHeaderParser, FILE_HEADER_TYPE};
+use crate::parsing::file_header::FileHeaderParser;
 
 /// RAR4 marker header signature.
 const RAR4_MARKER: &[u8] = &[0x52, 0x61, 0x72, 0x21, 0x1a, 0x07, 0x00];
@@ -160,7 +160,7 @@ fn test_decompress_audio() {
 #[test]
 fn test_parse_lzss_rar() {
     let data = include_bytes!("../../__fixtures__/compressed/lipsum_rar4_max.rar");
-    let (header, compressed) = parse_rar4_file(data).expect("Failed to parse RAR file");
+    let (header, _compressed) = parse_rar4_file(data).expect("Failed to parse RAR file");
 
     assert_eq!(header.name, "lorem_ipsum.txt");
     assert!(header.method >= 0x31 && header.method <= 0x35);
