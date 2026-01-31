@@ -4,7 +4,8 @@ use crate::error::{RarError, Result};
 use crate::file_media::{FileMedia, ReadInterval};
 use crate::inner_file::InnerFile;
 use crate::parsing::{
-    ArchiveHeaderParser, FileHeaderParser, MarkerHeaderParser, TerminatorHeaderParser,
+    ArchiveHeaderParser, FileHeaderParser, MarkerHeaderParser, RarVersion, TerminatorHeaderParser,
+    rar5::{Rar5ArchiveHeaderParser, Rar5FileHeaderParser},
 };
 use crate::rar_file_chunk::RarFileChunk;
 use std::collections::HashMap;
@@ -67,18 +68,34 @@ impl RarFilesPackage {
         rar_file: &Arc<dyn FileMedia>,
         opts: &ParseOptions,
     ) -> Result<Vec<ParsedChunk>> {
-        let mut chunks = Vec::new();
         let mut offset = 0u64;
 
-        // Parse marker header
+        // Read enough for both RAR4 and RAR5 signatures
         let marker_buf = rar_file
             .read_range(ReadInterval {
                 start: offset,
-                end: offset + MarkerHeaderParser::HEADER_SIZE as u64 - 1,
+                end: offset + 8 - 1, // RAR5 signature is 8 bytes
             })
             .await?;
+        
         let marker = MarkerHeaderParser::parse(&marker_buf)?;
-        offset += marker.size as u64;
+        
+        // Dispatch based on version
+        match marker.version {
+            RarVersion::Rar4 => self.parse_rar4_file(rar_file, opts, marker.size as u64).await,
+            RarVersion::Rar5 => self.parse_rar5_file(rar_file, opts).await,
+        }
+    }
+
+    /// Parse a RAR4 format file.
+    async fn parse_rar4_file(
+        &self,
+        rar_file: &Arc<dyn FileMedia>,
+        opts: &ParseOptions,
+        marker_size: u64,
+    ) -> Result<Vec<ParsedChunk>> {
+        let mut chunks = Vec::new();
+        let mut offset = marker_size;
 
         // Parse archive header
         let archive_buf = rar_file
@@ -151,6 +168,97 @@ impl RarFilesPackage {
                 retrieved_count += 1;
 
                 // Check max files limit
+                if let Some(max) = opts.max_files {
+                    if retrieved_count >= max {
+                        break;
+                    }
+                }
+            }
+
+            offset = data_end + 1;
+            file_count += 1;
+        }
+
+        Ok(chunks)
+    }
+
+    /// Parse a RAR5 format file.
+    async fn parse_rar5_file(
+        &self,
+        rar_file: &Arc<dyn FileMedia>,
+        opts: &ParseOptions,
+    ) -> Result<Vec<ParsedChunk>> {
+        let mut chunks = Vec::new();
+        let mut offset = 8u64; // RAR5 signature is 8 bytes
+
+        // Read archive header (variable size, read enough for typical header)
+        let header_buf = rar_file
+            .read_range(ReadInterval {
+                start: offset,
+                end: (offset + 256 - 1).min(rar_file.length() - 1),
+            })
+            .await?;
+
+        let (archive_header, consumed) = Rar5ArchiveHeaderParser::parse(&header_buf)?;
+        offset += consumed as u64;
+
+        let mut file_count = 0usize;
+        let mut retrieved_count = 0usize;
+
+        // Parse file headers
+        while offset < rar_file.length().saturating_sub(16) {
+            // Read header data (variable size)
+            let bytes_available = rar_file.length().saturating_sub(offset);
+            let read_size = 512u64.min(bytes_available);
+
+            if read_size < 16 {
+                break;
+            }
+
+            let header_buf = rar_file
+                .read_range(ReadInterval {
+                    start: offset,
+                    end: offset + read_size - 1,
+                })
+                .await?;
+
+            // Try to parse as file header
+            let (file_header, header_consumed) = match Rar5FileHeaderParser::parse(&header_buf) {
+                Ok(h) => h,
+                Err(_) => break,
+            };
+
+            let data_start = offset + header_consumed as u64;
+            let data_end = data_start + file_header.packed_size - 1;
+
+            // Apply filter
+            let include = match &opts.filter {
+                Some(f) => f(&file_header.name, file_count),
+                None => true,
+            };
+
+            if include {
+                let chunk = RarFileChunk::new(rar_file.clone(), data_start, data_end);
+                let chunk_size = file_header.packed_size;
+
+                // Convert RAR5 method to RAR4-compatible format
+                // RAR5 method 0 = stored, 1-5 = compression
+                let method = if file_header.compression.is_stored() {
+                    0x30 // Store
+                } else {
+                    0x30 + file_header.compression.method
+                };
+
+                chunks.push(ParsedChunk {
+                    name: file_header.name.clone(),
+                    chunk,
+                    continues_in_next: file_header.continues_in_next(),
+                    unpacked_size: file_header.unpacked_size,
+                    chunk_size,
+                    method,
+                });
+                retrieved_count += 1;
+
                 if let Some(max) = opts.max_files {
                     if retrieved_count >= max {
                         break;
