@@ -232,3 +232,32 @@ describe("Compression Support", () => {
     expect(Buffer.compare(content, expectedContent)).toBe(0);
   });
 });
+
+describe("RAR5 Support", () => {
+  const rar5Path = path.resolve(fixturePath, "rar5");
+
+  test("RAR5 stored (method 0)", async () => {
+    const media = new LocalFileMedia(path.resolve(rar5Path, "stored.rar"));
+    const pkg = new RarFilesPackage([media]);
+    const files = await pkg.parse();
+    expect(files.length).toBe(1);
+    expect(files[0].name).toBe("stored_test.txt");
+    const content = await files[0].readToEnd();
+    const text = content.toString("utf-8");
+    expect(text).toContain("Hello stored RAR5!");
+  });
+
+  test("RAR5 compressed (method 3)", async () => {
+    const media = new LocalFileMedia(path.resolve(rar5Path, "compressed.rar"));
+    const pkg = new RarFilesPackage([media]);
+    const files = await pkg.parse();
+    expect(files.length).toBe(1);
+    expect(files[0].name).toBe("compress_test.txt");
+    expect(files[0].length).toBe(152); // Unpacked size
+    const content = await files[0].readToEnd();
+    expect(content.length).toBe(152);
+    const text = content.toString("utf-8");
+    expect(text).toContain("This is a test file");
+    expect(text).toContain("hello hello");
+  });
+});

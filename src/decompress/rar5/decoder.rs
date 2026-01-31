@@ -1,10 +1,10 @@
 //! RAR5 decoder implementation.
 //!
-//! RAR5 compression is based on LZSS with range coding and optional filters.
+//! RAR5 compression is based on LZSS with Huffman coding and optional filters.
 //! Dictionary sizes can be up to 4GB.
 
+use super::bit_decoder::BitDecoder;
 use super::block_decoder::Rar5BlockDecoder;
-use super::range_coder::RangeCoder;
 use crate::decompress::DecompressError;
 
 /// RAR5 decoder for decompressing RAR5 archives.
@@ -71,13 +71,13 @@ impl Rar5Decoder {
             self.block_decoder.reset();
         }
 
-        // Initialize range coder with compressed data
-        let mut coder = RangeCoder::new(input);
+        // Initialize bit decoder with compressed data
+        let mut bits = BitDecoder::new(input);
 
         // Decode blocks until we have enough output
-        let start_pos = 0; // Track window start for output
+        let start_pos = 0;
         self.block_decoder
-            .decode_block(&mut coder, unpacked_size as usize)?;
+            .decode_block(&mut bits, unpacked_size as usize)?;
 
         // Get decompressed output
         let output = self.block_decoder.get_output(start_pos, unpacked_size as usize);
@@ -124,7 +124,33 @@ mod tests {
         // Fake compressed data - won't produce correct output but tests the path
         let input = vec![0u8; 100];
         let result = decoder.decompress(&input, 10, 3, false);
-        // Should return Ok (even if output is wrong) or IncompleteData
-        assert!(result.is_ok() || matches!(result, Err(DecompressError::IncompleteData)));
+        // Should fail with error (invalid block header)
+        assert!(result.is_err());
+    }
+    
+    #[test]
+    fn test_decompress_real_file() {
+        // Test with actual RAR5 compressed data from fixtures
+        let data = std::fs::read("__fixtures__/rar5/compressed.rar").unwrap();
+        
+        // Compressed data starts at byte 75, 104 bytes
+        let compressed = &data[75..179];
+        let unpacked_size = 152;
+        let dict_bits = 17; // 128KB dictionary
+        
+        let mut decoder = Rar5Decoder::new();
+        let result = decoder.decompress(compressed, unpacked_size, dict_bits, false);
+        
+        match result {
+            Ok(output) => {
+                assert_eq!(output.len(), 152, "output size should match unpacked size");
+                let text = std::str::from_utf8(&output).expect("output should be valid UTF-8");
+                assert!(text.starts_with("This is a test file"), "should start with expected text");
+                assert!(text.contains("hello hello"), "should contain repeated text");
+            }
+            Err(e) => {
+                panic!("Decompression failed: {:?}", e);
+            }
+        }
     }
 }
