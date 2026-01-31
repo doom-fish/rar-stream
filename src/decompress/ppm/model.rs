@@ -921,13 +921,8 @@ impl PpmModel {
             see2_col = 0;
         }
 
-        // Collect unmasked symbols and their frequencies
+        // First pass: count unmasked symbol frequencies (avoid 3KB array allocation)
         let mut hi_cnt = 0u32;
-        let mut unmasked: [(usize, u32); 256] = [(0, 0); 256];
-        let mut unmasked_idx = 0;
-
-        #[cfg(test)]
-        let mut freq_histogram = [0u32; 256];
 
         for j in 0..num_stats {
             let state_ptr = stats as usize + (j as usize) * 6;
@@ -935,15 +930,11 @@ impl PpmModel {
             if self.char_mask[sym as usize] != self.esc_count {
                 let freq = self.read_state_freq(state_ptr) as u32;
                 hi_cnt += freq;
-                unmasked[unmasked_idx] = (state_ptr, freq);
-                unmasked_idx += 1;
-
-                #[cfg(test)]
-                if self.debug_count == 13 && freq > 1 {
-                    freq_histogram[sym as usize] = freq;
-                }
             }
         }
+
+        #[cfg(test)]
+        let mut freq_histogram = [0u32; 256];
 
         #[cfg(test)]
         if self.debug_count == 15 {
@@ -1022,30 +1013,31 @@ impl PpmModel {
         #[cfg(test)]
         if self.debug_count == 0 {
             eprintln!(
-                "[DS2 pos={}] esc_freq={} hi_cnt={} scale={} count={} unmasked_idx={}",
-                self.debug_count, esc_freq, hi_cnt, scale, count, unmasked_idx
+                "[DS2 pos={}] esc_freq={} hi_cnt={} scale={} count={}",
+                self.debug_count, esc_freq, hi_cnt, scale, count
             );
         }
 
         // Find symbol or escape
         if count < hi_cnt {
-            // Symbol found
+            // Symbol found - re-iterate to find it
             let mut cum = 0u32;
-            for k in 0..unmasked_idx {
-                let (state_ptr, freq) = unmasked[k];
-                cum += freq;
-                if cum > count {
-                    let lo_cnt = cum - freq;
-                    #[cfg(test)]
-                    let sym = self.read_state_symbol(state_ptr);
+            for j in 0..num_stats {
+                let state_ptr = stats as usize + (j as usize) * 6;
+                let sym = self.read_state_symbol(state_ptr);
+                if self.char_mask[sym as usize] != self.esc_count {
+                    let freq = self.read_state_freq(state_ptr) as u32;
+                    cum += freq;
+                    if cum > count {
+                        let lo_cnt = cum - freq;
 
-                    #[cfg(test)]
-                    if self.debug_count == 0 || self.debug_count == 58 {
-                        eprintln!(
-                            "[DS2 pos={}] Selected k={} sym='{}' ({}) at cum={} lo={} freq={}",
-                            self.debug_count, k, sym as char, sym, cum, lo_cnt, freq
-                        );
-                    }
+                        #[cfg(test)]
+                        if self.debug_count == 0 || self.debug_count == 58 {
+                            eprintln!(
+                                "[DS2 pos={}] Selected j={} sym='{}' ({}) at cum={} lo={} freq={}",
+                                self.debug_count, j, sym as char, sym, cum, lo_cnt, freq
+                            );
+                        }
 
                     #[cfg(test)]
                     if self.debug_count == 13 || self.debug_count == 58 {
@@ -1099,6 +1091,7 @@ impl PpmModel {
                     self.run_length = self.init_rl;
 
                     return Ok(());
+                    }
                 }
             }
         }
@@ -1117,11 +1110,13 @@ impl PpmModel {
         };
         coder.decode(&sub);
 
-        // Mask remaining symbols
-        for k in 0..unmasked_idx {
-            let (state_ptr, _) = unmasked[k];
+        // Mask remaining unmasked symbols
+        for j in 0..num_stats {
+            let state_ptr = stats as usize + (j as usize) * 6;
             let sym = self.read_state_symbol(state_ptr);
-            self.char_mask[sym as usize] = self.esc_count;
+            if self.char_mask[sym as usize] != self.esc_count {
+                self.char_mask[sym as usize] = self.esc_count;
+            }
         }
         self.num_masked = num_stats as usize;
 
@@ -1762,8 +1757,14 @@ impl PpmModel {
 
     /// Clear the character mask.
     fn clear_mask(&mut self) {
-        self.esc_count = 1;
-        self.char_mask = [0; 256];
+        // Increment esc_count instead of zeroing array - much faster
+        // Skip 0 since that's the uninitialized state
+        self.esc_count = self.esc_count.wrapping_add(1);
+        if self.esc_count == 0 {
+            // Wrapped around - must zero the array and restart at 1
+            self.esc_count = 1;
+            self.char_mask = [0; 256];
+        }
     }
 
     // Helper methods for reading/writing context and state structures
