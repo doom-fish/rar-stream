@@ -1,6 +1,6 @@
 [package]
 name = "rar-stream"
-version = "4.0.3"
+version = "5.0.0"
 edition = "2021"
 rust-version = "1.85"
 license = "MIT"
