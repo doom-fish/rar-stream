@@ -137,4 +137,30 @@ test.describe('rar-stream WASM decompression', () => {
     expect(result.success).toBe(true);
     expect(result.decompressedSize).toBe(3515);
   });
+
+  test('can detect RAR5 archive format', async ({ page }) => {
+    await page.goto('http://localhost:8765/test-browser/index.html');
+    await page.waitForFunction(() => document.querySelector('.test.pass') !== null);
+
+    const result = await page.evaluate(async () => {
+      const response = await fetch('/__fixtures__/rar5/test.rar');
+      const buffer = await response.arrayBuffer();
+      const data = new Uint8Array(buffer);
+
+      const { is_rar_archive, get_rar_version } = await import('../pkg/rar_stream.js');
+
+      const isRar = is_rar_archive(data);
+      const version = get_rar_version(data);
+
+      return {
+        isRar,
+        version,
+        isRar5: version === 50
+      };
+    });
+
+    expect(result.isRar).toBe(true);
+    expect(result.version).toBe(50); // RAR 5.0
+    expect(result.isRar5).toBe(true);
+  });
 });
