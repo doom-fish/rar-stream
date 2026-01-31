@@ -64,6 +64,11 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:browser": "npx playwright test",
+    "bench": "cargo bench",
+    "bench:save": "cargo bench -- --save-baseline main",
+    "bench:compare": "cargo bench -- --baseline main",
+    "profile": "cargo build --release && perf record -g ./target/release/examples/profile_decompress && perf report",
+    "flamegraph": "cargo flamegraph --bench decompress -- --bench",
     "prepublishOnly": "napi prepublish -t npm --skip-gh-release"
   },
   "devDependencies": {
