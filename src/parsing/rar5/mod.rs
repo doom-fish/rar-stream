@@ -9,10 +9,12 @@
 mod vint;
 
 pub mod archive_header;
+pub mod encryption_header;
 pub mod end_header;
 pub mod file_header;
 
 pub use archive_header::{Rar5ArchiveHeader, Rar5ArchiveHeaderParser};
+pub use encryption_header::{Rar5EncryptionHeader, Rar5EncryptionHeaderParser};
 pub use end_header::{Rar5EndHeader, Rar5EndHeaderParser};
 pub use file_header::{Rar5FileHeader, Rar5FileHeaderParser};
 pub use vint::{read_vint, VintReader};

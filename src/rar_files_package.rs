@@ -22,6 +22,8 @@ pub struct ArchiveInfo {
     pub is_locked: bool,
     /// Whether the archive is a multi-volume set.
     pub is_multivolume: bool,
+    /// Whether headers are encrypted (requires password to list files).
+    pub has_encrypted_headers: bool,
     /// RAR format version.
     pub version: RarVersion,
 }
@@ -108,6 +110,8 @@ impl RarFilesPackage {
 
     /// Get archive metadata from the first volume.
     pub async fn get_archive_info(&self) -> Result<ArchiveInfo> {
+        use crate::parsing::rar5::Rar5EncryptionHeaderParser;
+
         if self.files.is_empty() {
             return Err(RarError::NoFilesFound);
         }
@@ -137,25 +141,41 @@ impl RarFilesPackage {
                     is_solid: archive.has_solid_attributes,
                     is_locked: archive.is_locked,
                     is_multivolume: archive.has_volume_attributes,
+                    has_encrypted_headers: archive.is_block_encoded,
                     version: RarVersion::Rar4,
                 })
             }
             RarVersion::Rar5 => {
+                // Check if next header is encryption header (type 4)
                 let header_buf = rar_file
                     .read_range(ReadInterval {
                         start: marker.size as u64,
                         end: (marker.size as u64 + 255).min(rar_file.length() - 1),
                     })
                     .await?;
-                let (archive, _) = Rar5ArchiveHeaderParser::parse(&header_buf)?;
 
-                Ok(ArchiveInfo {
-                    has_recovery_record: archive.archive_flags.has_recovery_record,
-                    is_solid: archive.archive_flags.is_solid,
-                    is_locked: archive.archive_flags.is_locked,
-                    is_multivolume: archive.archive_flags.is_volume,
-                    version: RarVersion::Rar5,
-                })
+                let has_encrypted_headers =
+                    Rar5EncryptionHeaderParser::is_encryption_header(&header_buf);
+
+                if has_encrypted_headers {
+                    // Headers are encrypted - we can't read archive flags without password
+                    Ok(ArchiveInfo {
+                        has_encrypted_headers: true,
+                        version: RarVersion::Rar5,
+                        ..Default::default()
+                    })
+                } else {
+                    let (archive, _) = Rar5ArchiveHeaderParser::parse(&header_buf)?;
+
+                    Ok(ArchiveInfo {
+                        has_recovery_record: archive.archive_flags.has_recovery_record,
+                        is_solid: archive.archive_flags.is_solid,
+                        is_locked: archive.archive_flags.is_locked,
+                        is_multivolume: archive.archive_flags.is_volume,
+                        has_encrypted_headers: false,
+                        version: RarVersion::Rar5,
+                    })
+                }
             }
         }
     }
