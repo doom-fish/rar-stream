@@ -128,6 +128,8 @@ pub struct InnerFile {
     chunk_map: Vec<ChunkMapEntry>,
     /// Compression method (0x30 = store, 0x31-0x35 = LZSS, etc.)
     method: u8,
+    /// Dictionary size (log2) for RAR5 decompression
+    dict_size_log: u8,
     /// Packed size (sum of chunk sizes)
     packed_size: u64,
     /// Unpacked size (original file size before compression/encryption)
@@ -154,7 +156,7 @@ impl InnerFile {
         unpacked_size: u64,
         rar_version: RarVersion,
     ) -> Self {
-        Self::new_with_solid(name, chunks, method, unpacked_size, rar_version, false)
+        Self::new_with_solid_dict(name, chunks, method, 22, unpacked_size, rar_version, false)
     }
 
     /// Create an InnerFile with solid archive flag.
@@ -162,6 +164,19 @@ impl InnerFile {
         name: String,
         chunks: Vec<RarFileChunk>,
         method: u8,
+        unpacked_size: u64,
+        rar_version: RarVersion,
+        is_solid: bool,
+    ) -> Self {
+        Self::new_with_solid_dict(name, chunks, method, 22, unpacked_size, rar_version, is_solid)
+    }
+
+    /// Create an InnerFile with solid archive flag and dictionary size.
+    pub fn new_with_solid_dict(
+        name: String,
+        chunks: Vec<RarFileChunk>,
+        method: u8,
+        dict_size_log: u8,
         unpacked_size: u64,
         rar_version: RarVersion,
         is_solid: bool,
@@ -184,6 +199,7 @@ impl InnerFile {
             chunks,
             chunk_map,
             method,
+            dict_size_log,
             packed_size,
             unpacked_size,
             rar_version,
@@ -207,10 +223,11 @@ impl InnerFile {
         encryption: Option<EncryptionInfo>,
         password: Option<String>,
     ) -> Self {
-        Self::new_encrypted_with_solid(
+        Self::new_encrypted_with_solid_dict(
             name,
             chunks,
             method,
+            22, // default dict size
             unpacked_size,
             rar_version,
             encryption,
@@ -226,6 +243,33 @@ impl InnerFile {
         name: String,
         chunks: Vec<RarFileChunk>,
         method: u8,
+        unpacked_size: u64,
+        rar_version: RarVersion,
+        encryption: Option<EncryptionInfo>,
+        password: Option<String>,
+        is_solid: bool,
+    ) -> Self {
+        Self::new_encrypted_with_solid_dict(
+            name,
+            chunks,
+            method,
+            22,
+            unpacked_size,
+            rar_version,
+            encryption,
+            password,
+            is_solid,
+        )
+    }
+
+    /// Create an InnerFile with encryption info, solid flag, and dictionary size.
+    #[cfg(feature = "crypto")]
+    #[allow(clippy::too_many_arguments)]
+    pub fn new_encrypted_with_solid_dict(
+        name: String,
+        chunks: Vec<RarFileChunk>,
+        method: u8,
+        dict_size_log: u8,
         unpacked_size: u64,
         rar_version: RarVersion,
         encryption: Option<EncryptionInfo>,
@@ -251,6 +295,7 @@ impl InnerFile {
             chunks,
             chunk_map,
             method,
+            dict_size_log,
             packed_size,
             unpacked_size,
             rar_version,
@@ -460,7 +505,7 @@ impl InnerFile {
                     decoder.decompress(&packed, self.unpacked_size)?
                 }
                 RarVersion::Rar5 => {
-                    let mut decoder = Rar5Decoder::new();
+                    let mut decoder = Rar5Decoder::with_dict_size(self.dict_size_log);
                     decoder.decompress(&packed, self.unpacked_size, self.method, self.is_solid)?
                 }
             }

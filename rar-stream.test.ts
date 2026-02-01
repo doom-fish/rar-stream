@@ -553,3 +553,143 @@ describe("Error Handling", () => {
     await expect(pkg.parse()).rejects.toThrow();
   });
 });
+
+// Skip 994MB tests entirely if benchmark files don't exist
+// These tests require running the benchmark script first to create the test files
+describe.skip("Large Single Files (994MB)", () => {
+  const rar5LzssPath = "/tmp/rar-benchmark/rar5-lzss.rar";
+  const rar5StorePath = "/tmp/rar-benchmark/rar5-store.rar";
+  const expectedSize = 1042284544; // 994MB Alpine ISO
+
+  const skipIfMissing = (filepath: string) => {
+    if (!fs.existsSync(filepath)) {
+      console.log(`Skipping: ${filepath} not found (run benchmark first)`);
+      return true;
+    }
+    return false;
+  };
+
+  test("RAR5 LZSS 994MB - full read", async () => {
+    if (skipIfMissing(rar5LzssPath)) return;
+    
+    const media = new LocalFileMedia(rar5LzssPath);
+    const pkg = new RarFilesPackage([media]);
+    const files = await pkg.parse();
+    
+    expect(files.length).toBe(1);
+    expect(files[0].name).toBe("alpine.iso");
+    expect(files[0].length).toBe(expectedSize);
+    
+    const start = performance.now();
+    const content = await files[0].readToEnd();
+    const elapsed = performance.now() - start;
+    
+    expect(content.length).toBe(expectedSize);
+    console.log(`RAR5 LZSS: ${(expectedSize / 1024 / 1024).toFixed(0)} MB in ${(elapsed / 1000).toFixed(2)}s = ${(expectedSize / 1024 / 1024 / (elapsed / 1000)).toFixed(0)} MiB/s`);
+  }, 120000);
+
+  test("RAR5 Store 994MB - full read", async () => {
+    if (skipIfMissing(rar5StorePath)) return;
+    
+    const media = new LocalFileMedia(rar5StorePath);
+    const pkg = new RarFilesPackage([media]);
+    const files = await pkg.parse();
+    
+    expect(files.length).toBe(1);
+    expect(files[0].name).toBe("alpine.iso");
+    expect(files[0].length).toBe(expectedSize);
+    
+    const start = performance.now();
+    const content = await files[0].readToEnd();
+    const elapsed = performance.now() - start;
+    
+    expect(content.length).toBe(expectedSize);
+    console.log(`RAR5 Store: ${(expectedSize / 1024 / 1024).toFixed(0)} MB in ${(elapsed / 1000).toFixed(2)}s = ${(expectedSize / 1024 / 1024 / (elapsed / 1000)).toFixed(0)} MiB/s`);
+  }, 60000);
+
+  test("RAR5 LZSS 994MB - streaming read", async () => {
+    if (skipIfMissing(rar5LzssPath)) return;
+    
+    const media = new LocalFileMedia(rar5LzssPath);
+    const pkg = new RarFilesPackage([media]);
+    const [file] = await pkg.parse();
+    
+    const start = performance.now();
+    const stream = file.createReadStream();
+    let totalBytes = 0;
+    
+    for await (const chunk of stream) {
+      totalBytes += chunk.length;
+    }
+    const elapsed = performance.now() - start;
+    
+    expect(totalBytes).toBe(expectedSize);
+    console.log(`RAR5 LZSS streaming: ${(totalBytes / 1024 / 1024).toFixed(0)} MB in ${(elapsed / 1000).toFixed(2)}s = ${(totalBytes / 1024 / 1024 / (elapsed / 1000)).toFixed(0)} MiB/s`);
+  }, 120000);
+
+  test("RAR5 LZSS 994MB - partial range read (first 10MB)", async () => {
+    if (skipIfMissing(rar5LzssPath)) return;
+    
+    const media = new LocalFileMedia(rar5LzssPath);
+    const pkg = new RarFilesPackage([media]);
+    const [file] = await pkg.parse();
+    
+    const rangeSize = 10 * 1024 * 1024; // 10MB
+    const stream = file.createReadStream({ start: 0, end: rangeSize - 1 });
+    
+    const chunks: Buffer[] = [];
+    for await (const chunk of stream) {
+      chunks.push(chunk);
+    }
+    const content = Buffer.concat(chunks);
+    
+    expect(content.length).toBe(rangeSize);
+    
+    // Verify against full read
+    const full = await file.readToEnd();
+    expect(Buffer.compare(content, full.subarray(0, rangeSize))).toBe(0);
+  }, 120000);
+
+  test("RAR5 LZSS 994MB - partial range read (middle 1MB)", async () => {
+    if (skipIfMissing(rar5LzssPath)) return;
+    
+    const media = new LocalFileMedia(rar5LzssPath);
+    const pkg = new RarFilesPackage([media]);
+    const [file] = await pkg.parse();
+    
+    const start = 500 * 1024 * 1024; // 500MB offset
+    const rangeSize = 1024 * 1024; // 1MB
+    const end = start + rangeSize - 1;
+    
+    const stream = file.createReadStream({ start, end });
+    
+    const chunks: Buffer[] = [];
+    for await (const chunk of stream) {
+      chunks.push(chunk);
+    }
+    const content = Buffer.concat(chunks);
+    
+    expect(content.length).toBe(rangeSize);
+    
+    // Verify against full read
+    const full = await file.readToEnd();
+    expect(Buffer.compare(content, full.subarray(start, end + 1))).toBe(0);
+  }, 180000);
+
+  test("RAR5 LZSS 994MB - data integrity check (sample bytes)", async () => {
+    if (skipIfMissing(rar5LzssPath)) return;
+    
+    const media = new LocalFileMedia(rar5LzssPath);
+    const pkg = new RarFilesPackage([media]);
+    const [file] = await pkg.parse();
+    
+    const content = await file.readToEnd();
+    
+    // Check ISO9660 signature at offset 0x8001 ("CD001")
+    const isoSig = content.subarray(0x8001, 0x8001 + 5).toString('ascii');
+    expect(isoSig).toBe("CD001");
+    
+    // Verify file size matches Alpine ISO
+    expect(content.length).toBe(expectedSize);
+  }, 120000);
+});

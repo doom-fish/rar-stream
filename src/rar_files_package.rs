@@ -198,6 +198,8 @@ struct ParsedChunk {
     unpacked_size: u64,
     chunk_size: u64,
     method: u8,
+    /// Dictionary size (log2), only for RAR5 compressed files
+    dict_size_log: u8,
     rar_version: RarVersion,
     /// Whether this file is part of a solid archive
     is_solid: bool,
@@ -428,6 +430,7 @@ impl RarFilesPackage {
                     unpacked_size: file_header.unpacked_size,
                     chunk_size,
                     method: file_header.method,
+                    dict_size_log: 22, // RAR4 doesn't specify, use 4MB default
                     rar_version: RarVersion::Rar4,
                     is_solid,
                     #[cfg(feature = "crypto")]
@@ -659,6 +662,7 @@ impl RarFilesPackage {
                     unpacked_size: file_header.unpacked_size,
                     chunk_size,
                     method,
+                    dict_size_log: file_header.compression.dict_size_log,
                     rar_version: RarVersion::Rar5,
                     is_solid,
                     #[cfg(feature = "crypto")]
@@ -727,6 +731,7 @@ impl RarFilesPackage {
                         unpacked_size,
                         chunk_size,
                         method: 0x30, // Continue chunks are always raw data
+                        dict_size_log: 22, // Default, not used for stored data
                         rar_version,
                         is_solid,
                         #[cfg(feature = "crypto")]
@@ -746,13 +751,14 @@ impl RarFilesPackage {
         type GroupValue = (
             Vec<RarFileChunk>,
             u8,
+            u8, // dict_size_log
             u64,
             RarVersion,
             bool, // is_solid
             Option<FileEncryptionInfo>,
         );
         #[cfg(not(feature = "crypto"))]
-        type GroupValue = (Vec<RarFileChunk>, u8, u64, RarVersion, bool);
+        type GroupValue = (Vec<RarFileChunk>, u8, u8, u64, RarVersion, bool);
 
         let mut grouped: HashMap<String, GroupValue> = HashMap::new();
         for chunk in all_chunks {
@@ -761,6 +767,7 @@ impl RarFilesPackage {
                 (
                     Vec::new(),
                     chunk.method,
+                    chunk.dict_size_log,
                     chunk.unpacked_size,
                     chunk.rar_version,
                     chunk.is_solid,
@@ -772,6 +779,7 @@ impl RarFilesPackage {
                 (
                     Vec::new(),
                     chunk.method,
+                    chunk.dict_size_log,
                     chunk.unpacked_size,
                     chunk.rar_version,
                     chunk.is_solid,
@@ -789,7 +797,7 @@ impl RarFilesPackage {
             .map(|(name, value)| {
                 #[cfg(feature = "crypto")]
                 {
-                    let (chunks, method, unpacked_size, rar_version, is_solid, encryption) = value;
+                    let (chunks, method, dict_size_log, unpacked_size, rar_version, is_solid, encryption) = value;
                     let enc_info = encryption.map(|e| match e {
                         FileEncryptionInfo::Rar5 {
                             salt,
@@ -804,10 +812,11 @@ impl RarFilesPackage {
                             crate::inner_file::EncryptionInfo::Rar4 { salt }
                         }
                     });
-                    InnerFile::new_encrypted_with_solid(
+                    InnerFile::new_encrypted_with_solid_dict(
                         name,
                         chunks,
                         method,
+                        dict_size_log,
                         unpacked_size,
                         rar_version,
                         enc_info,
@@ -817,11 +826,12 @@ impl RarFilesPackage {
                 }
                 #[cfg(not(feature = "crypto"))]
                 {
-                    let (chunks, method, unpacked_size, rar_version, is_solid) = value;
-                    InnerFile::new_with_solid(
+                    let (chunks, method, dict_size_log, unpacked_size, rar_version, is_solid) = value;
+                    InnerFile::new_with_solid_dict(
                         name,
                         chunks,
                         method,
+                        dict_size_log,
                         unpacked_size,
                         rar_version,
                         is_solid,

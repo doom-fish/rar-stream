@@ -101,27 +101,33 @@ impl BitDecoder {
         self.bit_pos = total & 7;
     }
 
-    /// Get value in high 32 bits for extended reading.
+    /// Get value in high 32 bits for extended reading (matching unrar getbits32).
+    /// Returns 32 bits with the first available bit at bit 31.
     #[inline]
     pub fn get_value_high32(&self) -> u32 {
         let b0 = self.buf.get(self.pos).copied().unwrap_or(0xFF) as u32;
         let b1 = self.buf.get(self.pos + 1).copied().unwrap_or(0xFF) as u32;
         let b2 = self.buf.get(self.pos + 2).copied().unwrap_or(0xFF) as u32;
-        let v = (b0 << 16) | (b1 << 8) | b2;
-        v << (8 + self.bit_pos)
+        let b3 = self.buf.get(self.pos + 3).copied().unwrap_or(0xFF) as u32;
+        let b4 = self.buf.get(self.pos + 4).copied().unwrap_or(0xFF) as u32;
+        
+        // Build 32-bit value like unrar: RawGetBE4
+        let mut v = (b0 << 24) | (b1 << 16) | (b2 << 8) | b3;
+        // Left shift by bit_pos to align first available bit to bit 31
+        v <<= self.bit_pos;
+        // Include bits from 5th byte if needed
+        if self.bit_pos > 0 {
+            v |= b4 >> (8 - self.bit_pos);
+        }
+        v
     }
 
-    /// Read extended bits from pre-read high value.
+    /// Read N bits from pre-read high value.
+    /// Assumes v was obtained from get_value_high32().
     #[inline]
-    pub fn read_bits_big(&mut self, num_bits: usize, mut v: u32) -> u32 {
+    pub fn read_bits_big(&mut self, num_bits: usize, v: u32) -> u32 {
         if num_bits == 0 {
             return 0;
-        }
-        // Include 4th byte for extended reading when needed
-        if self.bit_pos > 0 {
-            if let Some(&b3) = self.buf.get(self.pos + 3) {
-                v |= (b3 as u32) << self.bit_pos;
-            }
         }
         let result = v >> (32 - num_bits);
         self.move_pos(num_bits);
@@ -129,23 +135,32 @@ impl BitDecoder {
     }
 
     /// Set block end position.
-    pub fn set_block_end(&mut self, end: usize, end_bits: usize) {
+    /// `end` is the byte position of the last byte in the block.
+    /// `bit_size` is the number of valid bits in that last byte (1-8).
+    pub fn set_block_end(&mut self, end: usize, bit_size: usize) {
         self.block_end = end;
-        self.block_end_bits = end_bits;
+        self.block_end_bits = bit_size;
     }
 
     /// Check if reading has exceeded block boundary.
+    /// Matches unrar: InAddr > BlockStart + BlockSize - 1 ||
+    ///                InAddr == BlockStart + BlockSize - 1 && InBit >= BlockBitSize
     pub fn is_block_over_read(&self) -> bool {
         match self.pos.cmp(&self.block_end) {
             std::cmp::Ordering::Less => false,
             std::cmp::Ordering::Greater => true,
-            std::cmp::Ordering::Equal => self.bit_pos > self.block_end_bits,
+            std::cmp::Ordering::Equal => self.bit_pos >= self.block_end_bits,
         }
     }
 
     /// Current byte position.
     pub fn position(&self) -> usize {
         self.pos
+    }
+
+    /// Current bit position within byte (0-7).
+    pub fn bit_pos(&self) -> usize {
+        self.bit_pos
     }
 
     /// Check if EOF reached.

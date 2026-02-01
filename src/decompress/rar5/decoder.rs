@@ -29,6 +29,7 @@ impl Rar5Decoder {
     /// Create a new RAR5 decoder with specified dictionary size.
     /// `dict_size_log` is the power of 2 (e.g., 22 = 4MB).
     pub fn with_dict_size(dict_size_log: u8) -> Self {
+        
         Self {
             block_decoder: Rar5BlockDecoder::new(dict_size_log),
             dict_size_log,
@@ -96,6 +97,7 @@ impl Rar5Decoder {
         method: u8,
         is_solid: bool,
     ) -> Result<Vec<u8>, DecompressError> {
+        
         if method == 0 {
             return self.decompress_stored(input, unpacked_size);
         }

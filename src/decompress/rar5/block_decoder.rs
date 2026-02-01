@@ -65,6 +65,12 @@ pub struct HuffTable {
     quick_bits: usize,
     /// Maximum code length in table
     max_length: u8,
+    /// For slow decode: decode_len[i] = first code of length i+1 (left-aligned to 16 bits)
+    decode_len: [u32; 16],
+    /// For slow decode: first_symbol[i] = first symbol index for length i
+    first_symbol: [u16; 16],
+    /// Symbol permutation (sorted by code)
+    symbols: Vec<u16>,
 }
 
 impl HuffTable {
@@ -76,10 +82,14 @@ impl HuffTable {
             num_symbols: max_symbols,
             quick_bits,
             max_length: 0,
+            decode_len: [0; 16],
+            first_symbol: [0; 16],
+            symbols: vec![0; max_symbols],
         }
     }
 
     /// Build table from code lengths. Returns false if table is empty.
+    /// Based on unrar's MakeDecodeTables.
     pub fn build(&mut self, lengths: &[u8]) -> bool {
         let num_symbols = lengths.len().min(self.num_symbols);
         self.code_lengths[..num_symbols].copy_from_slice(&lengths[..num_symbols]);
@@ -100,42 +110,74 @@ impl HuffTable {
             return false;
         }
 
-        // Count codes of each length
-        let mut count = [0u32; NUM_HUFFMAN_BITS + 1];
+        // Count codes of each length (unrar: LengthCount)
+        let mut length_count = [0u32; 16];
         for &len in &self.code_lengths[..num_symbols] {
-            if len > 0 && (len as usize) <= NUM_HUFFMAN_BITS {
-                count[len as usize] += 1;
+            if len > 0 && len < 16 {
+                length_count[len as usize] += 1;
             }
         }
 
-        // Calculate starting codes for each length
-        let mut next_code = [0u32; NUM_HUFFMAN_BITS + 1];
-        let mut code = 0u32;
-        for bits in 1..=NUM_HUFFMAN_BITS {
-            code = (code + count[bits - 1]) << 1;
-            next_code[bits] = code;
+        // Build decode_len (left-aligned upper limit for each bit length)
+        // and decode_pos (start position in symbols array for each length)
+        let mut decode_pos = [0u32; 16];
+        let mut upper_limit = 0u32;
+        for i in 1..16 {
+            upper_limit += length_count[i];
+            // Left-aligned upper limit
+            self.decode_len[i] = upper_limit << (16 - i);
+            upper_limit *= 2;
+            // Start position for this length
+            decode_pos[i] = decode_pos[i - 1] + length_count[i - 1];
+        }
+        self.first_symbol = [
+            decode_pos[0] as u16, decode_pos[1] as u16, decode_pos[2] as u16, decode_pos[3] as u16,
+            decode_pos[4] as u16, decode_pos[5] as u16, decode_pos[6] as u16, decode_pos[7] as u16,
+            decode_pos[8] as u16, decode_pos[9] as u16, decode_pos[10] as u16, decode_pos[11] as u16,
+            decode_pos[12] as u16, decode_pos[13] as u16, decode_pos[14] as u16, decode_pos[15] as u16,
+        ];
+
+        // Build symbols array (unrar: DecodeNum)
+        self.symbols.fill(0);
+        let mut copy_pos = decode_pos;
+        for (symbol, &len) in self.code_lengths[..num_symbols].iter().enumerate() {
+            if len > 0 && len < 16 {
+                let pos = copy_pos[len as usize] as usize;
+                if pos < self.symbols.len() {
+                    self.symbols[pos] = symbol as u16;
+                }
+                copy_pos[len as usize] += 1;
+            }
         }
 
-        // Build quick table
+        // Build quick table for fast decode
         self.quick_table.fill(0);
-
-        for (symbol, &len) in self.code_lengths[..num_symbols].iter().enumerate() {
-            if len > 0 && (len as usize) <= self.quick_bits {
-                let code = next_code[len as usize];
-                next_code[len as usize] += 1;
-
-                // Fill all entries that start with this code
-                let fill_bits = self.quick_bits - len as usize;
-                let base_idx = (code as usize) << fill_bits;
-                let fill_count = 1 << fill_bits;
-
-                // Pack symbol and length: symbol in high bits, length in low 8 bits
-                let entry = ((symbol as u32) << 8) | (len as u32);
-                for i in 0..fill_count {
-                    let idx = base_idx + i;
-                    if idx < self.quick_table.len() {
-                        self.quick_table[idx] = entry;
-                    }
+        let mut cur_bit_length = 1usize;
+        let quick_size = 1 << self.quick_bits;
+        
+        for code in 0..quick_size {
+            // Left-align the code
+            let bit_field = (code << (16 - self.quick_bits)) as u32;
+            
+            // Find the bit length for this code
+            while cur_bit_length < self.quick_bits && bit_field >= self.decode_len[cur_bit_length] {
+                cur_bit_length += 1;
+            }
+            
+            if bit_field < self.decode_len[cur_bit_length] {
+                // Calculate position in symbols array
+                let dist = if cur_bit_length > 0 {
+                    bit_field.wrapping_sub(self.decode_len[cur_bit_length - 1])
+                } else {
+                    bit_field
+                };
+                let dist_shifted = dist >> (16 - cur_bit_length);
+                let pos = decode_pos[cur_bit_length] + dist_shifted;
+                
+                if (pos as usize) < self.symbols.len() {
+                    let symbol = self.symbols[pos as usize];
+                    // Pack: symbol in high bits, length in low 8 bits
+                    self.quick_table[code] = ((symbol as u32) << 8) | (cur_bit_length as u32);
                 }
             }
         }
@@ -144,22 +186,46 @@ impl HuffTable {
     }
 
     /// Decode a symbol using the bit decoder.
+    /// Based on unrar's DecodeNumber.
     #[inline]
     pub fn decode(&self, bits: &mut BitDecoder) -> u16 {
-        let peek = bits.get_value_15() as usize;
-        let idx = peek >> (15 - self.quick_bits);
-        let entry = self.quick_table.get(idx).copied().unwrap_or(0);
+        // Get 15 bits left-aligned (unrar uses 16-bit with mask 0xfffe)
+        let bit_field = (bits.get_value_15() << 1) as u32;
 
-        if entry != 0 {
-            let len = (entry & 0xFF) as usize;
-            let symbol = (entry >> 8) as u16;
-            bits.move_pos(len);
-            return symbol;
+        // Quick decode path
+        if bit_field < self.decode_len[self.quick_bits] {
+            let code = (bit_field >> (16 - self.quick_bits)) as usize;
+            let entry = self.quick_table.get(code).copied().unwrap_or(0);
+            if entry != 0 {
+                let len = (entry & 0xFF) as usize;
+                let symbol = (entry >> 8) as u16;
+                bits.move_pos(len);
+                return symbol;
+            }
         }
 
-        // For codes longer than quick_bits, fall back to slow decode
-        // This shouldn't happen often with proper quick_bits settings
-        0
+        // Slow path: find the matching bit length
+        let mut bit_len = 15usize;
+        for i in (self.quick_bits + 1)..15 {
+            if bit_field < self.decode_len[i] {
+                bit_len = i;
+                break;
+            }
+        }
+
+        bits.move_pos(bit_len);
+
+        // Calculate distance from start code for this bit length
+        let dist = bit_field.wrapping_sub(self.decode_len[bit_len - 1]);
+        let dist_shifted = dist >> (16 - bit_len);
+        let pos = (self.first_symbol[bit_len] as u32) + dist_shifted;
+
+        // Safety check
+        if (pos as usize) >= self.symbols.len() {
+            return 0;
+        }
+
+        self.symbols[pos as usize]
     }
 }
 
@@ -273,6 +339,7 @@ impl Rar5BlockDecoder {
 
         let flags = bits.read_byte_aligned();
         let checksum = bits.read_byte_aligned();
+        
         let mut check = flags ^ checksum;
 
         let num = ((flags >> 3) & 3) as usize;
@@ -304,18 +371,15 @@ impl Rar5BlockDecoder {
             )));
         }
 
-        let block_size_bits7 = ((flags & 7) + 1) as usize;
-        block_size += block_size_bits7 >> 3;
-        if block_size == 0 {
-            return Err(DecompressError::Io(std::io::Error::new(
-                std::io::ErrorKind::InvalidData,
-                "Invalid block size",
-            )));
-        }
-        block_size -= 1;
-        let block_end_bits = block_size_bits7 & 7;
+        // BlockBitSize is the number of valid bits in the last byte (1-8)
+        let block_bit_size = ((flags & 7) + 1) as usize;
+        
+        // block_size is bytes, block_end is position of last byte
+        // unrar: ReadBorder = BlockStart + BlockSize - 1
+        let block_start = bits.position();
+        let block_end = block_start + block_size - 1;
+        bits.set_block_end(block_end, block_bit_size);
 
-        bits.set_block_end(bits.position() + block_size, block_end_bits);
         self.is_last_block = (flags & 0x40) != 0;
 
         // Flag 0x80 indicates new tables
@@ -442,21 +506,33 @@ impl Rar5BlockDecoder {
         let start_pos = self.window_pos;
         let mut filters = Vec::new();
 
-        // Read block header
-        let new_tables = self.read_block_header(bits)?;
-
-        if new_tables {
-            self.read_tables(bits)?;
-        } else if !self.tables_valid {
-            return Err(DecompressError::Io(std::io::Error::new(
-                std::io::ErrorKind::InvalidData,
-                "Continue block but no previous tables",
-            )));
-        }
-
         // Decode symbols until we have enough output
         while self.window_pos - start_pos < output_size {
-            if bits.is_eof() || bits.is_block_over_read() {
+            // Check if we need to read a new block header
+            if bits.is_block_over_read() || !self.tables_valid {
+                // If this was the last block, we're done
+                if self.is_last_block {
+                    break;
+                }
+                
+                if bits.is_eof() {
+                    break;
+                }
+                
+                // Read block header
+                let new_tables = self.read_block_header(bits)?;
+
+                if new_tables {
+                    self.read_tables(bits)?;
+                } else if !self.tables_valid {
+                    return Err(DecompressError::Io(std::io::Error::new(
+                        std::io::ErrorKind::InvalidData,
+                        "Continue block but no previous tables",
+                    )));
+                }
+            }
+
+            if bits.is_eof() {
                 break;
             }
 
@@ -779,9 +855,9 @@ impl Rar5BlockDecoder {
             Ok((slot + 1) as usize)
         } else {
             // Larger offsets with extra bits
-            // num_bits = (slot - 2) >> 1
+            // num_bits = slot / 2 - 1
             // base = (2 | (slot & 1)) << num_bits
-            let num_bits = ((slot - 2) >> 1) as usize;
+            let num_bits = (slot / 2 - 1) as usize;
             let base = (2 | (slot & 1)) << num_bits;
 
             if num_bits < NUM_ALIGN_BITS {
@@ -791,9 +867,14 @@ impl Rar5BlockDecoder {
                 Ok((base + extra + 1) as usize)
             } else {
                 // More bits - use alignment table
-                let high_bits_count = num_bits - NUM_ALIGN_BITS;
-                let v = bits.get_value_high32();
-                let high = bits.read_bits_big(high_bits_count, v);
+                // Only read high bits if num_bits > 4
+                let high = if num_bits > NUM_ALIGN_BITS {
+                    let high_bits_count = num_bits - NUM_ALIGN_BITS;
+                    let v = bits.get_value_high32();
+                    bits.read_bits_big(high_bits_count, v)
+                } else {
+                    0
+                };
 
                 let low = if self.use_align_bits {
                     self.align_table.decode(bits) as u32
