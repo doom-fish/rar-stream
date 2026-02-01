@@ -421,13 +421,30 @@ rar-stream = { version = "5", features = ["async", "crypto"] }
 
 ## Performance
 
-Benchmarks on M1 MacBook Pro (v4.x vs v3.x):
+### Decompression Speed
 
-| Operation | rar-stream v4 (Rust) | rar-stream v3 (JS) |
+Benchmark: 8MB file, RAR4 LZSS compression, AMD Ryzen 5 7640HS
+
+| Implementation | Speed | vs unrar |
+|----------------|-------|----------|
+| unrar (official C++) | 229 MiB/s | baseline |
+| **rar-stream (Rust)** | **302 MiB/s** | **+32%** |
+| rar-stream (Rust + PGO) | 315 MiB/s | +38% |
+
+### Memory & Parse Performance
+
+| Operation | rar-stream v5 (Rust) | rar-stream v3 (JS) |
 |-----------|---------------------|-------------------|
 | Parse 1GB archive | ~50ms | ~200ms |
-| Decompress 100MB | ~800ms | ~3000ms |
+| Decompress 100MB | ~300ms | ~3000ms |
 | Memory usage | ~50MB | ~200MB |
+
+### Optimization Features
+
+- **LTO (Link-Time Optimization)**: Enabled by default in release builds
+- **PGO (Profile-Guided Optimization)**: Pre-built profiles included for x86_64-linux-gnu
+- **SIMD**: Automatic vectorization for E8/E9 filter scanning
+- **Zero-copy streaming**: Direct buffer access without intermediate copies
 
 ## Migrating from v3.x
 
