@@ -149,10 +149,7 @@ impl LzssDecoder {
     pub fn copy_match(&mut self, distance: u32, length: u32) -> Result<()> {
         // Validate distance against bytes actually written, not window size
         if distance == 0 || distance as u64 > self.total_written {
-            return Err(DecompressError::InvalidBackReference {
-                offset: distance,
-                position: self.pos as u32,
-            });
+            return self.copy_match_error(distance);
         }
 
         let len = length as usize;
@@ -202,6 +199,16 @@ impl LzssDecoder {
 
         self.total_written += length as u64;
         Ok(())
+    }
+    
+    /// Cold path for error handling - keeps hot path small
+    #[cold]
+    #[inline(never)]
+    fn copy_match_error(&self, distance: u32) -> Result<()> {
+        Err(DecompressError::InvalidBackReference {
+            offset: distance,
+            position: self.pos as u32,
+        })
     }
 
     /// Get the current window position.
