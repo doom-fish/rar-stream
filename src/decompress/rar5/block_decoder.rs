@@ -1420,4 +1420,21 @@ mod tests {
         assert!(table.build(&lengths));
         assert_eq!(table.max_length, 3);
     }
+
+    #[cfg(feature = "parallel")]
+    #[test]
+    fn test_block_tables_clone() {
+        let tables = super::BlockTables::new();
+        let cloned = tables.clone();
+        assert_eq!(cloned.use_align_bits, tables.use_align_bits);
+    }
+
+    #[cfg(feature = "parallel")]
+    #[test]
+    fn test_scan_blocks_empty() {
+        let mut decoder = Rar5BlockDecoder::new(20);
+        let result = decoder.scan_blocks(&[], 10);
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap().len(), 0);
+    }
 }
