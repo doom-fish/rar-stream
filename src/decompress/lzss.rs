@@ -232,15 +232,20 @@ impl LzssDecoder {
         }
 
         // Slow path: handle wrapping or very short distance copies byte-by-byte
+        // Use unchecked access since we've already validated distance
         let src_pos = (self.pos.wrapping_sub(dist)) & self.mask;
+        let window_ptr = self.window.as_mut_ptr();
 
         for i in 0..len {
             let src_idx = (src_pos + i) & self.mask;
-            let byte = self.window[src_idx];
-            let dest_idx = self.pos & self.mask;
-            self.window[dest_idx] = byte;
-            self.pos = (self.pos + 1) & self.mask;
+            let dest_idx = (self.pos + i) & self.mask;
+            // SAFETY: src_idx and dest_idx are always < window.len() due to mask
+            unsafe {
+                let byte = *window_ptr.add(src_idx);
+                *window_ptr.add(dest_idx) = byte;
+            }
         }
+        self.pos = (self.pos + len) & self.mask;
 
         self.total_written += length as u64;
         Ok(())
