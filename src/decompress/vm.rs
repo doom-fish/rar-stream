@@ -528,12 +528,18 @@ impl RarVM {
         eprintln!("EXECUTE filter {:?}: start={}, len={}, total_written={}", 
             filter.filter_type, block_start, block_length, total_written);
 
-        // Copy data from window to VM memory
+        // Copy data from window to VM memory using bulk copy when possible
         let copy_len = block_length.min(VM_MEMSIZE);
         let window_start = (block_start as usize) & window_mask;
-        for i in 0..copy_len {
-            let window_idx = (window_start + i) & window_mask;
-            self.mem[i] = window[window_idx];
+        
+        // Check if we can do a contiguous copy (no wrap in window)
+        if window_start + copy_len <= window.len() {
+            self.mem[..copy_len].copy_from_slice(&window[window_start..window_start + copy_len]);
+        } else {
+            // Slow path: wrapping copy
+            let first_part = window.len() - window_start;
+            self.mem[..first_part].copy_from_slice(&window[window_start..]);
+            self.mem[first_part..copy_len].copy_from_slice(&window[..copy_len - first_part]);
         }
         
         #[cfg(test)]

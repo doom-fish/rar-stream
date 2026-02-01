@@ -97,30 +97,18 @@ impl LzssDecoder {
         let flush_len = flush_end - flush_start;
         let window_start = flush_start & self.mask;
         
-        #[cfg(test)]
-        {
-            eprintln!("FLUSH: from {} to {} (len {})", flush_start, flush_end, flush_len);
-            // Debug: show bytes around mismatch position 1498598
-            if flush_start <= 1498598 && flush_end >= 1498598 {
-                let mut bytes = Vec::new();
-                for pos in 1498590..1498610.min(flush_end) {
-                    let window_idx = pos & self.mask;
-                    bytes.push(self.window[window_idx]);
-                }
-                eprintln!("  window bytes around 1498598: {:02x?}", bytes);
-                eprintln!("  window_start={}, mask=0x{:x}", window_start, self.mask);
-                eprintln!("  total_written at flush time={}", self.total_written);
-            }
-        }
-        
-        // Reserve space
+        // Reserve space upfront
         self.output.reserve(flush_len);
         
-        // Copy from window to output
-        // Note: this assumes flush positions don't span more than window size
-        for i in 0..flush_len {
-            let window_idx = (window_start + i) & self.mask;
-            self.output.push(self.window[window_idx]);
+        // Check if we can do a contiguous copy (no wrap)
+        if window_start + flush_len <= self.window.len() {
+            // Fast path: contiguous copy
+            self.output.extend_from_slice(&self.window[window_start..window_start + flush_len]);
+        } else {
+            // Slow path: wrapping copy in two parts
+            let first_part = self.window.len() - window_start;
+            self.output.extend_from_slice(&self.window[window_start..]);
+            self.output.extend_from_slice(&self.window[..flush_len - first_part]);
         }
         
         self.flushed_pos = up_to;
