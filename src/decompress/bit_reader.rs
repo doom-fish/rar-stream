@@ -30,7 +30,7 @@ impl<'a> BitReader<'a> {
     }
 
     /// Fill the buffer with more bytes.
-    #[inline]
+    #[inline(always)]
     fn fill_buffer(&mut self) {
         while self.bits_in_buffer <= 24 && self.pos < self.data.len() {
             // SAFETY: bounds checked above
@@ -41,14 +41,14 @@ impl<'a> BitReader<'a> {
     }
 
     /// Peek at the next n bits without consuming them.
-    #[inline]
+    #[inline(always)]
     pub fn peek_bits(&self, n: u32) -> u32 {
         debug_assert!(n <= 16);
         self.buffer >> (32 - n)
     }
 
     /// Read n bits and advance the position.
-    #[inline]
+    #[inline(always)]
     pub fn read_bits(&mut self, n: u32) -> Result<u32> {
         debug_assert!(n <= 16);
 
@@ -62,7 +62,7 @@ impl<'a> BitReader<'a> {
     }
 
     /// Advance by n bits.
-    #[inline]
+    #[inline(always)]
     pub fn advance_bits(&mut self, n: u32) {
         self.buffer <<= n;
         self.bits_in_buffer = self.bits_in_buffer.saturating_sub(n);
@@ -71,7 +71,7 @@ impl<'a> BitReader<'a> {
     }
 
     /// Read a single bit.
-    #[inline]
+    #[inline(always)]
     pub fn read_bit(&mut self) -> Result<bool> {
         Ok(self.read_bits(1)? != 0)
     }

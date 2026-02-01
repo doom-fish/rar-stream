@@ -97,32 +97,24 @@ impl HuffmanTable {
             }
         }
 
-        // Build quick lookup table
-        for (symbol, &len) in lengths.iter().enumerate() {
-            if len > 0 && len as u32 <= QUICK_BITS {
-                let len = len as u32;
-                // Calculate the canonical code for this symbol
-                let symbol_idx = table.symbols[..table.first_symbol[len as usize + 1] as usize]
-                    .iter()
-                    .position(|&s| s == symbol as u16);
+        // Build quick lookup table by iterating symbols (avoids O(n²) search)
+        for len in 1..=QUICK_BITS as usize {
+            let start_idx = table.first_symbol[len] as usize;
+            let end_idx = table.first_symbol[len + 1] as usize;
+            
+            for (i, &symbol) in table.symbols[start_idx..end_idx].iter().enumerate() {
+                let code = table.first_code[len] + i as u32;
+                let fill_bits = QUICK_BITS - len as u32;
+                let start = (code << fill_bits) as usize;
+                let count = 1usize << fill_bits;
 
-                if let Some(idx) = symbol_idx {
-                    let code = table.first_code[len as usize] + idx as u32
-                        - table.first_symbol[len as usize] as u32;
-
-                    // Fill all table entries that start with this code
-                    let fill_bits = QUICK_BITS - len;
-                    let start = (code << fill_bits) as usize;
-                    let count = 1 << fill_bits;
-
-                    for j in 0..count {
-                        let entry_idx = start + j;
-                        if entry_idx < QUICK_SIZE {
-                            table.quick_table[entry_idx] = HuffmanEntry {
-                                symbol: symbol as u16,
-                                length: len as u8,
-                            };
-                        }
+                for j in 0..count {
+                    let entry_idx = start + j;
+                    if entry_idx < QUICK_SIZE {
+                        table.quick_table[entry_idx] = HuffmanEntry {
+                            symbol,
+                            length: len as u8,
+                        };
                     }
                 }
             }
@@ -185,31 +177,27 @@ impl HuffmanTable {
         }
 
         // Rebuild quick lookup table - MUST clear to avoid stale entries
-        // When table structure changes (e.g. from [4,4,4,...] to [1,0,0,...,1,0,...])
-        // old entries that aren't overwritten would give wrong decode results
         self.quick_table.fill(HuffmanEntry::default());
-        for (symbol, &len) in lengths.iter().enumerate() {
-            if len > 0 && len as u32 <= QUICK_BITS {
-                let len = len as u32;
-                let symbol_idx = self.symbols[..self.first_symbol[len as usize + 1] as usize]
-                    .iter()
-                    .position(|&s| s == symbol as u16);
+        
+        // Build quick table by iterating through symbols list (already sorted by code)
+        // This avoids O(n²) linear search for each symbol
+        for len in 1..=QUICK_BITS as usize {
+            let start_idx = self.first_symbol[len] as usize;
+            let end_idx = self.first_symbol[len + 1] as usize;
+            
+            for (i, &symbol) in self.symbols[start_idx..end_idx].iter().enumerate() {
+                let code = self.first_code[len] + i as u32;
+                let fill_bits = QUICK_BITS - len as u32;
+                let start = (code << fill_bits) as usize;
+                let count = 1usize << fill_bits;
 
-                if let Some(idx) = symbol_idx {
-                    let code = self.first_code[len as usize] + idx as u32
-                        - self.first_symbol[len as usize] as u32;
-                    let fill_bits = QUICK_BITS - len;
-                    let start = (code << fill_bits) as usize;
-                    let count = 1 << fill_bits;
-
-                    for j in 0..count {
-                        let entry_idx = start + j;
-                        if entry_idx < QUICK_SIZE {
-                            self.quick_table[entry_idx] = HuffmanEntry {
-                                symbol: symbol as u16,
-                                length: len as u8,
-                            };
-                        }
+                for j in 0..count {
+                    let entry_idx = start + j;
+                    if entry_idx < QUICK_SIZE {
+                        self.quick_table[entry_idx] = HuffmanEntry {
+                            symbol,
+                            length: len as u8,
+                        };
                     }
                 }
             }
