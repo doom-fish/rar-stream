@@ -32,6 +32,8 @@ napi = ["dep:napi", "dep:napi-derive", "async"]
 wasm = ["dep:wasm-bindgen", "dep:js-sys"]
 # Encrypted archive support
 crypto = ["dep:aes", "dep:cbc", "dep:pbkdf2", "dep:sha2", "dep:sha1"]
+# Multi-threaded decompression for RAR5
+parallel = ["dep:rayon"]
 
 [dependencies]
 # Core: ZERO dependencies!
@@ -53,6 +55,7 @@ pbkdf2 = { version = "0.12.2", optional = true }
 sha2 = { version = "0.10.9", optional = true }
 sha1 = { version = "0.10.6", optional = true }
 memchr = "2.7.6"
+rayon = { version = "1.10", optional = true }
 
 [dev-dependencies]
 tokio = { version = "1", features = ["fs", "io-util", "sync", "rt", "macros"] }

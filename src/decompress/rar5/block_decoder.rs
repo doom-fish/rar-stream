@@ -4,6 +4,10 @@
 //! 1. Block header with flags, checksum, and size
 //! 2. Huffman tables (if flag indicates new tables)
 //! 3. Compressed data stream
+//!
+//! Multi-threaded mode (with `parallel` feature):
+//! - Phase 1: Decode Huffman symbols to DecodedItem buffer (parallelizable)
+//! - Phase 2: Apply decoded items to sliding window (sequential)
 
 use super::bit_decoder::BitDecoder;
 use crate::decompress::DecompressError;
@@ -31,6 +35,22 @@ const QUICK_BITS_DIST: usize = 7;
 const QUICK_BITS_LEN: usize = 7;
 const QUICK_BITS_ALIGN: usize = 6;
 const QUICK_BITS_LEVEL: usize = 6;
+
+/// Decoded item from Huffman decoding phase.
+/// Used for multi-threaded decompression where decoding and output are separate.
+#[derive(Debug, Clone)]
+pub enum DecodedItem {
+    /// Literal bytes (up to 8 bytes packed for efficiency)
+    Literal { bytes: [u8; 8], len: u8 },
+    /// Match with explicit offset
+    Match { length: u32, offset: usize },
+    /// Repeat with recent offset index (0-3)
+    Rep { length: u32, rep_idx: u8 },
+    /// Full repeat (reuse last length and offset[0])
+    FullRep,
+    /// Filter command
+    Filter { filter_type: u8, block_start: usize, block_length: usize, channels: u8 },
+}
 
 /// Huffman decode table with quick lookup.
 #[derive(Clone)]
@@ -494,6 +514,168 @@ impl Rar5BlockDecoder {
                 self.last_length = length as u32;
 
                 self.copy_bytes(offset, length);
+            }
+        }
+
+        Ok(filters)
+    }
+
+    /// Decode symbols from a block into a buffer without touching the window.
+    /// This is the first phase of two-phase decoding for multi-threaded support.
+    /// Returns (decoded_items, estimated_output_size, is_last_block).
+    #[cfg(feature = "parallel")]
+    pub fn decode_symbols(
+        &mut self,
+        bits: &mut BitDecoder,
+        max_symbols: usize,
+    ) -> Result<(Vec<DecodedItem>, usize, bool), DecompressError> {
+        // Read block header
+        let new_tables = self.read_block_header(bits)?;
+
+        if new_tables {
+            self.read_tables(bits)?;
+        } else if !self.tables_valid {
+            return Err(DecompressError::Io(std::io::Error::new(
+                std::io::ErrorKind::InvalidData,
+                "Continue block but no previous tables",
+            )));
+        }
+
+        let mut items = Vec::with_capacity(max_symbols.min(0x4000));
+        let mut output_size = 0usize;
+        let mut literal_buf = [0u8; 8];
+        let mut literal_count = 0u8;
+
+        // Flush pending literals as a DecodedItem
+        let flush_literals = |items: &mut Vec<DecodedItem>, buf: &mut [u8; 8], count: &mut u8| {
+            if *count > 0 {
+                items.push(DecodedItem::Literal { bytes: *buf, len: *count - 1 });
+                *count = 0;
+            }
+        };
+
+        while items.len() < max_symbols {
+            if bits.is_eof() || bits.is_block_over_read() {
+                break;
+            }
+
+            let sym = self.main_table.decode(bits) as usize;
+
+            if sym < 256 {
+                // Literal byte - batch up to 8
+                literal_buf[literal_count as usize] = sym as u8;
+                literal_count += 1;
+                output_size += 1;
+                if literal_count == 8 {
+                    flush_literals(&mut items, &mut literal_buf, &mut literal_count);
+                }
+            } else {
+                // Non-literal - flush pending literals first
+                flush_literals(&mut items, &mut literal_buf, &mut literal_count);
+
+                if sym == 256 {
+                    // Filter command
+                    let block_start = self.read_filter_data(bits) as usize;
+                    let block_length = self.read_filter_data(bits) as usize;
+                    let v = bits.get_value_high32();
+                    let filter_type = bits.read_bits_big(3, v) as u8;
+                    let channels = if filter_type == 3 {
+                        // Delta filter
+                        let v = bits.get_value_high32();
+                        (bits.read_bits_big(5, v) + 1) as u8
+                    } else {
+                        0
+                    };
+                    items.push(DecodedItem::Filter { filter_type, block_start, block_length, channels });
+                } else if sym == 257 {
+                    // Full repeat
+                    if self.last_length != 0 {
+                        output_size += self.last_length as usize;
+                    }
+                    items.push(DecodedItem::FullRep);
+                } else if sym < 262 {
+                    // Use recent offset
+                    let rep_idx = (sym - 258) as u8;
+                    let length = self.decode_length(bits)? as u32;
+                    output_size += length as usize;
+                    // Update state for FullRep
+                    self.last_length = length;
+                    items.push(DecodedItem::Rep { length, rep_idx });
+                } else {
+                    // New match with offset
+                    let len_slot = sym - 262;
+                    let length = self.slot_to_length(len_slot as u32, bits)? as u32;
+                    let offset = self.decode_offset(bits)?;
+                    output_size += length as usize;
+                    // Update state
+                    self.last_length = length;
+                    items.push(DecodedItem::Match { length, offset });
+                }
+            }
+        }
+
+        // Flush remaining literals
+        flush_literals(&mut items, &mut literal_buf, &mut literal_count);
+
+        Ok((items, output_size, self.is_last_block))
+    }
+
+    /// Apply decoded items to the sliding window (phase 2 of two-phase decoding).
+    /// Must be called sequentially on the main thread.
+    #[cfg(feature = "parallel")]
+    pub fn apply_decoded(&mut self, items: &[DecodedItem]) -> Result<Vec<super::filter::UnpackFilter>, DecompressError> {
+        use super::filter::{FilterType, UnpackFilter};
+        let mut filters = Vec::new();
+
+        for item in items {
+            match item {
+                DecodedItem::Literal { bytes, len } => {
+                    for i in 0..=*len as usize {
+                        self.write_byte(bytes[i]);
+                    }
+                }
+                DecodedItem::Match { length, offset } => {
+                    // Update recent offsets
+                    for j in (1..NUM_REPS).rev() {
+                        self.recent_offsets[j] = self.recent_offsets[j - 1];
+                    }
+                    self.recent_offsets[0] = *offset as u64;
+                    self.last_length = *length;
+                    self.copy_bytes(*offset, *length as usize);
+                }
+                DecodedItem::Rep { length, rep_idx } => {
+                    let rep_idx = *rep_idx as usize;
+                    let offset = self.recent_offsets[rep_idx] as usize;
+                    if offset == 0 {
+                        return Err(DecompressError::Io(std::io::Error::new(
+                            std::io::ErrorKind::InvalidData,
+                            "Invalid zero offset in Rep",
+                        )));
+                    }
+                    // Rotate recent offsets
+                    if rep_idx > 0 {
+                        let off = self.recent_offsets[rep_idx];
+                        for j in (1..=rep_idx).rev() {
+                            self.recent_offsets[j] = self.recent_offsets[j - 1];
+                        }
+                        self.recent_offsets[0] = off;
+                    }
+                    self.last_length = *length;
+                    self.copy_bytes(offset, *length as usize);
+                }
+                DecodedItem::FullRep => {
+                    if self.last_length != 0 && self.recent_offsets[0] != 0 {
+                        let length = self.last_length as usize;
+                        let offset = self.recent_offsets[0] as usize;
+                        self.copy_bytes(offset, length);
+                    }
+                }
+                DecodedItem::Filter { filter_type, block_start, block_length, channels } => {
+                    if let Some(ft) = FilterType::from_bits(*filter_type) {
+                        let actual_start = (*block_start + self.window_pos) % self.dict_size;
+                        filters.push(UnpackFilter::new(ft, actual_start, *block_length, *channels));
+                    }
+                }
             }
         }
 

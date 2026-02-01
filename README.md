@@ -423,13 +423,14 @@ rar-stream = { version = "5", features = ["async", "crypto"] }
 
 ### Decompression Speed
 
-Benchmark: 8MB file, RAR4 LZSS compression, AMD Ryzen 5 7640HS
+Benchmark on AMD Ryzen 5 7640HS, comparing single-threaded performance:
 
-| Implementation | Speed | vs unrar |
-|----------------|-------|----------|
-| unrar (official C++) | 229 MiB/s | baseline |
-| **rar-stream (Rust)** | **302 MiB/s** | **+32%** |
-| rar-stream (Rust + PGO) | 315 MiB/s | +38% |
+| Format | File Size | unrar (1 thread) | rar-stream | Speedup |
+|--------|-----------|------------------|------------|---------|
+| RAR4 LZSS | 8 MB | 202 MiB/s | **237 MiB/s** | **+17%** |
+| RAR5 LZSS | 994 MB | 203 MiB/s | **225 MiB/s** | **+11%** |
+
+**Note:** unrar 7.0 uses multi-threading for RAR5 (641 MiB/s with 17 threads). rar-stream is currently single-threaded but faster per-core.
 
 ### Memory & Parse Performance
 
