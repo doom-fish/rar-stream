@@ -283,9 +283,9 @@ impl Rar29Decoder {
             #[cfg(test)]
             let peek_bits = reader.peek_bits(16);
 
-            let symbol = {
-                let main_table = self.huffman.main_table.as_ref().unwrap();
-                main_table.decode(reader)?
+            // SAFETY: We validated main_table.is_some() above
+            let symbol = unsafe {
+                self.huffman.main_table.as_ref().unwrap_unchecked().decode(reader)?
             };
 
             #[cfg(test)]
@@ -465,7 +465,8 @@ impl Rar29Decoder {
                     #[cfg(test)]
                     let bit_pos_before = reader.bit_position();
 
-                    let dist_table = self.huffman.dist_table.as_ref().unwrap();
+                    // SAFETY: We validated dist_table.is_some() at function start
+                    let dist_table = unsafe { self.huffman.dist_table.as_ref().unwrap_unchecked() };
                     match dist_table.decode(reader) {
                         Ok(s) => {
                             #[cfg(test)]
@@ -545,7 +546,8 @@ impl Rar29Decoder {
                                 let bit_pos_before = reader.bit_position();
                                 #[cfg(test)]
                                 let raw_bits_16 = reader.peek_bits(16);
-                                let low_table = self.huffman.low_dist_table.as_ref().unwrap();
+                                // SAFETY: low_dist_table is always initialized when we reach here
+                                let low_table = unsafe { self.huffman.low_dist_table.as_ref().unwrap_unchecked() };
                                 #[cfg(test)]
                                 {
                                     let written = self.lzss.total_written();
