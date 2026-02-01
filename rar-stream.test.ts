@@ -338,3 +338,218 @@ describe("RAR5 Support", () => {
     expect(text).toContain("hello hello");
   });
 });
+
+describe("Large File Decompression", () => {
+  const largePath = path.resolve(fixturePath, "large");
+
+  test("Large LZSS file (8MB Alpine tar)", async () => {
+    const media = new LocalFileMedia(path.resolve(largePath, "alpine_lzss.rar"));
+    const pkg = new RarFilesPackage([media]);
+    const files = await pkg.parse();
+    expect(files.length).toBe(1);
+    expect(files[0].name).toBe("alpine.tar");
+    
+    const content = await files[0].readToEnd();
+    const expectedContent = fs.readFileSync(path.resolve(largePath, "alpine.tar"));
+    
+    expect(content.length).toBe(expectedContent.length);
+    expect(Buffer.compare(content, expectedContent)).toBe(0);
+  }, 30000); // 30s timeout for large file
+
+  test("Large PPMd file (8MB Alpine tar)", async () => {
+    const media = new LocalFileMedia(path.resolve(largePath, "alpine_m3.rar"));
+    const pkg = new RarFilesPackage([media]);
+    const files = await pkg.parse();
+    expect(files.length).toBe(1);
+    expect(files[0].name).toBe("alpine.tar");
+    
+    const content = await files[0].readToEnd();
+    const expectedContent = fs.readFileSync(path.resolve(largePath, "alpine.tar"));
+    
+    expect(content.length).toBe(expectedContent.length);
+    expect(Buffer.compare(content, expectedContent)).toBe(0);
+  }, 30000);
+});
+
+describe("All Fixture Files Integrity", () => {
+  // Test that we can at least parse all RAR files without crashing
+  const allRarFiles = [
+    "single/single.rar",
+    "single-splitted/single-splitted.rar",
+    "multi/multi.rar",
+    "multi-splitted/multi-splitted.rar",
+    "compressed/lipsum_rar4_store.rar",
+    "compressed/lipsum_rar4_default.rar",
+    "compressed/lipsum_rar4_max.rar",
+    "compressed/lipsum_rar4_delta.rar",
+    "compressed/lipsum_rar4_ppmd.rar",
+    "rar5/stored.rar",
+    "rar5/compressed.rar",
+    "large/alpine_lzss.rar",
+    "large/alpine_m3.rar",
+  ];
+
+  test.each(allRarFiles)("Can parse and decompress %s", async (relPath) => {
+    const media = new LocalFileMedia(path.resolve(fixturePath, relPath));
+    const pkg = new RarFilesPackage([media]);
+    const files = await pkg.parse();
+    
+    expect(files.length).toBeGreaterThan(0);
+    
+    // Read first file to verify decompression works
+    const content = await files[0].readToEnd();
+    expect(content.length).toBe(files[0].length);
+  }, 30000);
+});
+
+describe("Streaming vs Full Read Consistency", () => {
+  const testFiles = [
+    "single/single.rar",
+    "compressed/lipsum_rar4_default.rar",
+    "compressed/lipsum_rar4_ppmd.rar",
+    "large/alpine_lzss.rar",
+  ];
+
+  test.each(testFiles)("Stream and full read match for %s", async (relPath) => {
+    const media = new LocalFileMedia(path.resolve(fixturePath, relPath));
+    const pkg = new RarFilesPackage([media]);
+    const files = await pkg.parse();
+    const file = files[0];
+    
+    // Full read
+    const fullContent = await file.readToEnd();
+    
+    // Stream read
+    const stream = file.createReadStream();
+    const chunks: Buffer[] = [];
+    for await (const chunk of stream) {
+      chunks.push(chunk);
+    }
+    const streamContent = Buffer.concat(chunks);
+    
+    expect(streamContent.length).toBe(fullContent.length);
+    expect(Buffer.compare(streamContent, fullContent)).toBe(0);
+  }, 30000);
+});
+
+describe("Partial Range Reads", () => {
+  test("Read first 1KB of large file", async () => {
+    const media = new LocalFileMedia(path.resolve(fixturePath, "large/alpine_lzss.rar"));
+    const pkg = new RarFilesPackage([media]);
+    const [file] = await pkg.parse();
+    
+    const stream = file.createReadStream({ start: 0, end: 1023 });
+    const chunks: Buffer[] = [];
+    for await (const chunk of stream) {
+      chunks.push(chunk);
+    }
+    const partial = Buffer.concat(chunks);
+    
+    const full = await file.readToEnd();
+    const expected = full.subarray(0, 1024);
+    
+    expect(partial.length).toBe(1024);
+    expect(Buffer.compare(partial, expected)).toBe(0);
+  }, 30000);
+
+  test("Read middle 4KB of large file", async () => {
+    const media = new LocalFileMedia(path.resolve(fixturePath, "large/alpine_lzss.rar"));
+    const pkg = new RarFilesPackage([media]);
+    const [file] = await pkg.parse();
+    
+    const start = 100000;
+    const end = start + 4095;
+    
+    const stream = file.createReadStream({ start, end });
+    const chunks: Buffer[] = [];
+    for await (const chunk of stream) {
+      chunks.push(chunk);
+    }
+    const partial = Buffer.concat(chunks);
+    
+    const full = await file.readToEnd();
+    const expected = full.subarray(start, end + 1);
+    
+    expect(partial.length).toBe(4096);
+    expect(Buffer.compare(partial, expected)).toBe(0);
+  }, 30000);
+
+  test("Read last 1KB of large file", async () => {
+    const media = new LocalFileMedia(path.resolve(fixturePath, "large/alpine_lzss.rar"));
+    const pkg = new RarFilesPackage([media]);
+    const [file] = await pkg.parse();
+    
+    const full = await file.readToEnd();
+    const start = full.length - 1024;
+    const end = full.length - 1;
+    
+    const stream = file.createReadStream({ start, end });
+    const chunks: Buffer[] = [];
+    for await (const chunk of stream) {
+      chunks.push(chunk);
+    }
+    const partial = Buffer.concat(chunks);
+    
+    const expected = full.subarray(start, end + 1);
+    
+    expect(partial.length).toBe(1024);
+    expect(Buffer.compare(partial, expected)).toBe(0);
+  }, 30000);
+});
+
+describe("Multi-volume Archives", () => {
+  test("RAR4 multi-volume with one inner file", async () => {
+    const media = [
+      new LocalFileMedia(path.resolve(fixturePath, "multi/multi.rar")),
+      new LocalFileMedia(path.resolve(fixturePath, "multi/multi.r00")),
+      new LocalFileMedia(path.resolve(fixturePath, "multi/multi.r01")),
+    ];
+    const pkg = new RarFilesPackage(media);
+    const files = await pkg.parse();
+    
+    expect(files.length).toBe(1);
+    const content = await files[0].readToEnd();
+    const expected = fs.readFileSync(path.resolve(fixturePath, "multi/multi.txt"));
+    
+    expect(content.length).toBe(expected.length);
+    expect(Buffer.compare(content, expected)).toBe(0);
+  });
+
+  test("RAR4 multi-volume with many inner files", async () => {
+    const media = [
+      new LocalFileMedia(path.resolve(fixturePath, "multi-splitted/multi-splitted.rar")),
+      new LocalFileMedia(path.resolve(fixturePath, "multi-splitted/multi-splitted.r00")),
+      new LocalFileMedia(path.resolve(fixturePath, "multi-splitted/multi-splitted.r01")),
+    ];
+    const pkg = new RarFilesPackage(media);
+    const files = await pkg.parse();
+    
+    expect(files.length).toBe(4);
+    
+    // Verify each file
+    for (const file of files) {
+      const expectedPath = path.resolve(fixturePath, "multi-splitted", path.basename(file.name));
+      if (fs.existsSync(expectedPath)) {
+        const content = await file.readToEnd();
+        const expected = fs.readFileSync(expectedPath);
+        expect(content.length).toBe(expected.length);
+        expect(Buffer.compare(content, expected)).toBe(0);
+      }
+    }
+  });
+});
+
+describe("Error Handling", () => {
+  test("Throws on non-existent file", () => {
+    // LocalFileMedia throws immediately when file doesn't exist
+    expect(() => new LocalFileMedia("/nonexistent/file.rar")).toThrow();
+  });
+
+  test("Throws on invalid RAR file", async () => {
+    // Use a text file as RAR
+    const media = new LocalFileMedia(path.resolve(fixturePath, "single/single.txt"));
+    const pkg = new RarFilesPackage([media]);
+    
+    await expect(pkg.parse()).rejects.toThrow();
+  });
+});
