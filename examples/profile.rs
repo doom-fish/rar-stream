@@ -1,4 +1,9 @@
 //! Profiling helper - runs decompression in a loop for perf analysis
+//!
+//! Usage:
+//!   cargo run --release --example profile -- lzss 10000       # small file
+//!   cargo run --release --example profile -- alpine-lzss 100  # 8MB file
+//!   cargo run --release --example profile -- alpine-ppmd 100  # 8MB PPMd
 
 use rar_stream::parsing::file_header::FileHeaderParser;
 use rar_stream::Rar29Decoder;
@@ -27,64 +32,68 @@ fn parse_rar4_file(data: &[u8]) -> Option<(rar_stream::parsing::file_header::Fil
     Some((header, &data[data_start..data_end]))
 }
 
-fn main() {
-    let args: Vec<String> = std::env::args().collect();
-    let mode = args.get(1).map(|s| s.as_str()).unwrap_or("lzss");
-    let iterations: usize = args.get(2).and_then(|s| s.parse().ok()).unwrap_or(10000);
-    let reuse = args.iter().any(|s| s == "--reuse" || s == "reuse");
-
+fn run_decompress(mode: &str, iterations: usize, reuse: bool) {
     match mode {
         "lzss" => {
             let data = include_bytes!("../__fixtures__/compressed/lipsum_rar4_max.rar");
             let (header, compressed) = parse_rar4_file(data).expect("Failed to parse");
-
-            if reuse {
-                println!(
-                    "Running LZSS decompression {} times (REUSING decoder)...",
-                    iterations
-                );
-                let mut decoder = Rar29Decoder::new();
-                for _ in 0..iterations {
-                    decoder.reset();
-                    let _ = decoder.decompress(compressed, header.unpacked_size);
-                }
-            } else {
-                println!(
-                    "Running LZSS decompression {} times (NEW decoder each time)...",
-                    iterations
-                );
-                for _ in 0..iterations {
-                    let mut decoder = Rar29Decoder::new();
-                    let _ = decoder.decompress(compressed, header.unpacked_size);
-                }
-            }
+            run_iterations("LZSS (3.5KB)", compressed, header.unpacked_size, iterations, reuse);
         }
         "ppmd" => {
             let data = include_bytes!("../__fixtures__/compressed/lipsum_rar4_ppmd.rar");
             let (header, compressed) = parse_rar4_file(data).expect("Failed to parse");
-
-            if reuse {
-                println!(
-                    "Running PPMd decompression {} times (REUSING decoder)...",
-                    iterations
-                );
-                let mut decoder = Rar29Decoder::new();
-                for _ in 0..iterations {
-                    decoder.reset();
-                    let _ = decoder.decompress(compressed, header.unpacked_size);
-                }
-            } else {
-                println!(
-                    "Running PPMd decompression {} times (NEW decoder each time)...",
-                    iterations
-                );
-                for _ in 0..iterations {
-                    let mut decoder = Rar29Decoder::new();
-                    let _ = decoder.decompress(compressed, header.unpacked_size);
-                }
-            }
+            run_iterations("PPMd (3.5KB)", compressed, header.unpacked_size, iterations, reuse);
         }
-        _ => eprintln!("Usage: profile [lzss|ppmd] [iterations] [reuse]"),
+        "alpine-lzss" => {
+            let data = include_bytes!("../__fixtures__/large/alpine_lzss.rar");
+            let (header, compressed) = parse_rar4_file(data).expect("Failed to parse");
+            run_iterations("Alpine LZSS (8MB)", compressed, header.unpacked_size, iterations, reuse);
+        }
+        "alpine-ppmd" => {
+            let data = include_bytes!("../__fixtures__/large/alpine_m3.rar");
+            let (header, compressed) = parse_rar4_file(data).expect("Failed to parse");
+            run_iterations("Alpine PPMd (8MB)", compressed, header.unpacked_size, iterations, reuse);
+        }
+        _ => {
+            eprintln!("Usage: profile [lzss|ppmd|alpine-lzss|alpine-ppmd] [iterations] [--reuse]");
+            eprintln!("  lzss         - 3.5KB lorem ipsum LZSS");
+            eprintln!("  ppmd         - 3.5KB lorem ipsum PPMd");
+            eprintln!("  alpine-lzss  - 8MB Alpine tar LZSS");
+            eprintln!("  alpine-ppmd  - 8MB Alpine tar PPMd");
+        }
     }
-    println!("Done");
+}
+
+fn run_iterations(name: &str, compressed: &[u8], unpacked_size: u64, iterations: usize, reuse: bool) {
+    let reuse_str = if reuse { "REUSING" } else { "NEW" };
+    println!("Running {} decompression {} times ({} decoder)...", name, iterations, reuse_str);
+    
+    let start = std::time::Instant::now();
+    
+    if reuse {
+        let mut decoder = Rar29Decoder::new();
+        for _ in 0..iterations {
+            decoder.reset();
+            let _ = decoder.decompress(compressed, unpacked_size);
+        }
+    } else {
+        for _ in 0..iterations {
+            let mut decoder = Rar29Decoder::new();
+            let _ = decoder.decompress(compressed, unpacked_size);
+        }
+    }
+    
+    let elapsed = start.elapsed();
+    let total_bytes = unpacked_size as usize * iterations;
+    let throughput = total_bytes as f64 / elapsed.as_secs_f64() / 1024.0 / 1024.0;
+    println!("Done: {:?} total, {:.1} MiB/s", elapsed, throughput);
+}
+
+fn main() {
+    let args: Vec<String> = std::env::args().collect();
+    let mode = args.get(1).map(|s| s.as_str()).unwrap_or("lzss");
+    let iterations: usize = args.get(2).and_then(|s| s.parse().ok()).unwrap_or(100);
+    let reuse = args.iter().any(|s| s == "--reuse" || s == "reuse");
+
+    run_decompress(mode, iterations, reuse);
 }

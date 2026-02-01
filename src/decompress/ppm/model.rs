@@ -510,6 +510,7 @@ impl PpmModel {
     }
 
     /// Decode from a multi-symbol context.
+    #[inline]
     fn decode_symbol1(
         &mut self,
         coder: &mut RangeCoder,
@@ -692,6 +693,7 @@ impl PpmModel {
     }
 
     /// Decode from a binary context.
+    #[inline]
     fn decode_bin_symbol(
         &mut self,
         coder: &mut RangeCoder,
@@ -719,26 +721,23 @@ impl PpmModel {
         } else {
             0
         };
-        let ns1 = self.ns2_bs_indx[ns_idx as usize] as usize;
+        let ns1 = unsafe { *self.ns2_bs_indx.get_unchecked(ns_idx as usize) } as usize;
 
         // Index calculation matching unrar:
         // PrevSuccess + NS2BSIndx[Suffix->NumStats-1] + HiBitsFlag + 2*HB2Flag[rs.Symbol] + ((RunLength >> 26) & 0x20)
         let idx1 = (self.prev_success as usize)
             + ns1
             + self.hi_bits_flag as usize
-            + 2 * (self.hb2_flag[state.symbol as usize] as usize)
+            + 2 * (unsafe { *self.hb2_flag.get_unchecked(state.symbol as usize) } as usize)
             + ((self.run_length >> 26) & 0x20) as usize;
 
         // BinSumm first index is Freq-1 (not freq>>2)
-        let freq_idx = if state.freq > 0 {
-            (state.freq - 1) as usize
-        } else {
-            0
-        };
-        let freq_idx = freq_idx.min(127); // BinSumm is [128][64]
-        let idx1 = idx1.min(63);
+        let freq_idx = state.freq.saturating_sub(1) as usize;
+        // SAFETY: freq_idx < 128 and idx1 < 64 guaranteed by saturating ops and bit mask
+        let freq_idx = freq_idx & 127; // BinSumm is [128][64]
+        let idx1 = idx1 & 63;
 
-        let bs = self.bin_summ[freq_idx][idx1];
+        let bs = unsafe { *self.bin_summ.get_unchecked(freq_idx).get_unchecked(idx1) };
 
         #[cfg(test)]
         if self.debug_count == 0 {
@@ -790,7 +789,8 @@ impl PpmModel {
             // GET_MEAN(SUMM,SHIFT,ROUND) = ((SUMM+(1 << (SHIFT-ROUND))) >> SHIFT)
             let mean = ((bs as u32 + (1 << (PERIOD_BITS - 2))) >> PERIOD_BITS) as u16;
             let new_bs = bs.saturating_add((INTERVAL as u16).saturating_sub(mean));
-            self.bin_summ[freq_idx][idx1] = new_bs;
+            // SAFETY: freq_idx < 128 and idx1 < 64 guaranteed by bit masking above
+            unsafe { *self.bin_summ.get_unchecked_mut(freq_idx).get_unchecked_mut(idx1) = new_bs };
 
             self.found_state = self.min_context + 2; // OneState offset (in union at offset 2)
             self.prev_success = 1;
@@ -815,15 +815,17 @@ impl PpmModel {
             // Update bin_summ: bs - GET_MEAN(bs, PERIOD_BITS, 2)
             let mean = ((bs as u32 + (1 << (PERIOD_BITS - 2))) >> PERIOD_BITS) as u16;
             let new_bs = bs.saturating_sub(mean);
-            self.bin_summ[freq_idx][idx1] = new_bs;
+            // SAFETY: freq_idx < 128 and idx1 < 64 guaranteed by bit masking above
+            unsafe { *self.bin_summ.get_unchecked_mut(freq_idx).get_unchecked_mut(idx1) = new_bs };
 
             // InitEsc = ExpEscape[bs >> 10]
             static EXP_ESCAPE: [u8; 16] = [25, 14, 9, 7, 5, 5, 4, 4, 4, 3, 3, 3, 2, 2, 2, 2];
-            self.init_esc = EXP_ESCAPE[(new_bs >> 10) as usize] as u32;
+            self.init_esc = unsafe { *EXP_ESCAPE.get_unchecked((new_bs >> 10) as usize) } as u32;
 
             self.num_masked = 1;
             self.found_state = 0;
-            self.char_mask[state.symbol as usize] = self.esc_count;
+            // SAFETY: state.symbol is u8, char_mask is [u8; 256]
+            unsafe { *self.char_mask.get_unchecked_mut(state.symbol as usize) = self.esc_count };
             // Don't increment esc_count here - it's done in update2 after successful decode
             self.prev_success = 0;
         }
@@ -832,6 +834,7 @@ impl PpmModel {
     }
 
     /// Decode from a masked context.
+    #[inline]
     fn decode_symbol2(
         &mut self,
         coder: &mut RangeCoder,
@@ -1852,16 +1855,11 @@ impl PpmModel {
         self.sub_alloc.write_u32(offset + 2, successor);
     }
 
+    #[inline]
     fn write_state(&mut self, offset: usize, symbol: u8, freq: u8, successor: u32) {
         self.sub_alloc.write_byte(offset, symbol);
         self.sub_alloc.write_byte(offset + 1, freq);
-        self.sub_alloc.write_byte(offset + 2, successor as u8);
-        self.sub_alloc
-            .write_byte(offset + 3, (successor >> 8) as u8);
-        self.sub_alloc
-            .write_byte(offset + 4, (successor >> 16) as u8);
-        self.sub_alloc
-            .write_byte(offset + 5, (successor >> 24) as u8);
+        self.sub_alloc.write_u32(offset + 2, successor);
     }
 }
 

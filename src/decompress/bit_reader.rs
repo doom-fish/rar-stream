@@ -30,9 +30,11 @@ impl<'a> BitReader<'a> {
     }
 
     /// Fill the buffer with more bytes.
+    #[inline]
     fn fill_buffer(&mut self) {
         while self.bits_in_buffer <= 24 && self.pos < self.data.len() {
-            self.buffer |= (self.data[self.pos] as u32) << (24 - self.bits_in_buffer);
+            // SAFETY: bounds checked above
+            self.buffer |= unsafe { (*self.data.get_unchecked(self.pos) as u32) << (24 - self.bits_in_buffer) };
             self.bits_in_buffer += 8;
             self.pos += 1;
         }
@@ -108,6 +110,20 @@ impl<'a> BitReader<'a> {
     /// Remaining bits available.
     pub fn remaining_bits(&self) -> u64 {
         self.bits_in_buffer as u64 + ((self.data.len() - self.pos) as u64 * 8)
+    }
+    
+    /// Debug helper to show internal state
+    #[cfg(test)]
+    pub fn debug_state(&self) -> String {
+        format!("BitReader {{ pos: {}, bit_pos: {}, buffer: {:08x}, bits_in_buffer: {} }}", 
+            self.pos, self.bit_pos, self.buffer, self.bits_in_buffer)
+    }
+    
+    /// Peek at raw bytes from current logical position (for debugging)
+    #[cfg(test)]
+    pub fn peek_bytes(&self, n: usize) -> Vec<u8> {
+        let byte_pos = (self.bit_pos / 8) as usize;
+        self.data.get(byte_pos..byte_pos + n).map(|s| s.to_vec()).unwrap_or_default()
     }
 }
 

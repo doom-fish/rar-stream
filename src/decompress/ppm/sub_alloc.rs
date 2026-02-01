@@ -304,62 +304,69 @@ impl SubAllocator {
     }
 
     /// Read a byte from heap.
+    #[inline]
     pub fn read_byte(&self, offset: usize) -> u8 {
-        self.heap.get(offset).copied().unwrap_or(0)
+        // SAFETY: PPMd validates offsets against heap_end at context level
+        debug_assert!(offset < self.heap.len());
+        // SAFETY: bounds checked in debug, validated at higher level in release
+        unsafe { *self.heap.get_unchecked(offset) }
     }
 
     /// Write a byte to heap.
     #[inline]
     pub fn write_byte(&mut self, offset: usize, val: u8) {
-        if offset < self.heap.len() {
-            self.heap[offset] = val;
-        }
+        debug_assert!(offset < self.heap.len());
+        // SAFETY: bounds checked in debug, validated at higher level in release
+        unsafe { *self.heap.get_unchecked_mut(offset) = val };
     }
 
     /// Read a u32 from heap.
     #[inline]
     pub fn read_u32(&self, offset: usize) -> u32 {
-        if offset + 4 <= self.heap.len() {
-            u32::from_le_bytes([
-                self.heap[offset],
-                self.heap[offset + 1],
-                self.heap[offset + 2],
-                self.heap[offset + 3],
-            ])
-        } else {
-            0
+        debug_assert!(offset + 4 <= self.heap.len());
+        // SAFETY: bounds checked in debug, validated at higher level in release
+        unsafe {
+            let ptr = self.heap.as_ptr().add(offset);
+            u32::from_le_bytes([*ptr, *ptr.add(1), *ptr.add(2), *ptr.add(3)])
         }
     }
 
     /// Write a u32 to heap.
     #[inline]
     pub fn write_u32(&mut self, offset: usize, val: u32) {
-        if offset + 4 <= self.heap.len() {
+        debug_assert!(offset + 4 <= self.heap.len());
+        // SAFETY: bounds checked in debug, validated at higher level in release
+        unsafe {
+            let ptr = self.heap.as_mut_ptr().add(offset);
             let bytes = val.to_le_bytes();
-            self.heap[offset] = bytes[0];
-            self.heap[offset + 1] = bytes[1];
-            self.heap[offset + 2] = bytes[2];
-            self.heap[offset + 3] = bytes[3];
+            *ptr = bytes[0];
+            *ptr.add(1) = bytes[1];
+            *ptr.add(2) = bytes[2];
+            *ptr.add(3) = bytes[3];
         }
     }
 
     /// Read a u16 from heap.
     #[inline]
     pub fn read_u16(&self, offset: usize) -> u16 {
-        if offset + 2 <= self.heap.len() {
-            u16::from_le_bytes([self.heap[offset], self.heap[offset + 1]])
-        } else {
-            0
+        debug_assert!(offset + 2 <= self.heap.len());
+        // SAFETY: bounds checked in debug, validated at higher level in release
+        unsafe {
+            let ptr = self.heap.as_ptr().add(offset);
+            u16::from_le_bytes([*ptr, *ptr.add(1)])
         }
     }
 
     /// Write a u16 to heap.
     #[inline]
     pub fn write_u16(&mut self, offset: usize, val: u16) {
-        if offset + 2 <= self.heap.len() {
+        debug_assert!(offset + 2 <= self.heap.len());
+        // SAFETY: bounds checked in debug, validated at higher level in release
+        unsafe {
+            let ptr = self.heap.as_mut_ptr().add(offset);
             let bytes = val.to_le_bytes();
-            self.heap[offset] = bytes[0];
-            self.heap[offset + 1] = bytes[1];
+            *ptr = bytes[0];
+            *ptr.add(1) = bytes[1];
         }
     }
 

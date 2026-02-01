@@ -20,3 +20,4 @@ playwright-report/
 
 # Rust
 Cargo.lock
+perf.data

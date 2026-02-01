@@ -121,17 +121,17 @@ impl FileHeaderParser {
         ]);
         offset += 4;
 
-        // Parse flags
-        let continues_from_previous = (flags & 0x01) != 0;
-        let continues_in_next = (flags & 0x02) != 0;
-        let is_encrypted = (flags & 0x04) != 0;
-        let has_comment = (flags & 0x08) != 0;
-        let has_info_from_previous = (flags & 0x10) != 0;
-        let has_high_size = (flags & 0x100) != 0;
-        let has_special_name = (flags & 0x200) != 0;
-        let has_salt = (flags & 0x400) != 0;
-        let is_old_version = (flags & 0x800) != 0;
-        let has_extended_time = (flags & 0x1000) != 0;
+        // Parse flags - RAR4 file header flags
+        let continues_from_previous = (flags & 0x0001) != 0;
+        let continues_in_next = (flags & 0x0002) != 0;
+        let is_encrypted = (flags & 0x0004) != 0;
+        let has_comment = (flags & 0x0008) != 0;
+        let has_info_from_previous = (flags & 0x0010) != 0;
+        let has_high_size = (flags & 0x0100) != 0;  // LHD_LARGE - 64-bit sizes follow
+        let has_special_name = (flags & 0x0040) != 0;  // LHD_UNICODE
+        let has_salt = (flags & 0x0080) != 0;
+        let is_old_version = (flags & 0x0100) != 0;
+        let has_extended_time = (flags & 0x0200) != 0;
 
         // Handle 64-bit sizes
         if has_high_size && buffer.len() >= offset + 8 {

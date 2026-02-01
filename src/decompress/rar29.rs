@@ -97,6 +97,8 @@ pub struct Rar29Decoder {
     prev_low_offset: u32,
     /// Low offset repeat counter
     low_offset_repeat_count: u32,
+    /// Next position where we need to check filters (optimization to avoid O(n) scan)
+    next_filter_check: u64,
 }
 
 impl Rar29Decoder {
@@ -123,6 +125,7 @@ impl Rar29Decoder {
             tables_read: false,
             prev_low_offset: 0,
             low_offset_repeat_count: 0,
+            next_filter_check: u64::MAX,
         }
     }
     
@@ -754,6 +757,11 @@ impl Rar29Decoder {
         }
         #[cfg(not(test))]
         self.vm.add_code(first_byte, &vm_code, total_written, window_mask);
+        
+        // Update next_filter_check when a filter is added
+        if let Some(end) = self.vm.next_filter_end() {
+            self.next_filter_check = self.next_filter_check.min(end);
+        }
 
         Ok(())
     }
@@ -762,6 +770,12 @@ impl Rar29Decoder {
     /// Applies filters to window data, writes filtered output directly to output buffer.
     fn maybe_execute_filters(&mut self) {
         let total_written = self.lzss.total_written();
+        
+        // Fast path: skip if we haven't reached the next filter check position
+        if total_written < self.next_filter_check {
+            return;
+        }
+        
         let window_mask = self.lzss.window_mask() as usize;
         
         // Execute filters that are ready, in order of their block_start position
@@ -785,10 +799,15 @@ impl Rar29Decoder {
             {
                 // Write filtered data directly to output (bypasses window)
                 self.lzss.write_filtered_to_output(&filtered_data, next_pos);
+                // Update next check to after this filter
+                self.next_filter_check = filter_end;
             } else {
                 break;
             }
         }
+        
+        // Update next_filter_check based on remaining filters
+        self.next_filter_check = self.vm.next_filter_end().unwrap_or(u64::MAX);
     }
 
     /// Decode a block using PPMd.
@@ -897,6 +916,11 @@ impl Rar29Decoder {
                         let total_written = self.lzss.total_written();
                         let window_mask = self.lzss.window_mask();
                         self.vm.add_code(first_byte, &vm_code, total_written, window_mask);
+                        
+                        // Update next_filter_check when a filter is added
+                        if let Some(end) = self.vm.next_filter_end() {
+                            self.next_filter_check = self.next_filter_check.min(end);
+                        }
                     }
                     4 => {
                         // LZ match: 3 bytes distance (MSB first), 1 byte length
@@ -960,6 +984,7 @@ impl Rar29Decoder {
         self.tables_read = false;
         self.prev_low_offset = 0;
         self.low_offset_repeat_count = 0;
+        self.next_filter_check = u64::MAX;
     }
 
     /// Get total bytes decompressed.
