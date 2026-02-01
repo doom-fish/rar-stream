@@ -279,26 +279,17 @@ impl HuffmanTable {
 
     /// Decode a symbol from the bit reader.
     /// Uses unrar's DecodeNumber algorithm with left-aligned comparisons.
+    #[inline]
     pub fn decode(&self, reader: &mut BitReader) -> Result<u16> {
-        // Get 16 bits left-aligned like unrar
-        let bit_field = reader.peek_bits(16) & 0xfffe;  // Clear LSB like unrar
-        
-        // Debug for position around issue
-        #[cfg(test)]
-        let bit_pos_start = reader.bit_position();
+        // Get 16 bits left-aligned
+        let bit_field = reader.peek_bits(16);
         
         // Quick decode path - check against decode_len (upper limit)
         if bit_field < self.decode_len[QUICK_BITS as usize] {
-            // Use quick table
-            let code = bit_field >> (16 - QUICK_BITS);
-            let entry = &self.quick_table[code as usize];
-            #[cfg(test)]
-            {
-                if bit_pos_start >= 6268415 && bit_pos_start <= 6268425 {
-                    eprintln!("  DECODE at bit {}: bit_field={:016b}, code={}, entry.symbol={}, entry.length={}, decode_len[{}]={}", 
-                        bit_pos_start, bit_field, code, entry.symbol, entry.length, QUICK_BITS, self.decode_len[QUICK_BITS as usize]);
-                }
-            }
+            // Use quick table - we're guaranteed to have a valid entry
+            let code = (bit_field >> (16 - QUICK_BITS)) as usize;
+            // SAFETY: code is always < QUICK_SIZE due to the shift
+            let entry = unsafe { self.quick_table.get_unchecked(code) };
             if entry.length > 0 {
                 reader.advance_bits(entry.length as u32);
                 return Ok(entry.symbol);

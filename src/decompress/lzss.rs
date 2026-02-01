@@ -216,7 +216,22 @@ impl LzssDecoder {
             return Ok(());
         }
 
-        // Slow path: handle overlapping or wrapping copies byte-by-byte
+        // Medium path: overlapping but no wrapping - use copy_within in chunks
+        // Only worthwhile if we can copy at least 8 bytes at a time
+        if self.pos + len <= self.window.len() && self.pos >= dist && dist >= 8 {
+            let src_start = self.pos - dist;
+            let mut copied = 0;
+            while copied < len {
+                let chunk = (len - copied).min(dist);
+                self.window.copy_within(src_start..src_start + chunk, self.pos + copied);
+                copied += chunk;
+            }
+            self.pos += len;
+            self.total_written += length as u64;
+            return Ok(());
+        }
+
+        // Slow path: handle wrapping or very short distance copies byte-by-byte
         let src_pos = (self.pos.wrapping_sub(dist)) & self.mask;
 
         for i in 0..len {
