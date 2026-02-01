@@ -267,7 +267,7 @@ impl HuffmanTable {
 
     /// Decode a symbol from the bit reader.
     /// Uses unrar's DecodeNumber algorithm with left-aligned comparisons.
-    #[inline]
+    #[inline(always)]
     pub fn decode(&self, reader: &mut BitReader) -> Result<u16> {
         // Get 16 bits left-aligned
         let bit_field = reader.peek_bits(16);
@@ -285,9 +285,10 @@ impl HuffmanTable {
         }
 
         // Slow path: find the matching bit length using unrar's algorithm
+        // SAFETY: decode_len has 16 entries, we access indices 11..15
         let mut bits = MAX_CODE_LENGTH;
         for i in (QUICK_BITS as usize + 1)..MAX_CODE_LENGTH {
-            if bit_field < self.decode_len[i] {
+            if bit_field < unsafe { *self.decode_len.get_unchecked(i) } {
                 bits = i;
                 break;
             }
@@ -297,23 +298,21 @@ impl HuffmanTable {
         reader.advance_bits(bits as u32);
 
         // Calculate distance from start of this length's codes
-        let dist = if bits > 0 {
-            let prev_len = self.decode_len[bits - 1];
-            ((bit_field - prev_len) >> (16 - bits)) as usize
-        } else {
-            0
-        };
+        // SAFETY: bits is always > 0 in slow path (>= QUICK_BITS+1 = 11)
+        let prev_len = unsafe { *self.decode_len.get_unchecked(bits - 1) };
+        let dist = ((bit_field - prev_len) >> (16 - bits)) as usize;
 
         // Calculate position in symbol list
-        let pos = self.first_symbol[bits] as usize + dist;
+        // SAFETY: first_symbol has 16 entries
+        let pos = unsafe { *self.first_symbol.get_unchecked(bits) } as usize + dist;
 
-        // Safety check - if position is out of bounds, return first symbol as fallback
+        // SAFETY: valid RAR data guarantees pos < symbols.len()
+        // For corrupt data, we clamp to avoid panic
         if pos >= self.symbols.len() {
-            // This matches unrar's behavior for corrupt data
             return Ok(self.symbols.first().copied().unwrap_or(0));
         }
 
-        Ok(self.symbols[pos])
+        Ok(unsafe { *self.symbols.get_unchecked(pos) })
     }
 }
 

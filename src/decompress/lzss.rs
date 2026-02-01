@@ -66,20 +66,9 @@ impl LzssDecoder {
     }
 
     /// Write a literal byte to the window.
-    #[inline]
+    #[inline(always)]
     pub fn write_literal(&mut self, byte: u8) {
-        #[cfg(test)]
-        {
-            if self.total_written == 1498598 {
-                eprintln!("!!! WRITE_LITERAL at 1498598: byte=0x{:02x}", byte);
-            }
-            // Also check if we're writing to window index that corresponds to output 1498598
-            if (self.pos as u64) == 1498598 {
-                eprintln!("!!! WRITE_LITERAL to window[1498598] at total_written={}: byte=0x{:02x}", self.total_written, byte);
-            }
-        }
         self.window[self.pos] = byte;
-        // Don't write to output during decode - will be flushed later after filters
         self.pos = (self.pos + 1) & self.mask;
         self.total_written += 1;
     }
@@ -156,32 +145,8 @@ impl LzssDecoder {
 
     /// Copy bytes from a previous position in the window.
     /// Optimized for both overlapping and non-overlapping copies.
-    #[inline]
+    #[inline(always)]
     pub fn copy_match(&mut self, distance: u32, length: u32) -> Result<()> {
-        #[cfg(test)]
-        {
-            let pos = self.total_written as usize;
-            let end_pos = pos + length as usize;
-            // Check if this match covers position 1498598
-            if pos <= 1498598 && end_pos > 1498598 {
-                let offset_into_match = 1498598 - pos;
-                let src_pos = ((pos as u32).wrapping_sub(distance)) as usize & self.mask;
-                eprintln!("!!! COPY_MATCH covers 1498598: pos={}, dist={}, len={}, offset_into_match={}", 
-                    pos, distance, length, offset_into_match);
-                eprintln!("  src bytes to copy: {:02x?}", &self.window[src_pos..(src_pos + length as usize).min(self.window.len())]);
-                eprintln!("  byte that will be at 1498598: 0x{:02x} (from src_pos+offset={})", 
-                    self.window[(src_pos + offset_into_match) & self.mask], src_pos + offset_into_match);
-            }
-            // Also check if window index 1498598 is written (might be a second write)
-            let win_start = self.pos;
-            let win_end = (self.pos + length as usize) & self.mask;
-            if (win_start <= 1498598 && 1498598 < win_start + length as usize) || 
-               (win_start > 1498598 && win_end > 1498598 && win_end < win_start) {
-                eprintln!("!!! COPY_MATCH to window[1498598]: total_written={}, dist={}, len={}", 
-                    self.total_written, distance, length);
-            }
-        }
-        
         // Validate distance against bytes actually written, not window size
         if distance == 0 || distance as u64 > self.total_written {
             return Err(DecompressError::InvalidBackReference {
