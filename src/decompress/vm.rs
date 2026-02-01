@@ -665,42 +665,72 @@ impl RarVM {
         }
 
         const FILE_SIZE: u32 = 0x1000000;
-        let cmp_byte2: u8 = if include_e9 { 0xe9 } else { 0xe8 };
-
+        
+        // Use SIMD-accelerated search for E8/E9 bytes
+        let search_end = data_size - 4;
         let mut cur_pos: usize = 0;
-        while cur_pos < data_size - 4 {
-            let cur_byte = self.mem[cur_pos];
-            cur_pos += 1;
-
-            if cur_byte == 0xe8 || cur_byte == cmp_byte2 {
-                let offset = cur_pos as u32 + file_offset;
-                let addr = u32::from_le_bytes([
-                    self.mem[cur_pos],
-                    self.mem[cur_pos + 1],
-                    self.mem[cur_pos + 2],
-                    self.mem[cur_pos + 3],
-                ]);
-
-                if (addr & 0x80000000) != 0 {
-                    // addr < 0
-                    if (addr.wrapping_add(offset) & 0x80000000) == 0 {
-                        // addr + offset >= 0
-                        let new_addr = addr.wrapping_add(FILE_SIZE);
-                        self.mem[cur_pos..cur_pos + 4].copy_from_slice(&new_addr.to_le_bytes());
-                    }
+        
+        if include_e9 {
+            // E8E9: search for either 0xE8 or 0xE9
+            while cur_pos < search_end {
+                // Find next E8 or E9 byte using SIMD
+                if let Some(offset) = memchr::memchr2(0xe8, 0xe9, &self.mem[cur_pos..search_end]) {
+                    cur_pos += offset;
+                    // Process the found byte
+                    let addr_pos = cur_pos + 1;
+                    let offset_val = addr_pos as u32 + file_offset;
+                    let addr = u32::from_le_bytes([
+                        self.mem[addr_pos],
+                        self.mem[addr_pos + 1],
+                        self.mem[addr_pos + 2],
+                        self.mem[addr_pos + 3],
+                    ]);
+                    Self::transform_e8e9_addr(&mut self.mem[addr_pos..addr_pos + 4], addr, offset_val, FILE_SIZE);
+                    cur_pos = addr_pos + 4;
                 } else {
-                    // addr >= 0
-                    if (addr.wrapping_sub(FILE_SIZE) & 0x80000000) != 0 {
-                        // addr < FILE_SIZE
-                        let new_addr = addr.wrapping_sub(offset);
-                        self.mem[cur_pos..cur_pos + 4].copy_from_slice(&new_addr.to_le_bytes());
-                    }
+                    break;
                 }
-                cur_pos += 4;
+            }
+        } else {
+            // E8 only: search for 0xE8
+            while cur_pos < search_end {
+                if let Some(offset) = memchr::memchr(0xe8, &self.mem[cur_pos..search_end]) {
+                    cur_pos += offset;
+                    let addr_pos = cur_pos + 1;
+                    let offset_val = addr_pos as u32 + file_offset;
+                    let addr = u32::from_le_bytes([
+                        self.mem[addr_pos],
+                        self.mem[addr_pos + 1],
+                        self.mem[addr_pos + 2],
+                        self.mem[addr_pos + 3],
+                    ]);
+                    Self::transform_e8e9_addr(&mut self.mem[addr_pos..addr_pos + 4], addr, offset_val, FILE_SIZE);
+                    cur_pos = addr_pos + 4;
+                } else {
+                    break;
+                }
             }
         }
 
         (0, data_size)
+    }
+    
+    /// Transform an E8/E9 address in place
+    #[inline(always)]
+    fn transform_e8e9_addr(dest: &mut [u8], addr: u32, offset: u32, file_size: u32) {
+        if (addr & 0x80000000) != 0 {
+            // addr < 0
+            if (addr.wrapping_add(offset) & 0x80000000) == 0 {
+                let new_addr = addr.wrapping_add(file_size);
+                dest.copy_from_slice(&new_addr.to_le_bytes());
+            }
+        } else {
+            // addr >= 0
+            if (addr.wrapping_sub(file_size) & 0x80000000) != 0 {
+                let new_addr = addr.wrapping_sub(offset);
+                dest.copy_from_slice(&new_addr.to_le_bytes());
+            }
+        }
     }
 
     /// Itanium filter - IA-64 address conversion
