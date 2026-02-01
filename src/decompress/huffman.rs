@@ -273,15 +273,15 @@ impl HuffmanTable {
         let bit_field = reader.peek_bits(16);
         
         // Quick decode path - check against decode_len (upper limit)
+        // If bit_field < decode_len[10], the code is guaranteed to be ≤10 bits
+        // and have a valid quick table entry
         if bit_field < self.decode_len[QUICK_BITS as usize] {
-            // Use quick table - we're guaranteed to have a valid entry
             let code = (bit_field >> (16 - QUICK_BITS)) as usize;
             // SAFETY: code is always < QUICK_SIZE due to the shift
             let entry = unsafe { self.quick_table.get_unchecked(code) };
-            if entry.length > 0 {
-                reader.advance_bits(entry.length as u32);
-                return Ok(entry.symbol);
-            }
+            // SAFETY: decode_len check guarantees entry.length > 0
+            reader.advance_bits(entry.length as u32);
+            return Ok(entry.symbol);
         }
 
         // Slow path: find the matching bit length using unrar's algorithm
