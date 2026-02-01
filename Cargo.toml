@@ -128,3 +128,11 @@ map_unwrap_or = "allow"
 io_other_error = "allow"
 case_sensitive_file_extension_comparisons = "allow"
 branches_sharing_code = "allow"
+
+
+# Maximum optimization for release builds
+[profile.release]
+opt-level = 3
+lto = "fat"
+codegen-units = 1
+panic = "abort"
