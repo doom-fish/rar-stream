@@ -163,6 +163,12 @@ impl BitDecoder {
         self.bit_pos
     }
 
+    /// Set byte position (resets bit position to 0).
+    pub fn set_position(&mut self, pos: usize) {
+        self.pos = pos;
+        self.bit_pos = 0;
+    }
+
     /// Check if EOF reached.
     pub fn is_eof(&self) -> bool {
         self.pos >= self.buf.len()
