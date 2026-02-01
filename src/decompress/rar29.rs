@@ -48,16 +48,23 @@ const LENGTH_EXTRA: [u8; 28] = [
 ];
 
 /// Base distances for distance codes (48 entries for RAR3).
-const DIST_BASE: [u32; 48] = [
-    0, 1, 2, 3, 4, 6, 8, 12, 16, 24, 32, 48, 64, 96, 128, 192, 256, 384, 512, 768, 1024, 1536,
-    2048, 3072, 4096, 6144, 8192, 12288, 16384, 24576, 32768, 49152, 65536, 98304, 131072, 196608,
-    262144, 327680, 393216, 458752, 524288, 589824, 655360, 720896, 786432, 851968, 917504, 983040,
+const DIST_BASE: [u32; 60] = [
+    0, 1, 2, 3, 4, 6, 8, 12, 16, 24,
+    32, 48, 64, 96, 128, 192, 256, 384, 512, 768,
+    1024, 1536, 2048, 3072, 4096, 6144, 8192, 12288, 16384, 24576,
+    32768, 49152, 65536, 98304, 131072, 196608, 262144, 327680, 393216, 458752,
+    524288, 589824, 655360, 720896, 786432, 851968, 917504, 983040, 1048576, 1310720,
+    1572864, 1835008, 2097152, 2359296, 2621440, 2883584, 3145728, 3407872, 3670016, 3932160,
 ];
 
-/// Extra bits for distance codes (48 entries for RAR3).
-const DIST_EXTRA: [u8; 48] = [
-    0, 0, 0, 0, 1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 6, 6, 7, 7, 8, 8, 9, 9, 10, 10, 11, 11, 12, 12, 13,
-    13, 14, 14, 15, 15, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16,
+/// Extra bits for distance codes (60 entries for RAR3).
+const DIST_EXTRA: [u8; 60] = [
+    0, 0, 0, 0, 1, 1, 2, 2, 3, 3,
+    4, 4, 5, 5, 6, 6, 7, 7, 8, 8,
+    9, 9, 10, 10, 11, 11, 12, 12, 13, 13,
+    14, 14, 15, 15, 16, 16, 16, 16, 16, 16,
+    16, 16, 16, 16, 16, 16, 16, 16, 18, 18,
+    18, 18, 18, 18, 18, 18, 18, 18, 18, 18,
 ];
 
 /// RAR 2.9 decoder state.
@@ -93,10 +100,16 @@ pub struct Rar29Decoder {
 }
 
 impl Rar29Decoder {
-    /// Create a new RAR29 decoder.
+    /// Create a new RAR29 decoder with default window size (4MB).
     pub fn new() -> Self {
+        Self::with_window_size(0x400000) // 4MB default (max common size)
+    }
+    
+    /// Create a new RAR29 decoder with specified window size.
+    /// Window size must be a power of 2.
+    pub fn with_window_size(window_size: usize) -> Self {
         Self {
-            lzss: LzssDecoder::rar29(),
+            lzss: LzssDecoder::new(window_size),
             huffman: HuffmanDecoder::new(),
             vm: RarVM::new(),
             ppm: None,
@@ -112,12 +125,21 @@ impl Rar29Decoder {
             low_offset_repeat_count: 0,
         }
     }
+    
+    /// Get partial output (for debugging failed decompression)
+    #[cfg(test)]
+    pub fn get_output(&self) -> Vec<u8> {
+        self.lzss.output().to_vec()
+    }
 
     /// Decompress a block of data.
     /// Returns the decompressed data.
     pub fn decompress(&mut self, data: &[u8], unpacked_size: u64) -> Result<Vec<u8>> {
         let mut reader = BitReader::new(data);
 
+        // Enable output accumulation for files (especially those larger than window)
+        self.lzss.enable_output(unpacked_size as usize);
+        
         // Read tables if needed
         if !self.tables_read {
             self.read_tables(&mut reader)?;
@@ -132,15 +154,60 @@ impl Rar29Decoder {
             self.decode_block(&mut reader, unpacked_size)?;
         }
 
-        // Extract the decompressed data from the start
-        let len = unpacked_size as usize;
-        Ok(self.lzss.get_output(0, len))
+        // Execute any remaining pending VM filters
+        let total_written = self.lzss.total_written();
+        let window_mask = self.lzss.window_mask() as usize;
+        
+        // Execute filters in order of their block_start position
+        loop {
+            // Find the earliest filter that is ready
+            let (filter_idx, next_pos) = match self.vm.find_ready_filter(total_written) {
+                Some((idx, pos)) => (idx, pos),
+                None => break,
+            };
+            
+            // Flush up to filter start
+            let flushed = self.lzss.flushed_pos();
+            if flushed < next_pos {
+                self.lzss.flush_to_output(next_pos);
+            }
+            
+            let window = self.lzss.window();
+            if let Some((_filter_end, filtered_data)) = 
+                self.vm.execute_filter_at_index(filter_idx, window, window_mask, total_written) 
+            {
+                // Write filtered data directly to output
+                self.lzss.write_filtered_to_output(&filtered_data, next_pos);
+            } else {
+                break;
+            }
+        }
+        
+        // Flush any remaining data to output
+        self.lzss.flush_to_output(total_written);
+
+        // Extract the decompressed data
+        Ok(self.lzss.take_output())
     }
 
     /// Read Huffman tables from the bit stream.
     fn read_tables(&mut self, reader: &mut BitReader) -> Result<()> {
+        #[cfg(test)]
+        {
+            let byte_pos = reader.bit_position() / 8;
+            eprintln!("read_tables ENTRY: bit_pos={}, byte_pos={}", 
+                reader.bit_position(), byte_pos);
+            eprintln!("  raw bytes at pos: {:02x?}", reader.peek_bytes(8));
+        }
         // Align to byte boundary (like unrar)
         reader.align_to_byte();
+        #[cfg(test)]
+        {
+            let byte_pos = reader.bit_position() / 8;
+            eprintln!("read_tables AFTER align: bit_pos={}, byte_pos={}", 
+                reader.bit_position(), byte_pos);
+            eprintln!("  raw bytes at pos: {:02x?}", reader.peek_bytes(8));
+        };
 
         // Peek at the high bit to check for PPM mode
         // In unrar, this is done by peeking 16 bits and checking bit 15
@@ -168,7 +235,11 @@ impl Rar29Decoder {
                 }
             }
         } else {
-            // LZ mode - check bit 1 (0x4000) for reset tables
+            // LZ mode - reset low dist state (per unrar ReadTables30)
+            self.prev_low_offset = 0;
+            self.low_offset_repeat_count = 0;
+            
+            // Check bit 1 (0x4000) for reset tables
             let reset_tables = reader.peek_bits(2) & 1 == 0; // Bit 14 inverted (0 means reset)
                                                              // Consume the 2 header bits (PPM flag + reset flag)
             reader.advance_bits(2);
@@ -200,9 +271,14 @@ impl Rar29Decoder {
         let mut symbol_count = 0;
 
         while self.lzss.total_written() < max_size && !reader.is_eof() {
+            // Check if we need to execute pending VM filters
+            self.maybe_execute_filters();
+            
             // Decode main symbol
             #[cfg(test)]
             let bit_pos_main_start = reader.bit_position();
+            #[cfg(test)]
+            let peek_bits = reader.peek_bits(16);
 
             let symbol = {
                 let main_table = self.huffman.main_table.as_ref().unwrap();
@@ -211,21 +287,11 @@ impl Rar29Decoder {
 
             #[cfg(test)]
             {
-                let written = self.lzss.total_written();
-                if written >= 0 && written < 0 {
-                    let bit_pos_main_end = reader.bit_position();
-                    eprintln!(
-                        "\nmain decode at pos {}: sym={} (bits {}->{})",
-                        written, symbol, bit_pos_main_start, bit_pos_main_end
-                    );
-                }
-            }
-
-            #[cfg(test)]
-            {
-                if symbol_count < 0 {
-                    eprint!("main[{}]={} ", symbol_count, symbol);
-                    symbol_count += 1;
+                let pos = self.lzss.total_written();
+                if pos >= 1498580 && pos <= 1498610 {
+                    let bit_pos_after = reader.bit_position();
+                    eprintln!("MAIN sym={} at pos={}, bits {}->{}  peek={:016b}", 
+                        symbol, pos, bit_pos_main_start, bit_pos_after, peek_bits);
                 }
             }
 
@@ -233,28 +299,63 @@ impl Rar29Decoder {
                 // Literal byte
                 #[cfg(test)]
                 {
-                    let written = self.lzss.total_written();
-                    if written >= 0 && written < 0 {
-                        eprint!("[{}:{}='{}'] ", written, symbol, symbol as u8 as char);
+                    let pos = self.lzss.total_written();
+                    if pos >= 1498595 && pos <= 1498610 {
+                        eprintln!("WRITING literal 0x{:02x} at output pos {}", symbol, pos);
                     }
                 }
                 self.lzss.write_literal(symbol as u8);
             } else if symbol == 256 {
                 // End of block / new tables
+                // From unrar ReadEndOfBlock:
+                // "1"  - no new file, new table just here.
+                // "00" - new file,    no new table.
+                // "01" - new file,    new table (in beginning of next file).
+                #[cfg(test)]
+                eprintln!("\n=== SYMBOL 256 (end of block) at output pos {}, bit_pos {} ===", 
+                    self.lzss.total_written(), reader.bit_position());
                 if !reader.is_eof() {
-                    // Check if we need new tables
-                    let new_tables = reader.read_bit()?;
-                    if new_tables {
-                        self.huffman.read_tables(reader)?;
+                    let first_bit = reader.read_bit()?;
+                    #[cfg(test)]
+                    eprintln!("  first_bit={}, bit_pos after={}", first_bit, reader.bit_position());
+                    if first_bit {
+                        // "1" = new tables, continue decompression
+                        // Reset low dist state when reading new tables
+                        self.prev_low_offset = 0;
+                        self.low_offset_repeat_count = 0;
+                        // Call full read_tables which aligns to byte and reads header
+                        self.read_tables(reader)?;
+                        #[cfg(test)]
+                        {
+                            eprintln!("After new tables: bit_pos={}, next 16 bits={:016b}", 
+                                reader.bit_position(), reader.peek_bits(16));
+                            eprintln!("  About to decode first symbol after table read");
+                        }
+                        // Continue decompressing - don't break!
+                        continue;
                     }
+                    // "0x" = new file (end of this file's data)
+                    let _second_bit = reader.read_bit()?; // consume the second bit
+                    // Break out - we're done with this file
                 }
                 break;
             } else if symbol == 257 {
-                // File continuation marker
-                break;
+                // VM filter code - read and skip it
+                #[cfg(test)]
+                eprintln!("\n=== SYMBOL 257 (VM code) at output pos {} ===", self.lzss.total_written());
+                self.read_vm_code(reader)?;
             } else if symbol == 258 {
                 // Repeat last match
                 if self.last_len > 0 {
+                    #[cfg(test)]
+                    {
+                        let pos = self.lzss.total_written();
+                        let end = pos + self.last_len as u64;
+                        if pos <= 1498598 && end > 1498598 {
+                            eprintln!("!!! AT 1498598: symbol 258 repeat, last_dist={}, last_len={}", 
+                                self.last_dist, self.last_len);
+                        }
+                    }
                     self.lzss.copy_match(self.last_dist, self.last_len)?;
                 }
             } else if symbol < 263 {
@@ -268,10 +369,11 @@ impl Rar29Decoder {
                 #[cfg(test)]
                 {
                     let written = self.lzss.total_written();
-                    if written >= 0 && written < 0 {
+                    let end = written + length as u64;
+                    if written <= 1498598 && end > 1498598 {
                         eprintln!(
-                            "[{}:old idx={},len={},dist={}]",
-                            written, idx, length, distance
+                            "!!! AT 1498598: old idx={},len={},dist={}",
+                            idx, length, distance
                         );
                     }
                 }
@@ -301,10 +403,11 @@ impl Rar29Decoder {
                 #[cfg(test)]
                 {
                     let written = self.lzss.total_written();
-                    if written >= 0 && written < 0 {
+                    let end = written + length as u64;
+                    if written <= 1498598 && end > 1498598 {
                         eprintln!(
-                            "[{}:short sym={}, idx={}, base={}, bits={}, extra={}, dist={}]",
-                            written, symbol, idx, base, bits, extra, distance
+                            "!!! AT 1498598: short sym={}, idx={}, base={}, bits={}, extra={}, dist={}",
+                            symbol, idx, base, bits, extra, distance
                         );
                     }
                 }
@@ -336,10 +439,10 @@ impl Rar29Decoder {
                     #[cfg(test)]
                     {
                         let written = self.lzss.total_written();
-                        if written >= 0 && written < 0 {
+                        if written >= 1498595 && written <= 1498602 {
                             let bit_after_len = reader.bit_position();
-                            eprintln!("[{}:long sym={}, len_idx={}, base={}, extra_bits={}, extra_val={}, len={}, bits {}->{}]", 
-                                written, symbol, len_idx, base, extra, extra_val, base + extra_val + 3,
+                            eprintln!("!!! LONG DECODE at {}: sym={}, len_idx={}, len={}, bits {}->{}]", 
+                                written, symbol, len_idx, base + extra_val + 3,
                                 bit_before_len, bit_after_len);
                         }
                     }
@@ -365,11 +468,11 @@ impl Rar29Decoder {
                             #[cfg(test)]
                             {
                                 let written = self.lzss.total_written();
-                                if written >= 0 && written < 0 {
+                                if written >= 1498595 && written <= 1498610 {
                                     let bit_pos_after = reader.bit_position();
                                     eprintln!(
-                                        "  decoded dist_symbol={} (bits {}->{})",
-                                        s, bit_pos_before, bit_pos_after
+                                        "  dist_symbol={} at pos {} (bits {}->{})",
+                                        s, written, bit_pos_before, bit_pos_after
                                     );
                                 }
                             }
@@ -403,11 +506,13 @@ impl Rar29Decoder {
                                 #[cfg(test)]
                                 {
                                     let written = self.lzss.total_written();
-                                    if written >= 0 && written < 0 {
+                                    if (written >= 1498595 && written <= 1498610) || 
+                                       (written >= 2176060 && written <= 2176080) {
                                         eprintln!(
-                                            "    high bits: {} bits = {}, pos {}->{}",
+                                            "    high bits at {}: {} bits = {} (0b{:016b}), pos {}->{}",
+                                            written,
                                             extra - 4,
-                                            h,
+                                            h, h,
                                             high_bit_pos,
                                             reader.bit_position()
                                         );
@@ -423,9 +528,10 @@ impl Rar29Decoder {
                                 #[cfg(test)]
                                 {
                                     let written = self.lzss.total_written();
-                                    if written >= 0 && written < 0 {
+                                    if written >= 1498550 && written <= 1498610 {
                                         eprintln!(
-                                            "    low_offset repeat: prev={}",
+                                            "!!! low_offset REPEAT at {}: prev={}",
+                                            written,
                                             self.prev_low_offset
                                         );
                                     }
@@ -437,20 +543,30 @@ impl Rar29Decoder {
                                 #[cfg(test)]
                                 let raw_bits_16 = reader.peek_bits(16);
                                 let low_table = self.huffman.low_dist_table.as_ref().unwrap();
+                                #[cfg(test)]
+                                {
+                                    let written = self.lzss.total_written();
+                                    if written == 1498598 {
+                                        // Dump the decode_len array and symbols
+                                        eprintln!("!!! LOW_TABLE at 1498598 decode_len: {:?}", low_table.dump_decode_len());
+                                        eprintln!("!!! LOW_TABLE at 1498598 symbols: {:?}", low_table.dump_symbols());
+                                    }
+                                }
                                 let sym = low_table.decode(reader)? as u32;
                                 #[cfg(test)]
                                 {
                                     let written = self.lzss.total_written();
-                                    if written >= 0 && written < 0 {
+                                    if written >= 1498550 && written <= 1498610 {
                                         let bit_pos_after = reader.bit_position();
-                                        eprintln!("    low_offset decode: sym={} (bits {}->{}), raw peek = {:016b}", 
-                                            sym, bit_pos_before, bit_pos_after, raw_bits_16);
+                                        eprintln!("!!! low_offset at {}: sym={} (bits {}->{}), raw peek = {:016b}", 
+                                            written, sym, bit_pos_before, bit_pos_after, raw_bits_16);
                                     }
                                 }
 
                                 if sym == 16 {
-                                    // Repeat previous low offset 15 times
-                                    self.low_offset_repeat_count = 15 - 1; // -1 because we use one now
+                                    // Repeat previous low offset - total 16 uses (this one + 15 more)
+                                    // unrar: LowDistRepCount=LOW_DIST_REP_COUNT-1 where LOW_DIST_REP_COUNT=16
+                                    self.low_offset_repeat_count = 16 - 1; // 15 more uses after this one
                                     self.prev_low_offset
                                 } else {
                                     self.prev_low_offset = sym;
@@ -460,9 +576,14 @@ impl Rar29Decoder {
                             #[cfg(test)]
                             {
                                 let written = self.lzss.total_written();
-                                if written >= 0 && written < 0 {
-                                    eprintln!("  low_offset: dist_code={}, base={}, extra={}, high={}, low={}, dist={}", 
-                                        dist_code, base, extra, high, low, base + high + low + 1);
+                                if written >= 2176060 && written <= 2176080 {
+                                    if self.low_offset_repeat_count > 0 {
+                                        eprintln!("  low_offset REPEAT at {}: prev={}, remaining={}", 
+                                            written, self.prev_low_offset, self.low_offset_repeat_count);
+                                    } else {
+                                        eprintln!("  low_offset at {}: dist_code={}, base={}, extra={}, high={}, low={}, dist={}", 
+                                            written, dist_code, base, extra, high, low, base + high + low + 1);
+                                    }
                                 }
                             }
                             high + low
@@ -495,11 +616,33 @@ impl Rar29Decoder {
                     return Err(DecompressError::InvalidHuffmanCode);
                 };
 
+                // Length bonus for long distances (RAR3 specific)
+                // Per unrar: if (Distance>=0x2000) { Length++; if (Distance>=0x40000) Length++; }
+                let length = if distance >= 0x2000 {
+                    if distance >= 0x40000 {
+                        length + 2
+                    } else {
+                        length + 1
+                    }
+                } else {
+                    length
+                };
+
                 #[cfg(test)]
                 {
                     let written = self.lzss.total_written();
-                    if written >= 0 && written < 0 {
-                        eprintln!("[{}:long len={},dist={}]", written, length, distance);
+                    let end = written + length as u64;
+                    if written <= 1498598 && end > 1498598 {
+                        eprintln!("!!! AT 1498598: long match dist={}, len={}", distance, length);
+                        // Check what's in the window at source position
+                        let src_pos = (written as u32).wrapping_sub(distance) as usize;
+                        let mask = self.lzss.window_mask() as usize;
+                        let window = self.lzss.window();
+                        eprintln!("  window src[{}..{}]: {:02x?}", src_pos, src_pos+length as usize,
+                            &window[src_pos..src_pos+length as usize]);
+                    }
+                    if written >= 1498595 && written <= 1498602 {
+                        eprintln!("LONG MATCH at {}: dist={}, len={}", written, distance, length);
                     }
                 }
 
@@ -542,6 +685,109 @@ impl Rar29Decoder {
             Ok(base + extra_val + 2)
         } else {
             Err(DecompressError::InvalidHuffmanCode)
+        }
+    }
+
+    /// Read VM filter code from bit stream (for LZ mode, symbol 257).
+    /// We read the VM code and register it with the VM for later execution.
+    fn read_vm_code(&mut self, reader: &mut BitReader) -> Result<()> {
+        #[cfg(test)]
+        let bit_pos_start = reader.bit_position();
+        
+        // Read first byte
+        let first_byte = reader.read_bits(8)? as u8;
+        
+        // Calculate length based on unrar's ReadVMCode logic:
+        // Length = (FirstByte & 7) + 1
+        // if Length == 7, read another byte and add 7
+        // if Length == 8, read 16 bits as length
+        let length = {
+            let base = (first_byte & 7) + 1;
+            match base {
+                7 => {
+                    // Read one more byte, add 7
+                    let next = reader.read_bits(8)? as u32;
+                    next + 7
+                }
+                8 => {
+                    // Read 16 bits as length
+                    reader.read_bits(16)?
+                }
+                _ => base as u32,
+            }
+        };
+
+        #[cfg(test)]
+        eprintln!("  read_vm_code: first_byte=0x{:02x}, length={}, bit_pos_start={}", first_byte, length, bit_pos_start);
+
+        if length == 0 {
+            return Ok(());
+        }
+
+        // Read VM code bytes
+        let mut vm_code = vec![0u8; length as usize];
+        for i in 0..length as usize {
+            vm_code[i] = reader.read_bits(8)? as u8;
+        }
+
+        #[cfg(test)]
+        eprintln!("    vm_code end bit_pos={}", reader.bit_position());
+
+        // Add to VM for later execution - use absolute total_written, not wrapped window position
+        let total_written = self.lzss.total_written();
+        let window_mask = self.lzss.window_mask();
+        
+        #[cfg(test)]
+        eprintln!("    add_code: total_written={}, window_mask={:x}", 
+            total_written, window_mask);
+        
+        #[cfg(test)]
+        {
+            let had_pending_before = self.vm.has_pending_filters();
+            let result = self.vm.add_code(first_byte, &vm_code, total_written, window_mask);
+            let has_pending_after = self.vm.has_pending_filters();
+            if let Some(next_pos) = self.vm.next_filter_pos() {
+                eprintln!("    vm.add_code: added={}, pending={}->{}, next_pos={}", result, had_pending_before, has_pending_after, next_pos);
+            } else {
+                eprintln!("    vm.add_code: added={}, pending={}->{}, next_pos=NONE", result, had_pending_before, has_pending_after);
+            }
+        }
+        #[cfg(not(test))]
+        self.vm.add_code(first_byte, &vm_code, total_written, window_mask);
+
+        Ok(())
+    }
+    
+    /// Execute pending VM filters if we've reached their block_start position.
+    /// Applies filters to window data, writes filtered output directly to output buffer.
+    fn maybe_execute_filters(&mut self) {
+        let total_written = self.lzss.total_written();
+        let window_mask = self.lzss.window_mask() as usize;
+        
+        // Execute filters that are ready, in order of their block_start position
+        loop {
+            // Find the earliest filter that is ready to execute
+            let (filter_idx, next_pos) = match self.vm.find_ready_filter(total_written) {
+                Some((idx, pos)) => (idx, pos),
+                None => break,
+            };
+            
+            // Flush up to filter start first (unfiltered data before this filter)
+            let flushed = self.lzss.flushed_pos();
+            if flushed < next_pos {
+                self.lzss.flush_to_output(next_pos);
+            }
+            
+            // Execute the filter on the window (read-only) and get filtered output
+            let window = self.lzss.window();
+            if let Some((filter_end, filtered_data)) = 
+                self.vm.execute_filter_at_index(filter_idx, window, window_mask, total_written) 
+            {
+                // Write filtered data directly to output (bypasses window)
+                self.lzss.write_filtered_to_output(&filtered_data, next_pos);
+            } else {
+                break;
+            }
         }
     }
 
@@ -648,7 +894,9 @@ impl Rar29Decoder {
                         }
 
                         // Add to VM
-                        self.vm.add_code(first_byte, &vm_code);
+                        let total_written = self.lzss.total_written();
+                        let window_mask = self.lzss.window_mask();
+                        self.vm.add_code(first_byte, &vm_code, total_written, window_mask);
                     }
                     4 => {
                         // LZ match: 3 bytes distance (MSB first), 1 byte length
