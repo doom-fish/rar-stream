@@ -30,8 +30,26 @@ impl<'a> BitReader<'a> {
     }
 
     /// Fill the buffer with more bytes.
+    /// Optimized to read multiple bytes when possible.
     #[inline(always)]
     fn fill_buffer(&mut self) {
+        // Fast path: if we need 3+ bytes and have them, read all at once
+        if self.bits_in_buffer <= 8 && self.pos + 3 <= self.data.len() {
+            // Read 3 bytes (24 bits) at once
+            // SAFETY: bounds checked above
+            unsafe {
+                let b0 = *self.data.get_unchecked(self.pos) as u32;
+                let b1 = *self.data.get_unchecked(self.pos + 1) as u32;
+                let b2 = *self.data.get_unchecked(self.pos + 2) as u32;
+                let bytes = (b0 << 16) | (b1 << 8) | b2;
+                self.buffer |= bytes << (8 - self.bits_in_buffer);
+            }
+            self.bits_in_buffer += 24;
+            self.pos += 3;
+            return;
+        }
+        
+        // Slow path: read one byte at a time
         while self.bits_in_buffer <= 24 && self.pos < self.data.len() {
             // SAFETY: bounds checked above
             self.buffer |= unsafe { (*self.data.get_unchecked(self.pos) as u32) << (24 - self.bits_in_buffer) };
