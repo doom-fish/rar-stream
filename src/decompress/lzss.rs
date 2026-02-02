@@ -68,7 +68,8 @@ impl LzssDecoder {
     /// Write a literal byte to the window.
     #[inline(always)]
     pub fn write_literal(&mut self, byte: u8) {
-        self.window[self.pos] = byte;
+        // SAFETY: pos is always < window.len() due to mask
+        unsafe { *self.window.get_unchecked_mut(self.pos) = byte; }
         self.pos = (self.pos + 1) & self.mask;
         self.total_written += 1;
     }
