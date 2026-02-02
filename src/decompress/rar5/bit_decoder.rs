@@ -3,9 +3,12 @@
 //! RAR5 uses a bit decoder (not range coder) for reading Huffman tables
 //! and decompressing data. This is aligned byte reading with bit-level access.
 
+/// Padding bytes added to buffer to allow unchecked reads near end
+const BUFFER_PADDING: usize = 8;
+
 /// Bit-level stream decoder for RAR5 decompression.
 pub struct BitDecoder {
-    /// Input buffer
+    /// Input buffer (padded with BUFFER_PADDING bytes for safe unchecked reads)
     buf: Vec<u8>,
     /// Current position in buffer
     pos: usize,
@@ -19,12 +22,17 @@ pub struct BitDecoder {
 
 impl BitDecoder {
     /// Create a new bit decoder from input data.
+    /// Adds padding to allow unchecked reads near buffer end.
     pub fn new(input: &[u8]) -> Self {
+        let data_len = input.len();
+        let mut buf = Vec::with_capacity(data_len + BUFFER_PADDING);
+        buf.extend_from_slice(input);
+        buf.resize(data_len + BUFFER_PADDING, 0xFF);
         Self {
-            buf: input.to_vec(),
+            buf,
             pos: 0,
             bit_pos: 0,
-            block_end: input.len(),
+            block_end: data_len,
             block_end_bits: 0,
         }
     }
@@ -40,25 +48,25 @@ impl BitDecoder {
     /// Read a byte when already aligned.
     #[inline]
     pub fn read_byte_aligned(&mut self) -> u8 {
-        if self.pos < self.buf.len() {
-            let b = self.buf[self.pos];
-            self.pos += 1;
-            b
-        } else {
-            0xFF
-        }
+        // SAFETY: buffer is padded
+        let b = unsafe { *self.buf.get_unchecked(self.pos) };
+        self.pos += 1;
+        b
     }
 
     /// Read up to 9 bits with fixed mask.
-    #[inline]
+    #[inline(always)]
     pub fn read_bits_9fix(&mut self, num_bits: usize) -> u32 {
         if num_bits == 0 {
             return 0;
         }
         let mask = (1u32 << num_bits) - 1;
-        let b0 = self.buf.get(self.pos).copied().unwrap_or(0xFF) as u32;
-        let b1 = self.buf.get(self.pos + 1).copied().unwrap_or(0xFF) as u32;
-        let v = (b0 << 8) | b1;
+        // SAFETY: buffer is padded with 8 bytes
+        let v = unsafe {
+            let b0 = *self.buf.get_unchecked(self.pos) as u32;
+            let b1 = *self.buf.get_unchecked(self.pos + 1) as u32;
+            (b0 << 8) | b1
+        };
         let total_bits = num_bits + self.bit_pos;
         let result = (v >> (16 - total_bits)) & mask;
         self.pos += total_bits >> 3;
@@ -67,14 +75,17 @@ impl BitDecoder {
     }
 
     /// Read up to 9 bits.
-    #[inline]
+    #[inline(always)]
     pub fn read_bits_9(&mut self, num_bits: usize) -> u32 {
         if num_bits == 0 {
             return 0;
         }
-        let b0 = self.buf.get(self.pos).copied().unwrap_or(0xFF) as u32;
-        let b1 = self.buf.get(self.pos + 1).copied().unwrap_or(0xFF) as u32;
-        let v = (b0 << 8) | b1;
+        // SAFETY: buffer is padded with 8 bytes
+        let v = unsafe {
+            let b0 = *self.buf.get_unchecked(self.pos) as u32;
+            let b1 = *self.buf.get_unchecked(self.pos + 1) as u32;
+            (b0 << 8) | b1
+        };
         let v = v & (0xFFFF >> self.bit_pos);
         let total_bits = num_bits + self.bit_pos;
         let result = v >> (16 - total_bits);
@@ -84,17 +95,20 @@ impl BitDecoder {
     }
 
     /// Get up to 15 bits for Huffman decoding (without advancing).
-    #[inline]
+    #[inline(always)]
     pub fn get_value_15(&self) -> u32 {
-        let b0 = self.buf.get(self.pos).copied().unwrap_or(0xFF) as u32;
-        let b1 = self.buf.get(self.pos + 1).copied().unwrap_or(0xFF) as u32;
-        let b2 = self.buf.get(self.pos + 2).copied().unwrap_or(0xFF) as u32;
-        let v = (b0 << 16) | (b1 << 8) | b2;
-        (v >> (9 - self.bit_pos)) & 0x7FFF
+        // SAFETY: buffer is padded with 8 bytes
+        unsafe {
+            let b0 = *self.buf.get_unchecked(self.pos) as u32;
+            let b1 = *self.buf.get_unchecked(self.pos + 1) as u32;
+            let b2 = *self.buf.get_unchecked(self.pos + 2) as u32;
+            let v = (b0 << 16) | (b1 << 8) | b2;
+            (v >> (9 - self.bit_pos)) & 0x7FFF
+        }
     }
 
     /// Move position by num_bits.
-    #[inline]
+    #[inline(always)]
     pub fn move_pos(&mut self, num_bits: usize) {
         let total = num_bits + self.bit_pos;
         self.pos += total >> 3;
@@ -103,28 +117,31 @@ impl BitDecoder {
 
     /// Get value in high 32 bits for extended reading (matching unrar getbits32).
     /// Returns 32 bits with the first available bit at bit 31.
-    #[inline]
+    #[inline(always)]
     pub fn get_value_high32(&self) -> u32 {
-        let b0 = self.buf.get(self.pos).copied().unwrap_or(0xFF) as u32;
-        let b1 = self.buf.get(self.pos + 1).copied().unwrap_or(0xFF) as u32;
-        let b2 = self.buf.get(self.pos + 2).copied().unwrap_or(0xFF) as u32;
-        let b3 = self.buf.get(self.pos + 3).copied().unwrap_or(0xFF) as u32;
-        let b4 = self.buf.get(self.pos + 4).copied().unwrap_or(0xFF) as u32;
+        // SAFETY: buffer is padded with 8 bytes
+        unsafe {
+            let b0 = *self.buf.get_unchecked(self.pos) as u32;
+            let b1 = *self.buf.get_unchecked(self.pos + 1) as u32;
+            let b2 = *self.buf.get_unchecked(self.pos + 2) as u32;
+            let b3 = *self.buf.get_unchecked(self.pos + 3) as u32;
+            let b4 = *self.buf.get_unchecked(self.pos + 4) as u32;
         
-        // Build 32-bit value like unrar: RawGetBE4
-        let mut v = (b0 << 24) | (b1 << 16) | (b2 << 8) | b3;
-        // Left shift by bit_pos to align first available bit to bit 31
-        v <<= self.bit_pos;
-        // Include bits from 5th byte if needed
-        if self.bit_pos > 0 {
-            v |= b4 >> (8 - self.bit_pos);
+            // Build 32-bit value like unrar: RawGetBE4
+            let mut v = (b0 << 24) | (b1 << 16) | (b2 << 8) | b3;
+            // Left shift by bit_pos to align first available bit to bit 31
+            v <<= self.bit_pos;
+            // Include bits from 5th byte if needed
+            if self.bit_pos > 0 {
+                v |= b4 >> (8 - self.bit_pos);
+            }
+            v
         }
-        v
     }
 
     /// Read N bits from pre-read high value.
     /// Assumes v was obtained from get_value_high32().
-    #[inline]
+    #[inline(always)]
     pub fn read_bits_big(&mut self, num_bits: usize, v: u32) -> u32 {
         if num_bits == 0 {
             return 0;
@@ -143,14 +160,9 @@ impl BitDecoder {
     }
 
     /// Check if reading has exceeded block boundary.
-    /// Matches unrar: InAddr > BlockStart + BlockSize - 1 ||
-    ///                InAddr == BlockStart + BlockSize - 1 && InBit >= BlockBitSize
+    #[inline(always)]
     pub fn is_block_over_read(&self) -> bool {
-        match self.pos.cmp(&self.block_end) {
-            std::cmp::Ordering::Less => false,
-            std::cmp::Ordering::Greater => true,
-            std::cmp::Ordering::Equal => self.bit_pos >= self.block_end_bits,
-        }
+        self.pos > self.block_end || (self.pos == self.block_end && self.bit_pos >= self.block_end_bits)
     }
 
     /// Current byte position.
@@ -171,7 +183,7 @@ impl BitDecoder {
 
     /// Check if EOF reached.
     pub fn is_eof(&self) -> bool {
-        self.pos >= self.buf.len()
+        self.pos >= self.block_end
     }
 }
 
