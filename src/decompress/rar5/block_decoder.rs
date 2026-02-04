@@ -417,6 +417,10 @@ impl Rar5BlockDecoder {
         // Overlap case is when offset < length (run-length encoding pattern)
         // Must copy byte by byte as source depends on destination
         if offset < length {
+            // Pre-extend output buffer, then write directly
+            let output_start = self.output.len();
+            self.output.reserve(length);
+            
             for i in 0..length {
                 let src_pos = (src_start + i) & self.window_mask;
                 let byte = unsafe { *self.window.get_unchecked(src_pos) };
@@ -427,14 +431,36 @@ impl Rar5BlockDecoder {
                 self.window_pos += 1;
             }
         } else {
-            // No overlap - copy in chunks
-            for i in 0..length {
-                let src_pos = (src_start + i) & self.window_mask;
-                let dst_pos = (self.window_pos + i) & self.window_mask;
+            // No overlap - can copy efficiently
+            let src_mask_start = src_start & self.window_mask;
+            let dst_mask_start = self.window_pos & self.window_mask;
+            let src_mask_end = (src_start + length - 1) & self.window_mask;
+            let dst_mask_end = (self.window_pos + length - 1) & self.window_mask;
+            
+            // Fast path: no wraparound in either src or dst
+            if src_mask_end >= src_mask_start && dst_mask_end >= dst_mask_start {
+                // Single contiguous copy within window
                 unsafe {
-                    let byte = *self.window.get_unchecked(src_pos);
-                    *self.window.get_unchecked_mut(dst_pos) = byte;
-                    self.output.push(byte);
+                    let src = self.window.as_ptr().add(src_mask_start);
+                    let dst = self.window.as_mut_ptr().add(dst_mask_start);
+                    std::ptr::copy_nonoverlapping(src, dst, length);
+                    // Extend output from window
+                    self.output.extend_from_slice(std::slice::from_raw_parts(src, length));
+                }
+            } else {
+                // Slow path: wraparound - copy byte by byte
+                let output_start = self.output.len();
+                self.output.reserve(length);
+                unsafe { self.output.set_len(output_start + length); }
+                
+                for i in 0..length {
+                    let src_pos = (src_start + i) & self.window_mask;
+                    let dst_pos = (self.window_pos + i) & self.window_mask;
+                    let byte = unsafe { *self.window.get_unchecked(src_pos) };
+                    unsafe {
+                        *self.window.get_unchecked_mut(dst_pos) = byte;
+                        *self.output.get_unchecked_mut(output_start + i) = byte;
+                    }
                 }
             }
             self.window_pos += length;
@@ -858,29 +884,34 @@ impl Rar5BlockDecoder {
         for item in items {
             match item {
                 DecodedItem::Literal { bytes, len } => {
-                    // Write multiple bytes at once - unrolled for common cases
+                    // Write multiple bytes at once
                     let len = *len as usize;
-                    match len {
-                        1 => {
-                            let byte = bytes[0];
-                            // SAFETY: window_pos & window_mask is always < window.len()
-                            unsafe {
-                                *self.window.get_unchecked_mut(self.window_pos & self.window_mask) = byte;
-                            }
-                            self.output.push(byte);
-                            self.window_pos += 1;
+                    let bytes_slice = &bytes[..len];
+                    
+                    // Check if we need to wrap around the window
+                    let start_mask_pos = self.window_pos & self.window_mask;
+                    let end_mask_pos = (self.window_pos + len - 1) & self.window_mask;
+                    
+                    // Fast path: no window wraparound needed
+                    if end_mask_pos >= start_mask_pos {
+                        // Single contiguous copy to window
+                        unsafe {
+                            let dst = self.window.as_mut_ptr().add(start_mask_pos);
+                            std::ptr::copy_nonoverlapping(bytes.as_ptr(), dst, len);
                         }
-                        _ => {
-                            for i in 0..len {
-                                let byte = bytes[i];
-                                unsafe {
-                                    *self.window.get_unchecked_mut(self.window_pos & self.window_mask) = byte;
-                                }
-                                self.output.push(byte);
-                                self.window_pos += 1;
+                    } else {
+                        // Slow path: wraps around window boundary
+                        for i in 0..len {
+                            let byte = bytes[i];
+                            unsafe {
+                                *self.window.get_unchecked_mut((self.window_pos + i) & self.window_mask) = byte;
                             }
                         }
                     }
+                    
+                    // Extend output buffer in one operation
+                    self.output.extend_from_slice(bytes_slice);
+                    self.window_pos += len;
                 }
                 DecodedItem::Match { length, offset } => {
                     // Update recent offsets (unrolled)
