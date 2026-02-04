@@ -113,7 +113,6 @@ impl Rar5Decoder {
         let mut bits = BitDecoder::new(input);
 
         // Decode blocks until we have enough output
-        let start_pos = 0;
         let new_filters = self
             .block_decoder
             .decode_block(&mut bits, unpacked_size as usize)?;
@@ -121,10 +120,8 @@ impl Rar5Decoder {
         // Collect any filters returned
         self.filters.extend(new_filters);
 
-        // Get decompressed output
-        let mut output = self
-            .block_decoder
-            .get_output(start_pos, unpacked_size as usize);
+        // Get decompressed output (take_output is more efficient)
+        let mut output = self.block_decoder.take_output();
 
         if output.len() != unpacked_size as usize {
             return Err(DecompressError::IncompleteData);

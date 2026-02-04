@@ -3,13 +3,16 @@
 //! RAR5 uses a bit decoder (not range coder) for reading Huffman tables
 //! and decompressing data. This is aligned byte reading with bit-level access.
 
+use std::sync::Arc;
+
 /// Padding bytes added to buffer to allow unchecked reads near end
 const BUFFER_PADDING: usize = 8;
 
 /// Bit-level stream decoder for RAR5 decompression.
 pub struct BitDecoder {
     /// Input buffer (padded with BUFFER_PADDING bytes for safe unchecked reads)
-    buf: Vec<u8>,
+    /// Using Arc to allow cheap cloning for parallel decoders
+    buf: Arc<Vec<u8>>,
     /// Original data length (before padding)
     data_len: usize,
     /// Current position in buffer
@@ -20,6 +23,8 @@ pub struct BitDecoder {
     block_end: usize,
     /// Block end bit position (0-7)
     block_end_bits: usize,
+    /// Pre-computed block end in total bits for fast comparison
+    block_end_total_bits: usize,
 }
 
 impl BitDecoder {
@@ -31,12 +36,28 @@ impl BitDecoder {
         buf.extend_from_slice(input);
         buf.resize(data_len + BUFFER_PADDING, 0xFF);
         Self {
-            buf,
+            buf: Arc::new(buf),
             data_len,
             pos: 0,
             bit_pos: 0,
             block_end: data_len,
             block_end_bits: 0,
+            block_end_total_bits: data_len * 8,
+        }
+    }
+    
+    /// Create a new decoder sharing the same buffer.
+    /// This is O(1) - just increments reference count.
+    #[inline]
+    pub fn clone_view(&self) -> Self {
+        Self {
+            buf: Arc::clone(&self.buf),
+            data_len: self.data_len,
+            pos: 0,
+            bit_pos: 0,
+            block_end: self.data_len,
+            block_end_bits: 0,
+            block_end_total_bits: self.data_len * 8,
         }
     }
 
@@ -95,6 +116,19 @@ impl BitDecoder {
         self.pos += total_bits >> 3;
         self.bit_pos = total_bits & 7;
         result
+    }
+
+    /// Get 16 bits for Huffman decoding (without advancing).
+    /// Returns bits in the same format as unrar's getbits(): 16-bit value with
+    /// bit at (InAddr,InBit) at the highest position.
+    #[inline(always)]
+    pub fn getbits(&self) -> u32 {
+        // SAFETY: buffer is padded with 8 bytes, allowing 4-byte read
+        unsafe {
+            let ptr = self.buf.as_ptr().add(self.pos) as *const u32;
+            let v = u32::from_be(ptr.read_unaligned());
+            (v >> (16 - self.bit_pos)) & 0xFFFF
+        }
     }
 
     /// Get up to 15 bits for Huffman decoding (without advancing).
@@ -160,12 +194,16 @@ impl BitDecoder {
     pub fn set_block_end(&mut self, end: usize, bit_size: usize) {
         self.block_end = end;
         self.block_end_bits = bit_size;
+        // Pre-compute total bits for fast comparison
+        self.block_end_total_bits = end * 8 + bit_size;
     }
 
     /// Check if reading has exceeded block boundary.
+    /// Uses pre-computed total bits for a single comparison.
     #[inline(always)]
     pub fn is_block_over_read(&self) -> bool {
-        self.pos > self.block_end || (self.pos == self.block_end && self.bit_pos >= self.block_end_bits)
+        // Current position in total bits
+        self.pos * 8 + self.bit_pos >= self.block_end_total_bits
     }
 
     /// Current byte position.
@@ -182,6 +220,12 @@ impl BitDecoder {
     pub fn set_position(&mut self, pos: usize) {
         self.pos = pos;
         self.bit_pos = 0;
+    }
+    
+    /// Set byte position and bit position within that byte.
+    pub fn set_position_with_bit(&mut self, pos: usize, bit_pos: usize) {
+        self.pos = pos;
+        self.bit_pos = bit_pos;
     }
 
     /// Check if EOF reached (past all input data, not just current block).

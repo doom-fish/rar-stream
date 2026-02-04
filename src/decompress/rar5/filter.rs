@@ -117,7 +117,8 @@ fn apply_e8_filter(data: &mut [u8], file_offset: u32, include_e9: bool) -> Vec<u
         cur_pos += 1;
 
         if cur_byte == 0xE8 || (include_e9 && cur_byte == 0xE9) {
-            let offset = (cur_pos as u32).wrapping_add(file_offset);
+            // Note: unrar uses (CurPos + FileOffset) % FileSize
+            let offset = ((cur_pos as u32).wrapping_add(file_offset)) % FILE_SIZE;
             let addr = u32::from_le_bytes([
                 data[cur_pos],
                 data[cur_pos + 1],
