@@ -412,31 +412,13 @@ impl Rar5BlockDecoder {
     /// Copy bytes from earlier position in window.
     #[inline]
     fn copy_bytes(&mut self, offset: usize, length: usize) {
-        // Reserve space for output
-        self.output.reserve(length);
-        
         let src_start = self.window_pos.wrapping_sub(offset);
         
-        // Fast path: if offset >= length, we can copy without overlap concerns
-        if offset >= length {
-            // No overlap - can batch copy
-            let window_len = self.window.len();
+        // Overlap case is when offset < length (run-length encoding pattern)
+        // Must copy byte by byte as source depends on destination
+        if offset < length {
             for i in 0..length {
                 let src_pos = (src_start + i) & self.window_mask;
-                let dst_pos = (self.window_pos + i) & self.window_mask;
-                // SAFETY: positions are masked to window size
-                unsafe {
-                    let byte = *self.window.get_unchecked(src_pos);
-                    *self.window.get_unchecked_mut(dst_pos) = byte;
-                    self.output.push(byte);
-                }
-            }
-            self.window_pos += length;
-        } else {
-            // Overlap case - must copy byte by byte (run-length encoding pattern)
-            for i in 0..length {
-                let src_pos = (src_start + i) & self.window_mask;
-                // SAFETY: positions are masked to window size
                 let byte = unsafe { *self.window.get_unchecked(src_pos) };
                 unsafe {
                     *self.window.get_unchecked_mut(self.window_pos & self.window_mask) = byte;
@@ -444,6 +426,18 @@ impl Rar5BlockDecoder {
                 self.output.push(byte);
                 self.window_pos += 1;
             }
+        } else {
+            // No overlap - copy in chunks
+            for i in 0..length {
+                let src_pos = (src_start + i) & self.window_mask;
+                let dst_pos = (self.window_pos + i) & self.window_mask;
+                unsafe {
+                    let byte = *self.window.get_unchecked(src_pos);
+                    *self.window.get_unchecked_mut(dst_pos) = byte;
+                    self.output.push(byte);
+                }
+            }
+            self.window_pos += length;
         }
     }
 
@@ -858,27 +852,41 @@ impl Rar5BlockDecoder {
         use super::filter::{FilterType, UnpackFilter};
         let mut filters = Vec::new();
 
+        // Estimate output size and reserve (rough estimate: average 4 bytes per item)
+        self.output.reserve(items.len() * 4);
+
         for item in items {
             match item {
                 DecodedItem::Literal { bytes, len } => {
-                    // Write multiple bytes at once
+                    // Write multiple bytes at once - unrolled for common cases
                     let len = *len as usize;
-                    self.output.reserve(len);
-                    for i in 0..len {
-                        let byte = bytes[i];
-                        // SAFETY: window_pos & window_mask is always < window.len()
-                        unsafe {
-                            *self.window.get_unchecked_mut(self.window_pos & self.window_mask) = byte;
+                    match len {
+                        1 => {
+                            let byte = bytes[0];
+                            // SAFETY: window_pos & window_mask is always < window.len()
+                            unsafe {
+                                *self.window.get_unchecked_mut(self.window_pos & self.window_mask) = byte;
+                            }
+                            self.output.push(byte);
+                            self.window_pos += 1;
                         }
-                        self.output.push(byte);
-                        self.window_pos += 1;
+                        _ => {
+                            for i in 0..len {
+                                let byte = bytes[i];
+                                unsafe {
+                                    *self.window.get_unchecked_mut(self.window_pos & self.window_mask) = byte;
+                                }
+                                self.output.push(byte);
+                                self.window_pos += 1;
+                            }
+                        }
                     }
                 }
                 DecodedItem::Match { length, offset } => {
-                    // Update recent offsets
-                    for j in (1..NUM_REPS).rev() {
-                        self.recent_offsets[j] = self.recent_offsets[j - 1];
-                    }
+                    // Update recent offsets (unrolled)
+                    self.recent_offsets[3] = self.recent_offsets[2];
+                    self.recent_offsets[2] = self.recent_offsets[1];
+                    self.recent_offsets[1] = self.recent_offsets[0];
                     self.recent_offsets[0] = *offset as u64;
                     self.last_length = *length;
                     self.copy_bytes(*offset, *length as usize);
@@ -892,13 +900,27 @@ impl Rar5BlockDecoder {
                             "Invalid zero offset in Rep",
                         )));
                     }
-                    // Rotate recent offsets
-                    if rep_idx > 0 {
-                        let off = self.recent_offsets[rep_idx];
-                        for j in (1..=rep_idx).rev() {
-                            self.recent_offsets[j] = self.recent_offsets[j - 1];
+                    // Rotate recent offsets (unrolled by index)
+                    match rep_idx {
+                        0 => {} // No rotation needed
+                        1 => {
+                            let off = self.recent_offsets[1];
+                            self.recent_offsets[1] = self.recent_offsets[0];
+                            self.recent_offsets[0] = off;
                         }
-                        self.recent_offsets[0] = off;
+                        2 => {
+                            let off = self.recent_offsets[2];
+                            self.recent_offsets[2] = self.recent_offsets[1];
+                            self.recent_offsets[1] = self.recent_offsets[0];
+                            self.recent_offsets[0] = off;
+                        }
+                        _ => {
+                            let off = self.recent_offsets[3];
+                            self.recent_offsets[3] = self.recent_offsets[2];
+                            self.recent_offsets[2] = self.recent_offsets[1];
+                            self.recent_offsets[1] = self.recent_offsets[0];
+                            self.recent_offsets[0] = off;
+                        }
                     }
                     self.last_length = *length;
                     self.copy_bytes(offset, *length as usize);
@@ -912,9 +934,6 @@ impl Rar5BlockDecoder {
                 }
                 DecodedItem::Filter { filter_type, block_start, block_length, channels } => {
                     if let Some(ft) = FilterType::from_bits(*filter_type) {
-                        // block_start is relative to when filter was read, but in DecodedItem
-                        // we store the raw value. We need to add window_pos at apply time.
-                        // Since we use a linear output buffer, don't apply modulo.
                         let actual_start = *block_start + self.window_pos;
                         filters.push(UnpackFilter::new(ft, actual_start, *block_length, *channels));
                     }
