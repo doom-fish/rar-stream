@@ -1703,14 +1703,14 @@ impl Rar5BlockDecoder {
                 let end = start + filter.block_length;
                 
                 if end <= output.len() {
-                    // Extract the block to filter
-                    let mut block = output[start..end].to_vec();
+                    // Apply filter - may be in-place or return new buffer
+                    let block = &mut output[start..end];
+                    let filtered = super::filter::apply_filter(block, filter, start as u64);
                     
-                    // Apply the filter
-                    let filtered = super::filter::apply_filter(&mut block, filter, start as u64);
-                    
-                    // Copy filtered data back
-                    output[start..end].copy_from_slice(&filtered);
+                    // If filtered is non-empty, it's a Delta filter result (not in-place)
+                    if !filtered.is_empty() {
+                        output[start..end].copy_from_slice(&filtered);
+                    }
                 }
             }
         }

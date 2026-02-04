@@ -63,14 +63,24 @@ impl UnpackFilter {
     }
 }
 
-/// Apply a filter to decompressed data in-place.
-/// Returns the filtered data.
+/// Apply a filter to decompressed data.
+/// For E8/E8E9/ARM filters, modifies data in-place.
+/// For Delta filter, returns new buffer (cannot be in-place due to interleaving).
 pub fn apply_filter(data: &mut [u8], filter: &UnpackFilter, file_offset: u64) -> Vec<u8> {
     match filter.filter_type {
         FilterType::Delta => apply_delta_filter(data, filter.channels as usize),
-        FilterType::E8 => apply_e8_filter(data, file_offset as u32, false),
-        FilterType::E8E9 => apply_e8_filter(data, file_offset as u32, true),
-        FilterType::Arm => apply_arm_filter(data, file_offset as u32),
+        FilterType::E8 => {
+            apply_e8_filter_inplace(data, file_offset as u32, false);
+            Vec::new() // Signal: data was modified in-place
+        }
+        FilterType::E8E9 => {
+            apply_e8_filter_inplace(data, file_offset as u32, true);
+            Vec::new() // Signal: data was modified in-place
+        }
+        FilterType::Arm => {
+            apply_arm_filter_inplace(data, file_offset as u32);
+            Vec::new() // Signal: data was modified in-place
+        }
     }
 }
 
@@ -102,13 +112,13 @@ fn apply_delta_filter(data: &[u8], channels: usize) -> Vec<u8> {
     output
 }
 
-/// Apply E8/E8E9 filter for x86 executables.
+/// Apply E8/E8E9 filter for x86 executables in-place.
 /// Converts absolute addresses back to relative.
-fn apply_e8_filter(data: &mut [u8], file_offset: u32, include_e9: bool) -> Vec<u8> {
+fn apply_e8_filter_inplace(data: &mut [u8], file_offset: u32, include_e9: bool) {
     const FILE_SIZE: u32 = 0x1000000; // 16MB
 
     if data.len() < 5 {
-        return data.to_vec();
+        return;
     }
 
     let mut cur_pos: usize = 0;
@@ -145,15 +155,13 @@ fn apply_e8_filter(data: &mut [u8], file_offset: u32, include_e9: bool) -> Vec<u
             cur_pos += 4;
         }
     }
-
-    data.to_vec()
 }
 
-/// Apply ARM filter for ARM executables.
+/// Apply ARM filter for ARM executables in-place.
 /// Converts BL instruction addresses.
-fn apply_arm_filter(data: &mut [u8], file_offset: u32) -> Vec<u8> {
+fn apply_arm_filter_inplace(data: &mut [u8], file_offset: u32) {
     if data.len() < 4 {
-        return data.to_vec();
+        return;
     }
 
     let mut cur_pos: usize = 0;
@@ -169,8 +177,6 @@ fn apply_arm_filter(data: &mut [u8], file_offset: u32) -> Vec<u8> {
         }
         cur_pos += 4;
     }
-
-    data.to_vec()
 }
 
 #[cfg(test)]

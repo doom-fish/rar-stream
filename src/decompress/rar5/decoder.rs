@@ -68,15 +68,15 @@ impl Rar5Decoder {
             let end = start + filter.block_length;
 
             if end <= output.len() {
-                // Extract the block to filter
-                let mut block = output[start..end].to_vec();
-
-                // Apply the filter
+                // Apply filter - may be in-place or return new buffer
+                let block = &mut output[start..end];
                 let filtered =
-                    apply_filter(&mut block, filter, self.written_file_size + start as u64);
+                    apply_filter(block, filter, self.written_file_size + start as u64);
 
-                // Copy filtered data back
-                output[start..end].copy_from_slice(&filtered);
+                // If filtered is non-empty, it's a Delta filter result (not in-place)
+                if !filtered.is_empty() {
+                    output[start..end].copy_from_slice(&filtered);
+                }
             }
         }
 
