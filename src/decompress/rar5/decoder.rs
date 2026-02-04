@@ -208,3 +208,37 @@ mod tests {
         }
     }
 }
+
+    #[test]
+    fn test_decompress_alpine_rar5() {
+        // Parse alpine_rar5.rar and decompress
+        let data = std::fs::read("__fixtures__/large/alpine_rar5.rar").unwrap();
+        
+        // Data starts at byte 76, 2939435 bytes, unpacked 8130560 bytes
+        let compressed = &data[76..76+2939435];
+        let unpacked_size = 8130560u64;
+        let dict_log = 23u8;
+        let method = 3u8;
+        
+        let mut decoder = Rar5Decoder::with_dict_size(dict_log);
+        let result = decoder.decompress(compressed, unpacked_size, method, false);
+        
+        match result {
+            Ok(output) => {
+                assert_eq!(output.len(), unpacked_size as usize);
+                
+                // Compare with original
+                let original = std::fs::read("__fixtures__/large/alpine.tar").unwrap();
+                
+                // Find first difference
+                for (i, (a, b)) in output.iter().zip(original.iter()).enumerate() {
+                    if a != b {
+                        panic!("Mismatch at byte {}: got {:02x}, expected {:02x}", i, a, b);
+                    }
+                }
+                
+                assert_eq!(output, original, "Output should match original");
+            }
+            Err(e) => panic!("Decompression failed: {:?}", e),
+        }
+    }

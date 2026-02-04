@@ -10,6 +10,8 @@ const BUFFER_PADDING: usize = 8;
 pub struct BitDecoder {
     /// Input buffer (padded with BUFFER_PADDING bytes for safe unchecked reads)
     buf: Vec<u8>,
+    /// Original data length (before padding)
+    data_len: usize,
     /// Current position in buffer
     pos: usize,
     /// Current bit position (0-7)
@@ -30,6 +32,7 @@ impl BitDecoder {
         buf.resize(data_len + BUFFER_PADDING, 0xFF);
         Self {
             buf,
+            data_len,
             pos: 0,
             bit_pos: 0,
             block_end: data_len,
@@ -181,9 +184,9 @@ impl BitDecoder {
         self.bit_pos = 0;
     }
 
-    /// Check if EOF reached.
+    /// Check if EOF reached (past all input data, not just current block).
     pub fn is_eof(&self) -> bool {
-        self.pos >= self.block_end
+        self.pos >= self.data_len
     }
 }
 
