@@ -12,6 +12,9 @@
 use super::bit_decoder::BitDecoder;
 use crate::decompress::DecompressError;
 
+#[cfg(feature = "parallel")]
+use std::sync::Arc;
+
 // Table sizes from RAR5 spec (matching unrar5j)
 /// Number of repetition entries
 const NUM_REPS: usize = 4;
@@ -1570,7 +1573,7 @@ impl Rar5BlockDecoder {
         };
         
         let mut bits = BitDecoder::new(data);
-        let mut current_tables = BlockTables::new();
+        let mut current_tables = Arc::new(BlockTables::new());
         let mut tables_valid = false;
         let mut all_filters: Vec<super::filter::UnpackFilter> = Vec::new();
         
@@ -1579,8 +1582,8 @@ impl Rar5BlockDecoder {
         
         // Process in batches
         while self.window_pos < output_size && !bits.is_eof() {
-            let mut batch_blocks: Vec<(BlockHeader, BlockTables)> = Vec::with_capacity(blocks_per_batch);
-            let mut large_blocks: Vec<(BlockHeader, BlockTables)> = Vec::new();
+            let mut batch_blocks: Vec<(BlockHeader, Arc<BlockTables>)> = Vec::with_capacity(blocks_per_batch);
+            let mut large_blocks: Vec<(BlockHeader, Arc<BlockTables>)> = Vec::new();
             
             // Collect blocks for this batch
             while batch_blocks.len() + large_blocks.len() < blocks_per_batch {
@@ -1635,9 +1638,11 @@ impl Rar5BlockDecoder {
                 let block_end = block_start + block_size - 1;
                 bits.set_block_end(block_end, block_bit_size);
                 
-                // Read tables if present
+                // Read tables if present - create new Arc only when tables change
                 if table_present {
-                    self.read_tables_into(&mut bits, &mut current_tables)?;
+                    // Get mutable reference to create new tables
+                    let new_tables = Arc::make_mut(&mut current_tables);
+                    self.read_tables_into(&mut bits, new_tables)?;
                     tables_valid = true;
                 } else if !tables_valid {
                     return Err(DecompressError::Io(std::io::Error::new(
@@ -1660,10 +1665,11 @@ impl Rar5BlockDecoder {
                 };
                 
                 // Check if large block (use single-thread path)
+                // Arc::clone is O(1) - just increments refcount
                 if block_size > config.large_block_size {
-                    large_blocks.push((header, current_tables.clone()));
+                    large_blocks.push((header, Arc::clone(&current_tables)));
                 } else {
-                    batch_blocks.push((header, current_tables.clone()));
+                    batch_blocks.push((header, Arc::clone(&current_tables)));
                 }
                 
                 // Move to end of block
