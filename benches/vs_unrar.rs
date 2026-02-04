@@ -326,6 +326,7 @@ criterion_group!(
     bench_large_lzss,
     bench_large_ppmd,
     bench_200mb_alpine,
+    bench_200mb_alpine_parallel,
 );
 criterion_main!(benches);
 
@@ -469,4 +470,142 @@ fn bench_200mb_alpine(c: &mut Criterion) {
     });
     
     group.finish();
+}
+
+/// Benchmark 200MB Alpine ISO with RAR5 - parallel version
+#[cfg(feature = "parallel")]
+fn bench_200mb_alpine_parallel(c: &mut Criterion) {
+    let archive_path = Path::new("__fixtures__/large/alpine-200mb.rar");
+    if !archive_path.exists() {
+        eprintln!("Skipping 200MB Alpine parallel benchmark - file not found");
+        return;
+    }
+    
+    let data = std::fs::read(archive_path).expect("Failed to read archive");
+    let (compressed, unpacked_size, dict_size_log) = match parse_rar5_file_with_dict(&data) {
+        Some(r) => r,
+        None => {
+            eprintln!("Failed to parse RAR5 file");
+            return;
+        }
+    };
+    
+    let mut group = c.benchmark_group("vs_unrar/200mb_alpine_parallel");
+    group.throughput(Throughput::Bytes(unpacked_size as u64));
+    group.sample_size(10);
+    
+    group.bench_function("rar_stream_parallel", |b| {
+        use rar_stream::decompress::rar5::Rar5Decoder;
+        let mut decoder = Rar5Decoder::with_dict_size(dict_size_log);
+        b.iter(|| {
+            decoder.reset();
+            let result = decoder.decompress_parallel(black_box(compressed), unpacked_size as u64);
+            black_box(result)
+        });
+    });
+    
+    group.bench_function("official_unrar", |b| {
+        b.iter(|| {
+            let result = extract_with_unrar_to_bytes(black_box(archive_path));
+            black_box(result)
+        });
+    });
+    
+    group.finish();
+}
+
+/// Parse RAR5 file and return dict_size_log too
+fn parse_rar5_file_with_dict(data: &[u8]) -> Option<(&[u8], usize, u8)> {
+    if !data.starts_with(RAR5_MARKER) {
+        return None;
+    }
+    
+    let mut pos = RAR5_MARKER.len();
+    
+    // Skip headers until we find a file header
+    loop {
+        if pos + 4 > data.len() {
+            return None;
+        }
+        
+        // Read header CRC (4 bytes)
+        pos += 4;
+        
+        // Read header size
+        let (header_size, next_pos) = read_vint(data, pos)?;
+        pos = next_pos;
+        
+        let header_end = pos + header_size as usize;
+        if header_end > data.len() {
+            return None;
+        }
+        
+        // Read header type
+        let (header_type, next_pos) = read_vint(data, pos)?;
+        pos = next_pos;
+        
+        // Read header flags
+        let (header_flags, next_pos) = read_vint(data, pos)?;
+        pos = next_pos;
+        
+        let has_extra_size = (header_flags & 0x01) != 0;
+        let has_data_size = (header_flags & 0x02) != 0;
+        
+        if has_extra_size {
+            let (_, next_pos) = read_vint(data, pos)?;
+            pos = next_pos;
+        }
+        
+        let mut data_size = 0u64;
+        if has_data_size {
+            let (ds, next_pos) = read_vint(data, pos)?;
+            data_size = ds;
+            pos = next_pos;
+        }
+        
+        // Header type 2 = File header
+        if header_type == 2 {
+            // Read file flags
+            let (file_flags, next_pos) = read_vint(data, pos)?;
+            pos = next_pos;
+            
+            // Read unpacked size
+            let (unpacked_size, next_pos) = read_vint(data, pos)?;
+            pos = next_pos;
+            
+            // Read attributes
+            let (_, next_pos) = read_vint(data, pos)?;
+            pos = next_pos;
+            
+            // Optional mtime (4 bytes) if flag 0x02 is set
+            if (file_flags & 0x02) != 0 {
+                pos += 4;
+            }
+            
+            // Optional data_crc (4 bytes) if flag 0x04 is set
+            if (file_flags & 0x04) != 0 {
+                pos += 4;
+            }
+            
+            // Read compression info
+            let (compression_info, _) = read_vint(data, pos)?;
+            
+            // Extract dict_size_log from compression_info
+            // Bits 10-14 contain dictionary size: 17 + value
+            let dict_size_log = (((compression_info >> 10) & 0x1F) + 17) as u8;
+            
+            // Data starts after header
+            let data_start = header_end;
+            let data_end = data_start + data_size as usize;
+            
+            if data_end > data.len() {
+                return None;
+            }
+            
+            return Some((&data[data_start..data_end], unpacked_size as usize, dict_size_log));
+        }
+        
+        // Move to next header (skip current header + any data)
+        pos = header_end + data_size as usize;
+    }
 }

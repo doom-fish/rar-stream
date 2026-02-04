@@ -136,6 +136,41 @@ impl Rar5Decoder {
 
         Ok(output)
     }
+
+    /// Decompress RAR5 data using parallel decompression.
+    ///
+    /// # Arguments
+    /// * `input` - Compressed data
+    /// * `unpacked_size` - Expected decompressed size
+    #[cfg(feature = "parallel")]
+    pub fn decompress_parallel(
+        &mut self,
+        input: &[u8],
+        unpacked_size: u64,
+    ) -> Result<Vec<u8>, DecompressError> {
+        use super::block_decoder::ParallelConfig;
+        
+        // Reset state
+        self.block_decoder.reset();
+        self.filters.clear();
+        self.written_file_size = 0;
+        
+        // Use parallel decode with default config
+        let config = ParallelConfig::default();
+        let output = self.block_decoder.decode_parallel_with_config(
+            input,
+            unpacked_size as usize,
+            &config,
+        )?;
+        
+        if output.len() != unpacked_size as usize {
+            return Err(DecompressError::IncompleteData);
+        }
+        
+        self.written_file_size += output.len() as u64;
+        
+        Ok(output)
+    }
 }
 
 impl Default for Rar5Decoder {

@@ -195,7 +195,9 @@ impl HuffTable {
         // Quick decode path
         if bit_field < self.decode_len[self.quick_bits] {
             let code = (bit_field >> (16 - self.quick_bits)) as usize;
-            let entry = self.quick_table.get(code).copied().unwrap_or(0);
+            // SAFETY: code is derived from bit_field >> (16 - quick_bits), 
+            // which is bounded by quick_bits (10), so code < 1024 = quick_table.len()
+            let entry = unsafe { *self.quick_table.get_unchecked(code) };
             if entry != 0 {
                 let len = (entry & 0xFF) as usize;
                 let symbol = (entry >> 8) as u16;
@@ -220,12 +222,12 @@ impl HuffTable {
         let dist_shifted = dist >> (16 - bit_len);
         let pos = (self.first_symbol[bit_len] as u32) + dist_shifted;
 
-        // Safety check
+        // SAFETY: pos is bounded by symbol table size
         if (pos as usize) >= self.symbols.len() {
             return 0;
         }
 
-        self.symbols[pos as usize]
+        unsafe { *self.symbols.get_unchecked(pos as usize) }
     }
 }
 
@@ -319,7 +321,7 @@ impl Default for ParallelConfig {
     fn default() -> Self {
         Self {
             num_threads: 0, // auto-detect
-            blocks_per_batch: 0, // auto: num_threads * 2
+            blocks_per_batch: 24, // Optimal batch size for parallelism
             large_block_size: 0x20000, // 128KB like unrar
             max_items_per_block: 0x4100, // ~16K items like unrar
         }
@@ -410,11 +412,38 @@ impl Rar5BlockDecoder {
     /// Copy bytes from earlier position in window.
     #[inline]
     fn copy_bytes(&mut self, offset: usize, length: usize) {
+        // Reserve space for output
+        self.output.reserve(length);
+        
         let src_start = self.window_pos.wrapping_sub(offset);
-        for i in 0..length {
-            let src_pos = (src_start + i) & self.window_mask;
-            let byte = self.window[src_pos];
-            self.write_byte(byte);
+        
+        // Fast path: if offset >= length, we can copy without overlap concerns
+        if offset >= length {
+            // No overlap - can batch copy
+            let window_len = self.window.len();
+            for i in 0..length {
+                let src_pos = (src_start + i) & self.window_mask;
+                let dst_pos = (self.window_pos + i) & self.window_mask;
+                // SAFETY: positions are masked to window size
+                unsafe {
+                    let byte = *self.window.get_unchecked(src_pos);
+                    *self.window.get_unchecked_mut(dst_pos) = byte;
+                    self.output.push(byte);
+                }
+            }
+            self.window_pos += length;
+        } else {
+            // Overlap case - must copy byte by byte (run-length encoding pattern)
+            for i in 0..length {
+                let src_pos = (src_start + i) & self.window_mask;
+                // SAFETY: positions are masked to window size
+                let byte = unsafe { *self.window.get_unchecked(src_pos) };
+                unsafe {
+                    *self.window.get_unchecked_mut(self.window_pos & self.window_mask) = byte;
+                }
+                self.output.push(byte);
+                self.window_pos += 1;
+            }
         }
     }
 
@@ -832,9 +861,17 @@ impl Rar5BlockDecoder {
         for item in items {
             match item {
                 DecodedItem::Literal { bytes, len } => {
-                    // len is actual count (1-8)
-                    for i in 0..*len as usize {
-                        self.write_byte(bytes[i]);
+                    // Write multiple bytes at once
+                    let len = *len as usize;
+                    self.output.reserve(len);
+                    for i in 0..len {
+                        let byte = bytes[i];
+                        // SAFETY: window_pos & window_mask is always < window.len()
+                        unsafe {
+                            *self.window.get_unchecked_mut(self.window_pos & self.window_mask) = byte;
+                        }
+                        self.output.push(byte);
+                        self.window_pos += 1;
                     }
                 }
                 DecodedItem::Match { length, offset } => {
