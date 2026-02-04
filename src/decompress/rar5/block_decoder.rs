@@ -1339,15 +1339,14 @@ impl Rar5BlockDecoder {
     
     /// Static version of slot_to_length for stateless decoding.
     fn slot_to_length_static(slot: u32, bits: &mut BitDecoder) -> u32 {
-        // Length = 2 + slot for slots 0-7
-        // Length = 2 + 8 + (bits read) for higher slots
+        // Match the instance version exactly
         if slot < 8 {
-            2 + slot
+            slot + 2
         } else {
-            let num_bits = (slot / 4) as usize;
-            let base = 2 + ((2 + (slot & 3)) << num_bits);
+            let extra_bits = ((slot - 4) / 4) as usize;
+            let base = ((4 + (slot & 3)) << extra_bits) + 2;
             let v = bits.get_value_high32();
-            let extra = bits.read_bits_big(num_bits, v);
+            let extra = bits.read_bits_big(extra_bits, v);
             base + extra
         }
     }
@@ -1486,6 +1485,10 @@ impl Rar5BlockDecoder {
         let mut bits = BitDecoder::new(data);
         let mut current_tables = BlockTables::new();
         let mut tables_valid = false;
+        let mut all_filters: Vec<super::filter::UnpackFilter> = Vec::new();
+        
+        // Pre-allocate output buffer
+        self.output.reserve(output_size);
         
         // Process in batches
         while self.window_pos < output_size && !bits.is_eof() {
@@ -1595,8 +1598,9 @@ impl Rar5BlockDecoder {
                 let block_end = header.block_start + header.block_size - 1;
                 block_bits.set_block_end(block_end, header.block_bit_size);
                 
-                // Decode directly to window
-                self.decode_large_block(&mut block_bits, tables)?;
+                // Decode directly to window, collect filters
+                let filters = self.decode_large_block(&mut block_bits, tables)?;
+                all_filters.extend(filters);
             }
             
             // Parallel decode normal blocks
@@ -1617,7 +1621,8 @@ impl Rar5BlockDecoder {
                 // Apply decoded items sequentially (order matters for REP references)
                 for result in decoded_results {
                     let (items, _) = result?;
-                    self.apply_decoded(&items)?;
+                    let filters = self.apply_decoded(&items)?;
+                    all_filters.extend(filters);
                 }
             }
             
@@ -1629,24 +1634,53 @@ impl Rar5BlockDecoder {
             }
         }
         
-        // Return output
-        Ok(self.get_output(0, output_size.min(self.window_pos)))
+        // Get output from buffer (not window - window wraps)
+        let mut output = self.take_output();
+        
+        // Apply filters if any
+        if !all_filters.is_empty() {
+            // Sort filters by block start position
+            all_filters.sort_by_key(|f| f.block_start);
+            
+            for filter in &all_filters {
+                let start = filter.block_start;
+                let end = start + filter.block_length;
+                
+                if end <= output.len() {
+                    // Extract the block to filter
+                    let mut block = output[start..end].to_vec();
+                    
+                    // Apply the filter
+                    let filtered = super::filter::apply_filter(&mut block, filter, start as u64);
+                    
+                    // Copy filtered data back
+                    output[start..end].copy_from_slice(&filtered);
+                }
+            }
+        }
+        
+        Ok(output)
     }
     
     /// Decode a large block directly to window (single-threaded).
+    /// Returns any filters found in the block.
     #[cfg(feature = "parallel")]
     fn decode_large_block(
         &mut self,
         bits: &mut super::bit_decoder::BitDecoder,
         tables: &BlockTables,
-    ) -> Result<(), DecompressError> {
+    ) -> Result<Vec<super::filter::UnpackFilter>, DecompressError> {
+        let mut filters = Vec::new();
+        
         while !bits.is_eof() && !bits.is_block_over_read() {
             let sym = tables.main_table.decode(bits) as usize;
             
             if sym < 256 {
                 self.write_byte(sym as u8);
             } else if sym == 256 {
-                let _ = self.read_filter(bits)?;
+                if let Some(filter) = self.read_filter(bits)? {
+                    filters.push(filter);
+                }
             } else if sym == 257 {
                 if self.last_length != 0 && self.recent_offsets[0] != 0 {
                     let length = self.last_length as usize;
@@ -1699,7 +1733,7 @@ impl Rar5BlockDecoder {
                 self.copy_bytes(offset, adj_length as usize);
             }
         }
-        Ok(())
+        Ok(filters)
     }
     
     /// Decode length using provided tables.
