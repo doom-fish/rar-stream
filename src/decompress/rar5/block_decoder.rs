@@ -190,7 +190,7 @@ impl HuffTable {
 
     /// Decode a symbol using the bit decoder.
     /// Based on unrar's DecodeNumber.
-    #[inline]
+    #[inline(always)]
     pub fn decode(&self, bits: &mut BitDecoder) -> u16 {
         // Get 15 bits left-aligned (unrar uses 16-bit with mask 0xfffe)
         let bit_field = (bits.get_value_15() << 1) as u32;
