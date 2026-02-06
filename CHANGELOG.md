@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [5.1.1] - 2026-02-06
+
+### Miscellaneous Tasks
+
+- Update Cargo.toml dependencies
+
+
 ## [5.1.0] - 2026-02-06
 
 ### Performance
