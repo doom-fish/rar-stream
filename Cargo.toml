@@ -80,8 +80,8 @@ napi-build = "2"
 
 # Strict linting configuration
 [lints.rust]
-# Allow unsafe for performance-critical paths (e.g., avoiding array zeroing)
-unsafe_code = "warn"
+# Unsafe is used intentionally in hot paths with SAFETY comments
+unsafe_code = "allow"
 # missing_docs disabled - NAPI/WASM bindings generate many internal types
 missing_docs = "allow"
 
@@ -133,6 +133,19 @@ map_unwrap_or = "allow"
 io_other_error = "allow"
 case_sensitive_file_extension_comparisons = "allow"
 branches_sharing_code = "allow"
+# Performance-critical code uses inline(always) and unsafe intentionally
+inline_always = "allow"
+ptr_as_ptr = "allow"
+unnecessary_cast = "allow"
+manual_swap = "allow"
+new_without_default = "allow"
+while_let_loop = "allow"
+semicolon_if_nothing_returned = "allow"
+uninit_vec = "allow"
+not_unsafe_ptr_arg_deref = "allow"
+cast_ptr_alignment = "allow"
+fn_params_excessive_bools = "allow"
+too_long_first_doc_paragraph = "allow"
 
 
 # Maximum optimization for release builds

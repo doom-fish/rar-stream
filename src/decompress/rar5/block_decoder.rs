@@ -526,6 +526,8 @@ impl Rar5BlockDecoder {
                 // Slow path: wraparound - copy byte by byte
                 let output_start = self.output.len();
                 self.output.reserve(length);
+                // SAFETY: reserve() ensures capacity. All positions are written
+                // by the byte-by-byte copy loop below.
                 unsafe {
                     self.output.set_len(output_start + length);
                 }
@@ -739,17 +741,10 @@ impl Rar5BlockDecoder {
         if self.output.len() < start_pos + output_size {
             self.output
                 .reserve(start_pos + output_size - self.output.len());
-            unsafe {
-                self.output.set_len(start_pos + output_size);
-            }
-        }
-        self.output_mapped = true;
-
-        // Map output to window: avoid duplicate writes for this block
-        self.output_start = start_pos;
-        if self.output.len() < start_pos + output_size {
-            self.output
-                .reserve(start_pos + output_size - self.output.len());
+            // SAFETY: reserve() ensures capacity >= start_pos + output_size.
+            // All positions in [start_pos..start_pos+output_size) are written by the
+            // decode loop below (write_byte / copy_match). If the loop exits early,
+            // set_len(pos) at the end truncates to actual written bytes.
             unsafe {
                 self.output.set_len(start_pos + output_size);
             }
@@ -983,6 +978,7 @@ impl Rar5BlockDecoder {
         self.window_pos = pos;
         self.output = output;
         if pos < output_size {
+            // SAFETY: pos tracks actual bytes written; truncate to real size
             unsafe {
                 self.output.set_len(pos);
             }
@@ -2408,6 +2404,8 @@ impl Rar5BlockDecoder {
         let mut all_filters: Vec<super::filter::UnpackFilter> = Vec::new();
 
         // Pre-allocate output buffer for direct writes (no window needed for small blocks)
+        // SAFETY: all positions [0..output_size) are written by decode workers via
+        // out_ptr before being read. Truncated to actual size (pos) at the end.
         let mut output: Vec<u8> = Vec::with_capacity(output_size);
         unsafe {
             output.set_len(output_size);
@@ -2578,6 +2576,7 @@ impl Rar5BlockDecoder {
 
         // Truncate output to actual decoded size
         let final_len = pos.min(output_size);
+        // SAFETY: final_len <= capacity, all bytes [0..final_len) written by decode workers
         unsafe {
             output.set_len(final_len);
         }
@@ -2859,6 +2858,8 @@ impl Rar5BlockDecoder {
 
         let mut decoder = Rar5BlockDecoder::new(dict_size_log);
 
+        // SAFETY: all positions [0..output_size) are written by apply_split_direct
+        // via out_ptr before being read. Truncated to actual size at the end.
         let mut output: Vec<u8> = Vec::with_capacity(output_size);
         unsafe {
             output.set_len(output_size);
@@ -2900,6 +2901,7 @@ impl Rar5BlockDecoder {
         }
 
         let final_len = pos.min(output_size);
+        // SAFETY: final_len <= capacity, all bytes [0..final_len) written by apply_split_direct
         unsafe {
             output.set_len(final_len);
         }

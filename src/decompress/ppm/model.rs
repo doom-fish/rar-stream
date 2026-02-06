@@ -717,10 +717,11 @@ impl PpmModel {
 
         // Use NS2BSIndx (not ns2_indx) with NumStats-1
         let ns_idx = if suffix_num_stats > 0 {
-            suffix_num_stats - 1
+            (suffix_num_stats - 1).min(255)
         } else {
             0
         };
+        // SAFETY: ns_idx clamped to [0, 255], ns2_bs_indx is [u8; 256]
         let ns1 = unsafe { *self.ns2_bs_indx.get_unchecked(ns_idx as usize) } as usize;
 
         // Index calculation matching unrar:
@@ -830,7 +831,9 @@ impl PpmModel {
 
             // InitEsc = ExpEscape[bs >> 10]
             static EXP_ESCAPE: [u8; 16] = [25, 14, 9, 7, 5, 5, 4, 4, 4, 3, 3, 3, 2, 2, 2, 2];
-            self.init_esc = unsafe { *EXP_ESCAPE.get_unchecked((new_bs >> 10) as usize) } as u32;
+            // SAFETY: index clamped to [0, 15], EXP_ESCAPE has 16 elements
+            let esc_idx = ((new_bs >> 10) as usize).min(15);
+            self.init_esc = unsafe { *EXP_ESCAPE.get_unchecked(esc_idx) } as u32;
 
             self.num_masked = 1;
             self.found_state = 0;

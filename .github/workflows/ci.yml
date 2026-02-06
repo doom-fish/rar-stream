@@ -31,7 +31,7 @@ jobs:
         run: cargo clippy --features napi -- -D warnings
       
       - name: Clippy (WASM)
-        run: cargo clippy --features wasm -- -D warnings
+        run: cargo clippy --features wasm,crypto --no-default-features -- -D warnings
 
   lint-typescript:
     name: Lint TypeScript
@@ -65,6 +65,9 @@ jobs:
       
       - name: Run tests
         run: cargo test --lib
+      
+      - name: Run tests (parallel)
+        run: cargo test --features parallel --lib
 
   test-napi:
     name: Test NAPI
