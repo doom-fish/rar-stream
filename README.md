@@ -11,12 +11,12 @@
 [![MSRV](https://img.shields.io/badge/MSRV-1.85-blue.svg)](https://blog.rust-lang.org/2025/02/20/Rust-1.85.0.html)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-## What's New in v5.0.0
+## What's New in v5.1.0
 
-- **Unified Streaming API**: `createReadStream()` now returns a Node.js `Readable` stream
-- **WebTorrent Integration**: Torrent files work directly - no wrapper needed!
-- **Custom FileMedia**: Use any data source (S3, HTTP, etc.) that implements the `FileMedia` interface
-- **Breaking**: Removed `getReadableStream()` (merged into `createReadStream`)
+- ⚡ **Parallel RAR5 pipeline**: Beats the official C `unrar` in all 24 benchmark scenarios
+- 🌐 **WASM RAR5 support**: Full RAR5 decompression in the browser via `WasmRar5Decoder`
+- 🔌 **NAPI pipeline**: Node.js users get 40% faster decompression automatically
+- 🧪 **E2E browser tests**: Full Playwright tests for upload → decompress → verify workflow
 
 ## Features
 
@@ -421,30 +421,74 @@ rar-stream = { version = "5", features = ["async", "crypto"] }
 
 ## Performance
 
-### Decompression Speed
+### RAR5 Decompression: Faster Than unrar
 
-Benchmark on AMD Ryzen 5 7640HS, comparing single-threaded performance:
+rar-stream's parallel pipeline **beats the official C `unrar`** (v7.0, multi-threaded) across all tested workloads.
 
-| Format | File Size | unrar (1 thread) | rar-stream | Speedup |
-|--------|-----------|------------------|------------|---------|
-| RAR4 LZSS | 8 MB | 202 MiB/s | **237 MiB/s** | **+17%** |
-| RAR5 LZSS | 994 MB | 203 MiB/s | **225 MiB/s** | **+11%** |
+Benchmark on AMD Ryzen 5 7640HS (6 cores):
 
-**Note:** unrar 7.0 uses multi-threading for RAR5 (641 MiB/s with 17 threads). rar-stream is currently single-threaded but faster per-core.
+| Archive | Size | rar-stream (pipeline) | unrar | Ratio |
+|---------|------|----------------------|-------|-------|
+| ISO (binary) | 200 MB | **422ms** | 453ms | **0.93×** |
+| Text | 200 MB | **144ms** | 202ms | **0.71×** |
+| Mixed | 200 MB | **342ms** | 527ms | **0.65×** |
+| Binary | 500 MB | **824ms** | 1149ms | **0.72×** |
+| Text | 500 MB | **424ms** | 604ms | **0.70×** |
+| Mixed | 1 GB | **1953ms** | 2550ms | **0.77×** |
 
-### Memory & Parse Performance
+**Wins 24 out of 24 benchmark scenarios** across 6 data types × 4 compression settings.
 
-| Operation | rar-stream v5 (Rust) | rar-stream v3 (JS) |
-|-----------|---------------------|-------------------|
-| Parse 1GB archive | ~50ms | ~200ms |
-| Decompress 100MB | ~300ms | ~3000ms |
-| Memory usage | ~50MB | ~200MB |
+Best case: **1.9× faster** than unrar (ISO 200MB, `-m5 -md128m`).
+
+<details>
+<summary>Full benchmark matrix (24 scenarios)</summary>
+
+```
+Archive                  Single   Pipeline    Unrar   Pipe/Unrar
+----------------------------------------------------------------
+bin-500_m3_32m            1278ms       884ms    1187ms     0.74x
+bin-500_m5_128m           1200ms       824ms    1149ms     0.72x
+bin-500_m5_32m            1247ms       852ms    1162ms     0.73x
+bin-500_m5_4m             1378ms       942ms    1770ms     0.53x
+iso-200_m3_32m             715ms       426ms     760ms     0.56x
+iso-200_m5_128m            720ms       423ms     811ms     0.52x
+iso-200_m5_32m             721ms       422ms     453ms     0.93x
+iso-200_m5_4m              717ms       422ms     442ms     0.95x
+mixed-1g_m3_32m           2974ms      2109ms    2775ms     0.76x
+mixed-1g_m5_128m          3177ms      2213ms    2984ms     0.74x
+mixed-1g_m5_32m           2979ms      2086ms    2731ms     0.76x
+mixed-1g_m5_4m            2761ms      1953ms    2550ms     0.77x
+mixed-200_m3_32m           499ms       385ms     547ms     0.70x
+mixed-200_m5_128m          438ms       342ms     527ms     0.65x
+mixed-200_m5_32m           495ms       384ms     539ms     0.71x
+mixed-200_m5_4m            511ms       395ms     538ms     0.73x
+text-200_m3_32m            209ms       145ms     202ms     0.72x
+text-200_m5_128m           205ms       144ms     239ms     0.60x
+text-200_m5_32m            209ms       144ms     202ms     0.71x
+text-200_m5_4m             227ms       153ms     207ms     0.74x
+text-500_m3_32m            606ms       432ms     613ms     0.70x
+text-500_m5_128m           601ms       431ms     644ms     0.67x
+text-500_m5_32m            604ms       424ms     604ms     0.70x
+text-500_m5_4m             659ms       455ms     643ms     0.71x
+```
+
+</details>
+
+### Node.js (NAPI) Performance
+
+| Configuration | Time (200MB) | vs unrar |
+|---------------|-------------|----------|
+| v5.0.0 (single-threaded) | 1127ms | 2.73× slower |
+| **v5.1.0 (pipeline)** | **673ms** | **1.53× slower** |
+
+The remaining NAPI gap vs native is I/O + buffer copy overhead, not decompression.
 
 ### Optimization Features
 
+- **Parallel pipeline**: Decode + apply in parallel using rayon worker threads
+- **Split-buffer decode**: Separates literals from commands for cache-friendly apply
 - **LTO (Link-Time Optimization)**: Enabled by default in release builds
-- **PGO (Profile-Guided Optimization)**: Pre-built profiles included for x86_64-linux-gnu
-- **SIMD**: Automatic vectorization for E8/E9 filter scanning
+- **SIMD**: Automatic vectorization for E8/E9 filter scanning and memcpy
 - **Zero-copy streaming**: Direct buffer access without intermediate copies
 
 ## Migrating from v3.x
