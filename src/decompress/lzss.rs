@@ -69,11 +69,13 @@ impl LzssDecoder {
     #[inline(always)]
     pub fn write_literal(&mut self, byte: u8) {
         // SAFETY: pos is always < window.len() due to mask
-        unsafe { *self.window.get_unchecked_mut(self.pos) = byte; }
+        unsafe {
+            *self.window.get_unchecked_mut(self.pos) = byte;
+        }
         self.pos = (self.pos + 1) & self.mask;
         self.total_written += 1;
     }
-    
+
     /// Flush data from window to output, up to the given absolute position.
     /// This is called after filters have been applied.
     pub fn flush_to_output(&mut self, up_to: u64) {
@@ -81,44 +83,46 @@ impl LzssDecoder {
         if up_to <= current_output_len {
             return; // Already flushed
         }
-        
+
         let flush_start = current_output_len as usize;
         let flush_end = up_to as usize;
         let flush_len = flush_end - flush_start;
         let window_start = flush_start & self.mask;
-        
+
         // Reserve space upfront
         self.output.reserve(flush_len);
-        
+
         // Check if we can do a contiguous copy (no wrap)
         if window_start + flush_len <= self.window.len() {
             // Fast path: contiguous copy
-            self.output.extend_from_slice(&self.window[window_start..window_start + flush_len]);
+            self.output
+                .extend_from_slice(&self.window[window_start..window_start + flush_len]);
         } else {
             // Slow path: wrapping copy in two parts
             let first_part = self.window.len() - window_start;
             self.output.extend_from_slice(&self.window[window_start..]);
-            self.output.extend_from_slice(&self.window[..flush_len - first_part]);
+            self.output
+                .extend_from_slice(&self.window[..flush_len - first_part]);
         }
-        
+
         self.flushed_pos = up_to;
     }
-    
+
     /// Get mutable access to the window for filter execution.
     pub fn window_mut(&mut self) -> &mut [u8] {
         &mut self.window
     }
-    
+
     /// Get the window mask (for filter positioning).
     pub fn window_mask(&self) -> u32 {
         self.mask as u32
     }
-    
+
     /// Get how much has been flushed to output.
     pub fn flushed_pos(&self) -> u64 {
         self.flushed_pos
     }
-    
+
     /// Write filtered data directly to output, bypassing the window.
     /// This is used for VM filter output which should NOT modify the window.
     pub fn write_filtered_to_output(&mut self, data: &[u8], position: u64) {
@@ -138,7 +142,7 @@ impl LzssDecoder {
         self.output.extend_from_slice(data);
         self.flushed_pos = position + data.len() as u64;
     }
-    
+
     /// Get read-only access to the window for filter execution.
     pub fn window(&self) -> &[u8] {
         &self.window
@@ -174,7 +178,8 @@ impl LzssDecoder {
             let mut copied = 0;
             while copied < len {
                 let chunk = (len - copied).min(dist);
-                self.window.copy_within(src_start..src_start + chunk, self.pos + copied);
+                self.window
+                    .copy_within(src_start..src_start + chunk, self.pos + copied);
                 copied += chunk;
             }
             self.pos += len;
@@ -201,7 +206,7 @@ impl LzssDecoder {
         self.total_written += length as u64;
         Ok(())
     }
-    
+
     /// Cold path for error handling - keeps hot path small
     #[cold]
     #[inline(never)]
@@ -231,7 +236,7 @@ impl LzssDecoder {
             let end = (start + len).min(self.output.len());
             return self.output[start..end].to_vec();
         }
-        
+
         let mut output = Vec::with_capacity(len);
         let window_len = self.window.len();
 
@@ -255,13 +260,13 @@ impl LzssDecoder {
 
         output
     }
-    
+
     /// Take ownership of the accumulated output buffer.
     /// More efficient than get_output() when you need all output.
     pub fn take_output(&mut self) -> Vec<u8> {
         std::mem::take(&mut self.output)
     }
-    
+
     /// Get read access to the accumulated output buffer.
     pub fn output(&self) -> &[u8] {
         &self.output

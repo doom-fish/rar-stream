@@ -47,12 +47,22 @@ fn run_decompress(mode: &str, iterations: usize) {
         "alpine-lzss" => {
             let data = include_bytes!("../__fixtures__/large/alpine_lzss.rar");
             let (header, compressed) = parse_rar4_file(data).expect("Failed to parse");
-            run_iterations("Alpine LZSS (8MB)", compressed, header.unpacked_size, iterations);
+            run_iterations(
+                "Alpine LZSS (8MB)",
+                compressed,
+                header.unpacked_size,
+                iterations,
+            );
         }
         "alpine-ppmd" => {
             let data = include_bytes!("../__fixtures__/large/alpine_m3.rar");
             let (header, compressed) = parse_rar4_file(data).expect("Failed to parse");
-            run_iterations("Alpine PPMd (8MB)", compressed, header.unpacked_size, iterations);
+            run_iterations(
+                "Alpine PPMd (8MB)",
+                compressed,
+                header.unpacked_size,
+                iterations,
+            );
         }
         _ => {
             eprintln!("Usage: profile [lzss|ppmd|alpine-lzss|alpine-ppmd] [iterations]");
@@ -66,15 +76,15 @@ fn run_decompress(mode: &str, iterations: usize) {
 
 fn run_iterations(name: &str, compressed: &[u8], unpacked_size: u64, iterations: usize) {
     println!("Running {} decompression {} times...", name, iterations);
-    
+
     let start = std::time::Instant::now();
-    
+
     let mut decoder = Rar29Decoder::new();
     for _ in 0..iterations {
         decoder.reset();
         let _ = decoder.decompress(compressed, unpacked_size);
     }
-    
+
     let elapsed = start.elapsed();
     let total_bytes = unpacked_size as usize * iterations;
     let throughput = total_bytes as f64 / elapsed.as_secs_f64() / 1024.0 / 1024.0;

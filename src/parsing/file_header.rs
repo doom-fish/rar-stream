@@ -127,8 +127,8 @@ impl FileHeaderParser {
         let is_encrypted = (flags & 0x0004) != 0;
         let has_comment = (flags & 0x0008) != 0;
         let has_info_from_previous = (flags & 0x0010) != 0;
-        let has_high_size = (flags & 0x0100) != 0;  // LHD_LARGE - 64-bit sizes follow
-        let has_special_name = (flags & 0x0040) != 0;  // LHD_UNICODE
+        let has_high_size = (flags & 0x0100) != 0; // LHD_LARGE - 64-bit sizes follow
+        let has_special_name = (flags & 0x0040) != 0; // LHD_UNICODE
         let has_salt = (flags & 0x0080) != 0;
         let is_old_version = (flags & 0x0100) != 0;
         let has_extended_time = (flags & 0x0200) != 0;

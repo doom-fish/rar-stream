@@ -168,7 +168,15 @@ impl InnerFile {
         rar_version: RarVersion,
         is_solid: bool,
     ) -> Self {
-        Self::new_with_solid_dict(name, chunks, method, 22, unpacked_size, rar_version, is_solid)
+        Self::new_with_solid_dict(
+            name,
+            chunks,
+            method,
+            22,
+            unpacked_size,
+            rar_version,
+            is_solid,
+        )
     }
 
     /// Create an InnerFile with solid archive flag and dictionary size.
@@ -506,6 +514,19 @@ impl InnerFile {
                 }
                 RarVersion::Rar5 => {
                     let mut decoder = Rar5Decoder::with_dict_size(self.dict_size_log);
+                    // Use parallel pipeline for non-solid LZSS files (method 1-5)
+                    #[cfg(feature = "parallel")]
+                    if !self.is_solid && self.method >= 1 && self.method <= 5 {
+                        decoder.decompress_pipeline(&packed, self.unpacked_size)?
+                    } else {
+                        decoder.decompress(
+                            &packed,
+                            self.unpacked_size,
+                            self.method,
+                            self.is_solid,
+                        )?
+                    }
+                    #[cfg(not(feature = "parallel"))]
                     decoder.decompress(&packed, self.unpacked_size, self.method, self.is_solid)?
                 }
             }

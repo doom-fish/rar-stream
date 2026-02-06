@@ -209,24 +209,41 @@ fn test_lzss_decompression() {
 #[test]
 fn test_decompress_large_lzss() {
     use std::io::Read;
-    
+
     let mut file = std::fs::File::open("__fixtures__/large/alpine_lzss.rar").unwrap();
     let mut data = Vec::new();
     file.read_to_end(&mut data).unwrap();
-    
+
     // Parse to find compressed data
     let file_header_pos = 20; // After marker + archive header
-    let header_size = u16::from_le_bytes([data[file_header_pos + 5], data[file_header_pos + 6]]) as usize;
-    let pack_size = u32::from_le_bytes([data[file_header_pos + 7], data[file_header_pos + 8], data[file_header_pos + 9], data[file_header_pos + 10]]) as usize;
-    let unp_size = u32::from_le_bytes([data[file_header_pos + 11], data[file_header_pos + 12], data[file_header_pos + 13], data[file_header_pos + 14]]) as u64;
-    
+    let header_size =
+        u16::from_le_bytes([data[file_header_pos + 5], data[file_header_pos + 6]]) as usize;
+    let pack_size = u32::from_le_bytes([
+        data[file_header_pos + 7],
+        data[file_header_pos + 8],
+        data[file_header_pos + 9],
+        data[file_header_pos + 10],
+    ]) as usize;
+    let unp_size = u32::from_le_bytes([
+        data[file_header_pos + 11],
+        data[file_header_pos + 12],
+        data[file_header_pos + 13],
+        data[file_header_pos + 14],
+    ]) as u64;
+
     let comp_start = file_header_pos + header_size;
     let compressed = &data[comp_start..comp_start + pack_size];
-    
-    eprintln!("TEST: comp_start={}, pack_size={}, unp_size={}", comp_start, pack_size, unp_size);
-    eprintln!("TEST: first 8 bytes of compressed: {:02x?}", &compressed[0..8]);
+
+    eprintln!(
+        "TEST: comp_start={}, pack_size={}, unp_size={}",
+        comp_start, pack_size, unp_size
+    );
+    eprintln!(
+        "TEST: first 8 bytes of compressed: {:02x?}",
+        &compressed[0..8]
+    );
     eprintln!("TEST: bytes at 38964: {:02x?}", &compressed[38964..38972]);
-    
+
     let mut decoder = super::rar29::Rar29Decoder::new();
     let result = match decoder.decompress(compressed, unp_size) {
         Ok(r) => r,
@@ -236,27 +253,38 @@ fn test_decompress_large_lzss() {
             let mut orig_file = std::fs::File::open("__fixtures__/large/alpine.tar").unwrap();
             let mut orig_data = Vec::new();
             orig_file.read_to_end(&mut orig_data).unwrap();
-            
+
             for (i, (a, b)) in partial.iter().zip(orig_data.iter()).enumerate() {
                 if *a != *b {
                     panic!("Decompression failed with {:?}. First mismatch at byte {}: got 0x{:02x}, expected 0x{:02x}", e, i, a, b);
                 }
             }
-            panic!("Decompression failed with {:?} at output byte {}, but all bytes match original", e, partial.len());
+            panic!(
+                "Decompression failed with {:?} at output byte {}, but all bytes match original",
+                e,
+                partial.len()
+            );
         }
     };
-    
-    assert_eq!(result.len(), unp_size as usize, "Decompressed size mismatch");
-    
+
+    assert_eq!(
+        result.len(),
+        unp_size as usize,
+        "Decompressed size mismatch"
+    );
+
     // Verify against original file
     let mut orig_file = std::fs::File::open("__fixtures__/large/alpine.tar").unwrap();
     let mut orig_data = Vec::new();
     orig_file.read_to_end(&mut orig_data).unwrap();
-    
+
     // Find first mismatch if any
     for (i, (a, b)) in result.iter().zip(orig_data.iter()).enumerate() {
         if a != b {
-            panic!("Mismatch at byte {}: got 0x{:02x}, expected 0x{:02x}", i, a, b);
+            panic!(
+                "Mismatch at byte {}: got 0x{:02x}, expected 0x{:02x}",
+                i, a, b
+            );
         }
     }
 }

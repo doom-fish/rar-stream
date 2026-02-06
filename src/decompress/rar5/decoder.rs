@@ -29,7 +29,6 @@ impl Rar5Decoder {
     /// Create a new RAR5 decoder with specified dictionary size.
     /// `dict_size_log` is the power of 2 (e.g., 22 = 4MB).
     pub fn with_dict_size(dict_size_log: u8) -> Self {
-        
         Self {
             block_decoder: Rar5BlockDecoder::new(dict_size_log),
             dict_size_log,
@@ -70,8 +69,7 @@ impl Rar5Decoder {
             if end <= output.len() {
                 // Apply filter - may be in-place or return new buffer
                 let block = &mut output[start..end];
-                let filtered =
-                    apply_filter(block, filter, self.written_file_size + start as u64);
+                let filtered = apply_filter(block, filter, self.written_file_size + start as u64);
 
                 // If filtered is non-empty, it's a Delta filter result (not in-place)
                 if !filtered.is_empty() {
@@ -97,7 +95,6 @@ impl Rar5Decoder {
         method: u8,
         is_solid: bool,
     ) -> Result<Vec<u8>, DecompressError> {
-        
         if method == 0 {
             return self.decompress_stored(input, unpacked_size);
         }
@@ -113,9 +110,14 @@ impl Rar5Decoder {
         let mut bits = BitDecoder::new(input);
 
         // Decode blocks until we have enough output
-        let new_filters = self
-            .block_decoder
-            .decode_block(&mut bits, unpacked_size as usize)?;
+        let new_filters = if is_solid {
+            self.block_decoder
+                .decode_block(&mut bits, unpacked_size as usize)?
+        } else {
+            // Direct output path: no separate window buffer overhead
+            self.block_decoder
+                .decode_block_direct(&mut bits, unpacked_size as usize)?
+        };
 
         // Collect any filters returned
         self.filters.extend(new_filters);
@@ -149,12 +151,12 @@ impl Rar5Decoder {
         unpacked_size: u64,
     ) -> Result<Vec<u8>, DecompressError> {
         use super::block_decoder::ParallelConfig;
-        
+
         // Reset state
         self.block_decoder.reset();
         self.filters.clear();
         self.written_file_size = 0;
-        
+
         // Use parallel decode with default config
         let config = ParallelConfig::default();
         let output = self.block_decoder.decode_parallel_with_config(
@@ -162,13 +164,46 @@ impl Rar5Decoder {
             unpacked_size as usize,
             &config,
         )?;
-        
+
         if output.len() != unpacked_size as usize {
             return Err(DecompressError::IncompleteData);
         }
-        
+
         self.written_file_size += output.len() as u64;
-        
+
+        Ok(output)
+    }
+
+    /// Decompress RAR5 data using streaming pipeline architecture.
+    ///
+    /// This method uses a streaming pipeline that eliminates batch synchronization
+    /// overhead, resulting in better parallelism for large files.
+    ///
+    /// # Arguments
+    /// * `input` - Compressed data
+    /// * `unpacked_size` - Expected decompressed size
+    #[cfg(feature = "parallel")]
+    pub fn decompress_pipeline(
+        &mut self,
+        input: &[u8],
+        unpacked_size: u64,
+    ) -> Result<Vec<u8>, DecompressError> {
+        // Reset state
+        self.block_decoder.reset();
+        self.filters.clear();
+        self.written_file_size = 0;
+
+        // Use pipeline decode
+        let output = self
+            .block_decoder
+            .decode_pipeline(input, unpacked_size as usize)?;
+
+        if output.len() != unpacked_size as usize {
+            return Err(DecompressError::IncompleteData);
+        }
+
+        self.written_file_size += output.len() as u64;
+
         Ok(output)
     }
 }
@@ -241,36 +276,36 @@ mod tests {
     }
 }
 
-    #[test]
-    fn test_decompress_alpine_rar5() {
-        // Parse alpine_rar5.rar and decompress
-        let data = std::fs::read("__fixtures__/large/alpine_rar5.rar").unwrap();
-        
-        // Data starts at byte 76, 2939435 bytes, unpacked 8130560 bytes
-        let compressed = &data[76..76+2939435];
-        let unpacked_size = 8130560u64;
-        let dict_log = 23u8;
-        let method = 3u8;
-        
-        let mut decoder = Rar5Decoder::with_dict_size(dict_log);
-        let result = decoder.decompress(compressed, unpacked_size, method, false);
-        
-        match result {
-            Ok(output) => {
-                assert_eq!(output.len(), unpacked_size as usize);
-                
-                // Compare with original
-                let original = std::fs::read("__fixtures__/large/alpine.tar").unwrap();
-                
-                // Find first difference
-                for (i, (a, b)) in output.iter().zip(original.iter()).enumerate() {
-                    if a != b {
-                        panic!("Mismatch at byte {}: got {:02x}, expected {:02x}", i, a, b);
-                    }
+#[test]
+fn test_decompress_alpine_rar5() {
+    // Parse alpine_rar5.rar and decompress
+    let data = std::fs::read("__fixtures__/large/alpine_rar5.rar").unwrap();
+
+    // Data starts at byte 76, 2939435 bytes, unpacked 8130560 bytes
+    let compressed = &data[76..76 + 2939435];
+    let unpacked_size = 8130560u64;
+    let dict_log = 23u8;
+    let method = 3u8;
+
+    let mut decoder = Rar5Decoder::with_dict_size(dict_log);
+    let result = decoder.decompress(compressed, unpacked_size, method, false);
+
+    match result {
+        Ok(output) => {
+            assert_eq!(output.len(), unpacked_size as usize);
+
+            // Compare with original
+            let original = std::fs::read("__fixtures__/large/alpine.tar").unwrap();
+
+            // Find first difference
+            for (i, (a, b)) in output.iter().zip(original.iter()).enumerate() {
+                if a != b {
+                    panic!("Mismatch at byte {}: got {:02x}, expected {:02x}", i, a, b);
                 }
-                
-                assert_eq!(output, original, "Output should match original");
             }
-            Err(e) => panic!("Decompression failed: {:?}", e),
+
+            assert_eq!(output, original, "Output should match original");
         }
+        Err(e) => panic!("Decompression failed: {:?}", e),
     }
+}

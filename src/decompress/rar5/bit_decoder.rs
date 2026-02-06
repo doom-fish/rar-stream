@@ -3,6 +3,7 @@
 //! RAR5 uses a bit decoder (not range coder) for reading Huffman tables
 //! and decompressing data. This is aligned byte reading with bit-level access.
 
+#[cfg(feature = "parallel")]
 use std::sync::Arc;
 
 /// Padding bytes added to buffer to allow unchecked reads near end
@@ -11,8 +12,10 @@ const BUFFER_PADDING: usize = 8;
 /// Bit-level stream decoder for RAR5 decompression.
 pub struct BitDecoder {
     /// Input buffer (padded with BUFFER_PADDING bytes for safe unchecked reads)
-    /// Using Arc to allow cheap cloning for parallel decoders
+    #[cfg(feature = "parallel")]
     buf: Arc<Vec<u8>>,
+    #[cfg(not(feature = "parallel"))]
+    buf: Vec<u8>,
     /// Original data length (before padding)
     data_len: usize,
     /// Current position in buffer
@@ -36,7 +39,10 @@ impl BitDecoder {
         buf.extend_from_slice(input);
         buf.resize(data_len + BUFFER_PADDING, 0xFF);
         Self {
+            #[cfg(feature = "parallel")]
             buf: Arc::new(buf),
+            #[cfg(not(feature = "parallel"))]
+            buf,
             data_len,
             pos: 0,
             bit_pos: 0,
@@ -45,9 +51,10 @@ impl BitDecoder {
             block_end_total_bits: data_len * 8,
         }
     }
-    
+
     /// Create a new decoder sharing the same buffer.
     /// This is O(1) - just increments reference count.
+    #[cfg(feature = "parallel")]
     #[inline]
     pub fn clone_view(&self) -> Self {
         Self {
@@ -156,23 +163,11 @@ impl BitDecoder {
     /// Returns 32 bits with the first available bit at bit 31.
     #[inline(always)]
     pub fn get_value_high32(&self) -> u32 {
-        // SAFETY: buffer is padded with 8 bytes
+        // SAFETY: buffer is padded with 8 bytes, allowing 8-byte read
         unsafe {
-            let b0 = *self.buf.get_unchecked(self.pos) as u32;
-            let b1 = *self.buf.get_unchecked(self.pos + 1) as u32;
-            let b2 = *self.buf.get_unchecked(self.pos + 2) as u32;
-            let b3 = *self.buf.get_unchecked(self.pos + 3) as u32;
-            let b4 = *self.buf.get_unchecked(self.pos + 4) as u32;
-        
-            // Build 32-bit value like unrar: RawGetBE4
-            let mut v = (b0 << 24) | (b1 << 16) | (b2 << 8) | b3;
-            // Left shift by bit_pos to align first available bit to bit 31
-            v <<= self.bit_pos;
-            // Include bits from 5th byte if needed
-            if self.bit_pos > 0 {
-                v |= b4 >> (8 - self.bit_pos);
-            }
-            v
+            let ptr = self.buf.as_ptr().add(self.pos);
+            let v = u64::from_be((ptr as *const u64).read_unaligned());
+            ((v << self.bit_pos) >> 32) as u32
         }
     }
 
@@ -221,7 +216,7 @@ impl BitDecoder {
         self.pos = pos;
         self.bit_pos = 0;
     }
-    
+
     /// Set byte position and bit position within that byte.
     pub fn set_position_with_bit(&mut self, pos: usize, bit_pos: usize) {
         self.pos = pos;
@@ -231,6 +226,16 @@ impl BitDecoder {
     /// Check if EOF reached (past all input data, not just current block).
     pub fn is_eof(&self) -> bool {
         self.pos >= self.data_len
+    }
+
+    /// Raw pointer to the underlying buffer data.
+    pub fn buf_ptr(&self) -> *const u8 {
+        self.buf.as_ptr()
+    }
+
+    /// Pre-computed block end in total bits.
+    pub fn block_end_total_bits(&self) -> usize {
+        self.block_end_total_bits
     }
 }
 

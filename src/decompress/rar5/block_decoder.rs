@@ -52,7 +52,45 @@ pub enum DecodedItem {
     /// Full repeat (reuse last length and offset[0])
     FullRep,
     /// Filter command
-    Filter { filter_type: u8, block_start: usize, block_length: usize, channels: u8 },
+    Filter {
+        filter_type: u8,
+        block_start: usize,
+        block_length: usize,
+        channels: u8,
+    },
+}
+
+/// Decoded command for split-buffer parallel decode.
+/// Literals are stored in a separate byte buffer; this enum only contains
+/// non-literal commands + markers for literal runs. Without the Literal variant,
+/// the enum is only 12 bytes (vs 24 for DecodedItem).
+#[cfg(feature = "parallel")]
+#[derive(Debug, Clone, Copy)]
+pub enum DecodeCmd {
+    /// Run of literal bytes (read `count` bytes from literal buffer)
+    LiteralRun { count: u32 },
+    /// Match with explicit offset
+    Match { length: u32, offset: u32 },
+    /// Repeat with recent offset index (0-3)
+    Rep { length: u32, rep_idx: u8 },
+    /// Full repeat (reuse last length and offset[0])
+    FullRep,
+    /// Filter command
+    Filter {
+        filter_type: u8,
+        block_start: u32,
+        block_length: u32,
+        channels: u8,
+    },
+}
+
+/// Output of split-buffer decode: literals in a flat byte buffer,
+/// commands (matches, reps, filters) in a separate Vec.
+#[cfg(feature = "parallel")]
+pub struct SplitDecoded {
+    pub literals: Vec<u8>,
+    pub commands: Vec<DecodeCmd>,
+    pub output_size: usize,
 }
 
 /// Huffman decode table with quick lookup.
@@ -60,8 +98,9 @@ pub enum DecodedItem {
 pub struct HuffTable {
     /// Code lengths for each symbol
     code_lengths: Vec<u8>,
-    /// Quick lookup table: (symbol << 8) | length
-    quick_table: Vec<u32>,
+    /// Quick lookup table: packed as (symbol << 4) | length in u16.
+    /// Symbol max 306 (12 bits), length max 15 (4 bits).
+    quick_table: Vec<u16>,
     /// Number of symbols
     num_symbols: usize,
     /// Quick table bits
@@ -134,10 +173,22 @@ impl HuffTable {
             decode_pos[i] = decode_pos[i - 1] + length_count[i - 1];
         }
         self.first_symbol = [
-            decode_pos[0] as u16, decode_pos[1] as u16, decode_pos[2] as u16, decode_pos[3] as u16,
-            decode_pos[4] as u16, decode_pos[5] as u16, decode_pos[6] as u16, decode_pos[7] as u16,
-            decode_pos[8] as u16, decode_pos[9] as u16, decode_pos[10] as u16, decode_pos[11] as u16,
-            decode_pos[12] as u16, decode_pos[13] as u16, decode_pos[14] as u16, decode_pos[15] as u16,
+            decode_pos[0] as u16,
+            decode_pos[1] as u16,
+            decode_pos[2] as u16,
+            decode_pos[3] as u16,
+            decode_pos[4] as u16,
+            decode_pos[5] as u16,
+            decode_pos[6] as u16,
+            decode_pos[7] as u16,
+            decode_pos[8] as u16,
+            decode_pos[9] as u16,
+            decode_pos[10] as u16,
+            decode_pos[11] as u16,
+            decode_pos[12] as u16,
+            decode_pos[13] as u16,
+            decode_pos[14] as u16,
+            decode_pos[15] as u16,
         ];
 
         // Build symbols array (unrar: DecodeNum)
@@ -157,16 +208,16 @@ impl HuffTable {
         self.quick_table.fill(0);
         let mut cur_bit_length = 1usize;
         let quick_size = 1 << self.quick_bits;
-        
+
         for code in 0..quick_size {
             // Left-align the code
             let bit_field = (code << (16 - self.quick_bits)) as u32;
-            
+
             // Find the bit length for this code
             while cur_bit_length < self.quick_bits && bit_field >= self.decode_len[cur_bit_length] {
                 cur_bit_length += 1;
             }
-            
+
             if bit_field < self.decode_len[cur_bit_length] {
                 // Calculate position in symbols array
                 let dist = if cur_bit_length > 0 {
@@ -176,11 +227,11 @@ impl HuffTable {
                 };
                 let dist_shifted = dist >> (16 - cur_bit_length);
                 let pos = decode_pos[cur_bit_length] + dist_shifted;
-                
+
                 if (pos as usize) < self.symbols.len() {
                     let symbol = self.symbols[pos as usize];
-                    // Pack: symbol in high bits, length in low 8 bits
-                    self.quick_table[code] = ((symbol as u32) << 8) | (cur_bit_length as u32);
+                    // Pack: symbol in high 12 bits, length in low 4 bits
+                    self.quick_table[code] = ((symbol as u16) << 4) | (cur_bit_length as u16);
                 }
             }
         }
@@ -192,18 +243,18 @@ impl HuffTable {
     /// Based on unrar's DecodeNumber.
     #[inline(always)]
     pub fn decode(&self, bits: &mut BitDecoder) -> u16 {
-        // Get 15 bits left-aligned (unrar uses 16-bit with mask 0xfffe)
-        let bit_field = (bits.get_value_15() << 1) as u32;
+        // Get 16 bits for lookup (single 4-byte read + bswap)
+        let bit_field = bits.getbits();
 
         // Quick decode path
         if bit_field < self.decode_len[self.quick_bits] {
             let code = (bit_field >> (16 - self.quick_bits)) as usize;
-            // SAFETY: code is derived from bit_field >> (16 - quick_bits), 
+            // SAFETY: code is derived from bit_field >> (16 - quick_bits),
             // which is bounded by quick_bits (10), so code < 1024 = quick_table.len()
             let entry = unsafe { *self.quick_table.get_unchecked(code) };
             if entry != 0 {
-                let len = (entry & 0xFF) as usize;
-                let symbol = (entry >> 8) as u16;
+                let len = (entry & 0xF) as usize;
+                let symbol = (entry >> 4) as u16;
                 bits.move_pos(len);
                 return symbol;
             }
@@ -323,9 +374,9 @@ pub struct ParallelConfig {
 impl Default for ParallelConfig {
     fn default() -> Self {
         Self {
-            num_threads: 0, // auto-detect
-            blocks_per_batch: 24, // Optimal batch size for parallelism
-            large_block_size: 0x20000, // 128KB like unrar
+            num_threads: 0,              // auto-detect
+            blocks_per_batch: 24,        // Optimal batch size for parallelism
+            large_block_size: 0x20000,   // 128KB like unrar
             max_items_per_block: 0x4100, // ~16K items like unrar
         }
     }
@@ -344,9 +395,9 @@ pub struct Rar5BlockDecoder {
     /// Level table (for decoding Huffman code lengths)
     level_table: HuffTable,
     /// Recent offsets for back-references
-    recent_offsets: [u64; NUM_REPS],
+    recent_offsets: [u32; NUM_REPS],
     /// Last used length
-    last_length: u32,
+    last_length: usize,
     /// Dictionary/window buffer (for backreferences)
     window: Vec<u8>,
     /// Window mask (size - 1)
@@ -357,6 +408,10 @@ pub struct Rar5BlockDecoder {
     dict_size: usize,
     /// Output buffer (accumulates all output)
     output: Vec<u8>,
+    /// Output start offset mapped into window (for direct output writes)
+    output_start: usize,
+    /// Whether output buffer is mapped to window (direct write mode)
+    output_mapped: bool,
     /// Tables have been initialized
     tables_valid: bool,
     /// Use alignment bits
@@ -382,6 +437,8 @@ impl Rar5BlockDecoder {
             window_pos: 0,
             dict_size,
             output: Vec::new(),
+            output_start: 0,
+            output_mapped: false,
             tables_valid: false,
             use_align_bits: false,
             is_last_block: false,
@@ -394,6 +451,8 @@ impl Rar5BlockDecoder {
         self.last_length = 0;
         self.window_pos = 0;
         self.output.clear();
+        self.output_start = 0;
+        self.output_mapped = false;
         self.tables_valid = false;
         self.use_align_bits = false;
         self.is_last_block = false;
@@ -405,10 +464,21 @@ impl Rar5BlockDecoder {
         // Write to window (for backreferences)
         // SAFETY: window_pos & window_mask is always < window.len()
         unsafe {
-            *self.window.get_unchecked_mut(self.window_pos & self.window_mask) = byte;
+            *self
+                .window
+                .get_unchecked_mut(self.window_pos & self.window_mask) = byte;
         }
-        // Write to output buffer
-        self.output.push(byte);
+
+        // Direct output write when output is mapped to window
+        if self.output_mapped {
+            let idx = self.window_pos - self.output_start;
+            unsafe {
+                *self.output.get_unchecked_mut(idx) = byte;
+            }
+        } else {
+            self.output.push(byte);
+        }
+
         self.window_pos += 1;
     }
 
@@ -416,19 +486,20 @@ impl Rar5BlockDecoder {
     #[inline]
     fn copy_bytes(&mut self, offset: usize, length: usize) {
         let src_start = self.window_pos.wrapping_sub(offset);
-        
+
         // Overlap case is when offset < length (run-length encoding pattern)
         // Must copy byte by byte as source depends on destination
         if offset < length {
             // Pre-extend output buffer, then write directly
-            let output_start = self.output.len();
             self.output.reserve(length);
-            
+
             for i in 0..length {
                 let src_pos = (src_start + i) & self.window_mask;
                 let byte = unsafe { *self.window.get_unchecked(src_pos) };
                 unsafe {
-                    *self.window.get_unchecked_mut(self.window_pos & self.window_mask) = byte;
+                    *self
+                        .window
+                        .get_unchecked_mut(self.window_pos & self.window_mask) = byte;
                 }
                 self.output.push(byte);
                 self.window_pos += 1;
@@ -439,7 +510,7 @@ impl Rar5BlockDecoder {
             let dst_mask_start = self.window_pos & self.window_mask;
             let src_mask_end = (src_start + length - 1) & self.window_mask;
             let dst_mask_end = (self.window_pos + length - 1) & self.window_mask;
-            
+
             // Fast path: no wraparound in either src or dst
             if src_mask_end >= src_mask_start && dst_mask_end >= dst_mask_start {
                 // Single contiguous copy within window
@@ -448,14 +519,17 @@ impl Rar5BlockDecoder {
                     let dst = self.window.as_mut_ptr().add(dst_mask_start);
                     std::ptr::copy_nonoverlapping(src, dst, length);
                     // Extend output from window
-                    self.output.extend_from_slice(std::slice::from_raw_parts(src, length));
+                    self.output
+                        .extend_from_slice(std::slice::from_raw_parts(src, length));
                 }
             } else {
                 // Slow path: wraparound - copy byte by byte
                 let output_start = self.output.len();
                 self.output.reserve(length);
-                unsafe { self.output.set_len(output_start + length); }
-                
+                unsafe {
+                    self.output.set_len(output_start + length);
+                }
+
                 for i in 0..length {
                     let src_pos = (src_start + i) & self.window_mask;
                     let dst_pos = (self.window_pos + i) & self.window_mask;
@@ -488,7 +562,7 @@ impl Rar5BlockDecoder {
 
         let flags = bits.read_byte_aligned();
         let checksum = bits.read_byte_aligned();
-        
+
         let mut check = flags ^ checksum;
 
         let num = ((flags >> 3) & 3) as usize;
@@ -522,7 +596,7 @@ impl Rar5BlockDecoder {
 
         // BlockBitSize is the number of valid bits in the last byte (1-8)
         let block_bit_size = ((flags & 7) + 1) as usize;
-        
+
         // block_size is bytes, block_end is position of last byte
         // unrar: ReadBorder = BlockStart + BlockSize - 1
         let block_start = bits.position();
@@ -654,11 +728,33 @@ impl Rar5BlockDecoder {
     ) -> Result<Vec<super::filter::UnpackFilter>, DecompressError> {
         let start_pos = self.window_pos;
         let mut filters = Vec::new();
-        
+
         // Pre-allocate output buffer if needed
         if self.output.capacity() < start_pos + output_size {
             self.output.reserve(output_size);
         }
+
+        // Map output to window to avoid duplicate writes
+        self.output_start = start_pos;
+        if self.output.len() < start_pos + output_size {
+            self.output
+                .reserve(start_pos + output_size - self.output.len());
+            unsafe {
+                self.output.set_len(start_pos + output_size);
+            }
+        }
+        self.output_mapped = true;
+
+        // Map output to window: avoid duplicate writes for this block
+        self.output_start = start_pos;
+        if self.output.len() < start_pos + output_size {
+            self.output
+                .reserve(start_pos + output_size - self.output.len());
+            unsafe {
+                self.output.set_len(start_pos + output_size);
+            }
+        }
+        self.output_mapped = true;
 
         // Decode symbols until we have enough output
         while self.window_pos - start_pos < output_size {
@@ -668,11 +764,11 @@ impl Rar5BlockDecoder {
                 if self.is_last_block {
                     break;
                 }
-                
+
                 if bits.is_eof() {
                     break;
                 }
-                
+
                 // Read block header
                 let new_tables = self.read_block_header(bits)?;
 
@@ -703,7 +799,7 @@ impl Rar5BlockDecoder {
             } else if sym == 257 {
                 // Repeat last length with last distance
                 if self.last_length != 0 && self.recent_offsets[0] != 0 {
-                    let length = self.last_length as usize;
+                    let length = self.last_length;
                     let offset = self.recent_offsets[0] as usize;
                     self.copy_bytes(offset, length);
                 }
@@ -728,7 +824,7 @@ impl Rar5BlockDecoder {
                     }
                     self.recent_offsets[0] = off;
                 }
-                self.last_length = length as u32;
+                self.last_length = length;
                 self.copy_bytes(offset, length);
             } else {
                 // New offset with length (sym >= 262)
@@ -751,14 +847,195 @@ impl Rar5BlockDecoder {
                 for j in (1..NUM_REPS).rev() {
                     self.recent_offsets[j] = self.recent_offsets[j - 1];
                 }
-                self.recent_offsets[0] = offset as u64;
-                self.last_length = length as u32;
+                self.recent_offsets[0] = offset as u32;
+                self.last_length = length;
 
                 self.copy_bytes(offset, length);
             }
         }
 
+        self.output_mapped = false;
         Ok(filters)
+    }
+
+    /// Decode compressed data directly to a linear output buffer.
+    /// Optimized for non-solid files: backreferences read from the output
+    /// buffer itself, eliminating the separate window buffer overhead.
+    /// Uses a 64-bit bit buffer for the inner decode loop.
+    pub fn decode_block_direct(
+        &mut self,
+        bits: &mut BitDecoder,
+        output_size: usize,
+    ) -> Result<Vec<super::filter::UnpackFilter>, DecompressError> {
+        let mut filters = Vec::new();
+
+        // Pre-allocate output buffer without zeroing.
+        // SAFETY: all positions [0..output_size) are written before being read
+        // (either directly as literals or as destinations of copy_match).
+        let mut output: Vec<u8> = Vec::with_capacity(output_size);
+        unsafe {
+            output.set_len(output_size);
+        }
+        let out_ptr = output.as_mut_ptr();
+        let mut pos = 0usize;
+
+        // Outer loop: iterate over blocks
+        while pos < output_size {
+            if bits.is_eof() || self.is_last_block {
+                break;
+            }
+
+            let new_tables = self.read_block_header(bits)?;
+            if new_tables {
+                self.read_tables(bits)?;
+            } else if !self.tables_valid {
+                return Err(DecompressError::Io(std::io::Error::new(
+                    std::io::ErrorKind::InvalidData,
+                    "Continue block but no previous tables",
+                )));
+            }
+
+            let block_end = bits.block_end_total_bits();
+            let mut fb = FastBits::from_decoder(bits);
+
+            // Inner loop with labeled break for tight literal sub-loop.
+            'block: while pos < output_size && !fb.is_block_over(block_end) {
+                let mut sym = fb.decode(&self.main_table) as usize;
+
+                // Tight literal loop
+                while sym < 256 {
+                    unsafe {
+                        *out_ptr.add(pos) = sym as u8;
+                    }
+                    pos += 1;
+                    if pos >= output_size || fb.is_block_over(block_end) {
+                        break 'block;
+                    }
+                    sym = fb.decode(&self.main_table) as usize;
+                }
+
+                // Non-literal symbol handling
+                if sym >= 262 {
+                    let len_slot = sym - 262;
+                    let mut length = self.fast_slot_to_length(len_slot as u32, &mut fb);
+                    let offset = self.fast_decode_offset(&mut fb);
+                    if offset > 0x100 {
+                        length += 1;
+                        if offset > 0x2000 {
+                            length += 1;
+                            if offset > 0x40000 {
+                                length += 1;
+                            }
+                        }
+                    }
+                    self.recent_offsets[3] = self.recent_offsets[2];
+                    self.recent_offsets[2] = self.recent_offsets[1];
+                    self.recent_offsets[1] = self.recent_offsets[0];
+                    self.recent_offsets[0] = offset as u32;
+                    self.last_length = length;
+                    copy_match(out_ptr, pos, offset, length);
+                    pos += length;
+                } else if sym >= 258 {
+                    let rep_idx = sym - 258;
+                    let offset = self.recent_offsets[rep_idx] as usize;
+                    if offset == 0 {
+                        return Err(DecompressError::Io(std::io::Error::new(
+                            std::io::ErrorKind::InvalidData,
+                            "Invalid zero offset",
+                        )));
+                    }
+                    let length = self.fast_decode_length(&mut fb);
+                    if rep_idx > 0 {
+                        let off = self.recent_offsets[rep_idx];
+                        if rep_idx >= 3 {
+                            self.recent_offsets[3] = self.recent_offsets[2];
+                        }
+                        if rep_idx >= 2 {
+                            self.recent_offsets[2] = self.recent_offsets[1];
+                        }
+                        self.recent_offsets[1] = self.recent_offsets[0];
+                        self.recent_offsets[0] = off;
+                    }
+                    self.last_length = length;
+                    copy_match(out_ptr, pos, offset, length);
+                    pos += length;
+                } else if sym == 257 {
+                    if self.last_length != 0 && self.recent_offsets[0] != 0 {
+                        let length = self.last_length;
+                        let offset = self.recent_offsets[0] as usize;
+                        copy_match(out_ptr, pos, offset, length);
+                        pos += length;
+                    }
+                } else {
+                    fb.sync_to(bits);
+                    self.window_pos = pos;
+                    if let Some(filter) = self.read_filter(bits)? {
+                        filters.push(filter);
+                    }
+                    fb.reload_from(bits);
+                }
+            }
+
+            // Sync back to BitDecoder for next block header
+            fb.sync_to(bits);
+        }
+
+        self.window_pos = pos;
+        self.output = output;
+        if pos < output_size {
+            unsafe {
+                self.output.set_len(pos);
+            }
+        }
+        Ok(filters)
+    }
+
+    /// Decode match length using FastBits.
+    #[inline(always)]
+    fn fast_decode_length(&self, fb: &mut FastBits) -> usize {
+        let sym = fb.decode(&self.len_table) as u32;
+        self.fast_slot_to_length(sym, fb)
+    }
+
+    /// Convert length slot to actual length using FastBits.
+    #[inline(always)]
+    fn fast_slot_to_length(&self, slot: u32, fb: &mut FastBits) -> usize {
+        if slot < 8 {
+            (slot + 2) as usize
+        } else {
+            let extra_bits = ((slot - 4) / 4) as u32;
+            let base = ((4 + (slot & 3)) << extra_bits) + 2;
+            let extra = fb.read(extra_bits);
+            (base + extra) as usize
+        }
+    }
+
+    /// Decode match offset using FastBits.
+    #[inline(always)]
+    fn fast_decode_offset(&self, fb: &mut FastBits) -> usize {
+        let slot = fb.decode(&self.dist_table) as u32;
+        if slot < 4 {
+            (slot + 1) as usize
+        } else {
+            let num_bits = (slot / 2 - 1) as u32;
+            let base = (2 | (slot & 1)) << num_bits;
+            if num_bits < NUM_ALIGN_BITS as u32 {
+                let extra = fb.read(num_bits);
+                (base + extra + 1) as usize
+            } else {
+                let high = if num_bits > NUM_ALIGN_BITS as u32 {
+                    fb.read(num_bits - NUM_ALIGN_BITS as u32)
+                } else {
+                    0
+                };
+                let low = if self.use_align_bits {
+                    fb.decode(&self.align_table) as u32
+                } else {
+                    fb.read(NUM_ALIGN_BITS as u32)
+                };
+                (base + (high << NUM_ALIGN_BITS) + low + 1) as usize
+            }
+        }
     }
 
     /// Decode symbols from a block into a buffer without touching the window.
@@ -787,24 +1064,23 @@ impl Rar5BlockDecoder {
         let mut literal_buf = [0u8; 8];
         let mut literal_count = 0u8;
 
-        // Flush pending literals as a DecodedItem
         let flush_literals = |items: &mut Vec<DecodedItem>, buf: &mut [u8; 8], count: &mut u8| {
             if *count > 0 {
-                // len is actual count (1-8)
-                items.push(DecodedItem::Literal { bytes: *buf, len: *count });
+                items.push(DecodedItem::Literal {
+                    bytes: *buf,
+                    len: *count,
+                });
                 *count = 0;
             }
         };
 
-        while items.len() < max_symbols {
-            if bits.is_eof() || bits.is_block_over_read() {
-                break;
-            }
+        let block_end = bits.block_end_total_bits();
+        let mut fb = FastBits::from_decoder(bits);
 
-            let sym = self.main_table.decode(bits) as usize;
+        while items.len() < max_symbols && !fb.is_block_over(block_end) {
+            let sym = fb.decode(&self.main_table) as usize;
 
             if sym < 256 {
-                // Literal byte - batch up to 8
                 literal_buf[literal_count as usize] = sym as u8;
                 literal_count += 1;
                 output_size += 1;
@@ -812,44 +1088,44 @@ impl Rar5BlockDecoder {
                     flush_literals(&mut items, &mut literal_buf, &mut literal_count);
                 }
             } else {
-                // Non-literal - flush pending literals first
                 flush_literals(&mut items, &mut literal_buf, &mut literal_count);
 
                 if sym == 256 {
-                    // Filter command
+                    // Filter — sync to BitDecoder for complex reads
+                    fb.sync_to(bits);
                     let block_start = self.read_filter_data(bits) as usize;
                     let block_length = self.read_filter_data(bits) as usize;
                     let v = bits.get_value_high32();
                     let filter_type = bits.read_bits_big(3, v) as u8;
-                    // Delta filter (type 0) has 5 extra bits for channel count
                     let channels = if filter_type == 0 {
                         let v = bits.get_value_high32();
                         (bits.read_bits_big(5, v) + 1) as u8
                     } else {
                         0
                     };
-                    items.push(DecodedItem::Filter { filter_type, block_start, block_length, channels });
+                    items.push(DecodedItem::Filter {
+                        filter_type,
+                        block_start,
+                        block_length,
+                        channels,
+                    });
+                    fb.reload_from(bits);
                 } else if sym == 257 {
-                    // Full repeat
                     if self.last_length != 0 {
-                        output_size += self.last_length as usize;
+                        output_size += self.last_length;
                     }
                     items.push(DecodedItem::FullRep);
                 } else if sym < 262 {
-                    // Use recent offset
                     let rep_idx = (sym - 258) as u8;
-                    let length = self.decode_length(bits)? as u32;
+                    let length_slot = fb.decode(&self.len_table) as u32;
+                    let length = Self::slot_to_length_fast(length_slot, &mut fb);
                     output_size += length as usize;
-                    // Update state for FullRep
-                    self.last_length = length;
+                    self.last_length = length as usize;
                     items.push(DecodedItem::Rep { length, rep_idx });
                 } else {
-                    // New match with offset
                     let len_slot = sym - 262;
-                    let mut length = self.slot_to_length(len_slot as u32, bits)? as u32;
-                    let offset = self.decode_offset(bits)?;
-                    
-                    // Adjust length based on distance (unrar: Distance>0x100, 0x2000, 0x40000)
+                    let mut length = Self::slot_to_length_fast(len_slot as u32, &mut fb);
+                    let offset = self.fast_decode_offset(&mut fb);
                     if offset > 0x100 {
                         length += 1;
                         if offset > 0x2000 {
@@ -859,17 +1135,15 @@ impl Rar5BlockDecoder {
                             }
                         }
                     }
-                    
                     output_size += length as usize;
-                    // Update state
-                    self.last_length = length;
+                    self.last_length = length as usize;
                     items.push(DecodedItem::Match { length, offset });
                 }
             }
         }
 
-        // Flush remaining literals
         flush_literals(&mut items, &mut literal_buf, &mut literal_count);
+        fb.sync_to(bits);
 
         Ok((items, output_size, self.is_last_block))
     }
@@ -877,7 +1151,10 @@ impl Rar5BlockDecoder {
     /// Apply decoded items to the sliding window (phase 2 of two-phase decoding).
     /// Must be called sequentially on the main thread.
     #[cfg(feature = "parallel")]
-    pub fn apply_decoded(&mut self, items: &[DecodedItem]) -> Result<Vec<super::filter::UnpackFilter>, DecompressError> {
+    pub fn apply_decoded(
+        &mut self,
+        items: &[DecodedItem],
+    ) -> Result<Vec<super::filter::UnpackFilter>, DecompressError> {
         use super::filter::{FilterType, UnpackFilter};
         let mut filters = Vec::new();
 
@@ -890,11 +1167,11 @@ impl Rar5BlockDecoder {
                     // Write multiple bytes at once
                     let len = *len as usize;
                     let bytes_slice = &bytes[..len];
-                    
+
                     // Check if we need to wrap around the window
                     let start_mask_pos = self.window_pos & self.window_mask;
                     let end_mask_pos = (self.window_pos + len - 1) & self.window_mask;
-                    
+
                     // Fast path: no window wraparound needed
                     if end_mask_pos >= start_mask_pos {
                         // Single contiguous copy to window
@@ -907,13 +1184,24 @@ impl Rar5BlockDecoder {
                         for i in 0..len {
                             let byte = bytes[i];
                             unsafe {
-                                *self.window.get_unchecked_mut((self.window_pos + i) & self.window_mask) = byte;
+                                *self
+                                    .window
+                                    .get_unchecked_mut((self.window_pos + i) & self.window_mask) =
+                                    byte;
                             }
                         }
                     }
-                    
-                    // Extend output buffer in one operation
-                    self.output.extend_from_slice(bytes_slice);
+
+                    // Write to output buffer (mapped or append)
+                    if self.output_mapped {
+                        let output_idx = self.window_pos - self.output_start;
+                        unsafe {
+                            let dst = self.output.as_mut_ptr().add(output_idx);
+                            std::ptr::copy_nonoverlapping(bytes.as_ptr(), dst, len);
+                        }
+                    } else {
+                        self.output.extend_from_slice(bytes_slice);
+                    }
                     self.window_pos += len;
                 }
                 DecodedItem::Match { length, offset } => {
@@ -921,8 +1209,8 @@ impl Rar5BlockDecoder {
                     self.recent_offsets[3] = self.recent_offsets[2];
                     self.recent_offsets[2] = self.recent_offsets[1];
                     self.recent_offsets[1] = self.recent_offsets[0];
-                    self.recent_offsets[0] = *offset as u64;
-                    self.last_length = *length;
+                    self.recent_offsets[0] = *offset as u32;
+                    self.last_length = *length as usize;
                     self.copy_bytes(*offset, *length as usize);
                 }
                 DecodedItem::Rep { length, rep_idx } => {
@@ -956,20 +1244,30 @@ impl Rar5BlockDecoder {
                             self.recent_offsets[0] = off;
                         }
                     }
-                    self.last_length = *length;
+                    self.last_length = *length as usize;
                     self.copy_bytes(offset, *length as usize);
                 }
                 DecodedItem::FullRep => {
                     if self.last_length != 0 && self.recent_offsets[0] != 0 {
-                        let length = self.last_length as usize;
+                        let length = self.last_length;
                         let offset = self.recent_offsets[0] as usize;
                         self.copy_bytes(offset, length);
                     }
                 }
-                DecodedItem::Filter { filter_type, block_start, block_length, channels } => {
+                DecodedItem::Filter {
+                    filter_type,
+                    block_start,
+                    block_length,
+                    channels,
+                } => {
                     if let Some(ft) = FilterType::from_bits(*filter_type) {
                         let actual_start = *block_start + self.window_pos;
-                        filters.push(UnpackFilter::new(ft, actual_start, *block_length, *channels));
+                        filters.push(UnpackFilter::new(
+                            ft,
+                            actual_start,
+                            *block_length,
+                            *channels,
+                        ));
                     }
                 }
             }
@@ -978,7 +1276,202 @@ impl Rar5BlockDecoder {
         Ok(filters)
     }
 
-    /// Read filter data (variable length integer).
+    /// Apply decoded items directly to a pre-allocated output buffer.
+    /// Uses the output buffer itself for backreferences (no sliding window).
+    /// This is much faster than `apply_decoded` as it avoids double-writes.
+    #[cfg(feature = "parallel")]
+    pub fn apply_decoded_direct(
+        &mut self,
+        items: &[DecodedItem],
+        out_ptr: *mut u8,
+        pos: &mut usize,
+    ) -> Result<Vec<super::filter::UnpackFilter>, DecompressError> {
+        use super::filter::{FilterType, UnpackFilter};
+        let mut filters = Vec::new();
+
+        for item in items {
+            match item {
+                DecodedItem::Literal { bytes, len } => {
+                    let len = *len as usize;
+                    unsafe {
+                        std::ptr::copy_nonoverlapping(bytes.as_ptr(), out_ptr.add(*pos), len);
+                    }
+                    *pos += len;
+                }
+                DecodedItem::Match { length, offset } => {
+                    self.recent_offsets[3] = self.recent_offsets[2];
+                    self.recent_offsets[2] = self.recent_offsets[1];
+                    self.recent_offsets[1] = self.recent_offsets[0];
+                    self.recent_offsets[0] = *offset as u32;
+                    self.last_length = *length as usize;
+                    copy_match(out_ptr, *pos, *offset, *length as usize);
+                    *pos += *length as usize;
+                }
+                DecodedItem::Rep { length, rep_idx } => {
+                    let rep_idx = *rep_idx as usize;
+                    let offset = self.recent_offsets[rep_idx] as usize;
+                    if offset == 0 {
+                        return Err(DecompressError::Io(std::io::Error::new(
+                            std::io::ErrorKind::InvalidData,
+                            "Invalid zero offset in Rep",
+                        )));
+                    }
+                    match rep_idx {
+                        0 => {}
+                        1 => {
+                            let off = self.recent_offsets[1];
+                            self.recent_offsets[1] = self.recent_offsets[0];
+                            self.recent_offsets[0] = off;
+                        }
+                        2 => {
+                            let off = self.recent_offsets[2];
+                            self.recent_offsets[2] = self.recent_offsets[1];
+                            self.recent_offsets[1] = self.recent_offsets[0];
+                            self.recent_offsets[0] = off;
+                        }
+                        _ => {
+                            let off = self.recent_offsets[3];
+                            self.recent_offsets[3] = self.recent_offsets[2];
+                            self.recent_offsets[2] = self.recent_offsets[1];
+                            self.recent_offsets[1] = self.recent_offsets[0];
+                            self.recent_offsets[0] = off;
+                        }
+                    }
+                    self.last_length = *length as usize;
+                    copy_match(out_ptr, *pos, offset, *length as usize);
+                    *pos += *length as usize;
+                }
+                DecodedItem::FullRep => {
+                    if self.last_length != 0 && self.recent_offsets[0] != 0 {
+                        let length = self.last_length;
+                        let offset = self.recent_offsets[0] as usize;
+                        copy_match(out_ptr, *pos, offset, length);
+                        *pos += length;
+                    }
+                }
+                DecodedItem::Filter {
+                    filter_type,
+                    block_start,
+                    block_length,
+                    channels,
+                } => {
+                    if let Some(ft) = FilterType::from_bits(*filter_type) {
+                        let actual_start = *block_start + *pos;
+                        filters.push(UnpackFilter::new(
+                            ft,
+                            actual_start,
+                            *block_length,
+                            *channels,
+                        ));
+                    }
+                }
+            }
+        }
+
+        Ok(filters)
+    }
+
+    /// Apply split-buffer decoded output directly to a pre-allocated output buffer.
+    /// Reads literal bytes from `split.literals` and commands from `split.commands`.
+    #[cfg(feature = "parallel")]
+    pub fn apply_split_direct(
+        &mut self,
+        split: &SplitDecoded,
+        out_ptr: *mut u8,
+        pos: &mut usize,
+    ) -> Result<Vec<super::filter::UnpackFilter>, DecompressError> {
+        use super::filter::{FilterType, UnpackFilter};
+        let mut filters = Vec::new();
+        let mut lit_pos = 0usize;
+
+        for cmd in &split.commands {
+            match cmd {
+                DecodeCmd::LiteralRun { count } => {
+                    let count = *count as usize;
+                    unsafe {
+                        std::ptr::copy_nonoverlapping(
+                            split.literals.as_ptr().add(lit_pos),
+                            out_ptr.add(*pos),
+                            count,
+                        );
+                    }
+                    lit_pos += count;
+                    *pos += count;
+                }
+                DecodeCmd::Match { length, offset } => {
+                    let off_usize = *offset as usize;
+                    self.recent_offsets[3] = self.recent_offsets[2];
+                    self.recent_offsets[2] = self.recent_offsets[1];
+                    self.recent_offsets[1] = self.recent_offsets[0];
+                    self.recent_offsets[0] = *offset;
+                    self.last_length = *length as usize;
+                    copy_match(out_ptr, *pos, off_usize, *length as usize);
+                    *pos += *length as usize;
+                }
+                DecodeCmd::Rep { length, rep_idx } => {
+                    let rep_idx = *rep_idx as usize;
+                    let offset = self.recent_offsets[rep_idx] as usize;
+                    if offset == 0 {
+                        return Err(DecompressError::Io(std::io::Error::new(
+                            std::io::ErrorKind::InvalidData,
+                            "Invalid zero offset in Rep",
+                        )));
+                    }
+                    match rep_idx {
+                        0 => {}
+                        1 => {
+                            let off = self.recent_offsets[1];
+                            self.recent_offsets[1] = self.recent_offsets[0];
+                            self.recent_offsets[0] = off;
+                        }
+                        2 => {
+                            let off = self.recent_offsets[2];
+                            self.recent_offsets[2] = self.recent_offsets[1];
+                            self.recent_offsets[1] = self.recent_offsets[0];
+                            self.recent_offsets[0] = off;
+                        }
+                        _ => {
+                            let off = self.recent_offsets[3];
+                            self.recent_offsets[3] = self.recent_offsets[2];
+                            self.recent_offsets[2] = self.recent_offsets[1];
+                            self.recent_offsets[1] = self.recent_offsets[0];
+                            self.recent_offsets[0] = off;
+                        }
+                    }
+                    self.last_length = *length as usize;
+                    copy_match(out_ptr, *pos, offset, *length as usize);
+                    *pos += *length as usize;
+                }
+                DecodeCmd::FullRep => {
+                    if self.last_length != 0 && self.recent_offsets[0] != 0 {
+                        let length = self.last_length;
+                        let offset = self.recent_offsets[0] as usize;
+                        copy_match(out_ptr, *pos, offset, length);
+                        *pos += length;
+                    }
+                }
+                DecodeCmd::Filter {
+                    filter_type,
+                    block_start,
+                    block_length,
+                    channels,
+                } => {
+                    if let Some(ft) = FilterType::from_bits(*filter_type) {
+                        let actual_start = *block_start as usize + *pos;
+                        filters.push(UnpackFilter::new(
+                            ft,
+                            actual_start,
+                            *block_length as usize,
+                            *channels,
+                        ));
+                    }
+                }
+            }
+        }
+
+        Ok(filters)
+    }
+
     fn read_filter_data(&self, bits: &mut BitDecoder) -> u32 {
         // Read byte count (2 bits + 1)
         let v = bits.get_value_high32();
@@ -1110,6 +1603,165 @@ impl Rar5BlockDecoder {
     }
 }
 
+/// Copy bytes within the output buffer for a backreference match.
+/// Handles overlap correctly (offset < length) for run-length patterns.
+///
+/// # Safety
+/// Caller must ensure `buf[pos-offset..pos-offset+length]` and
+/// `buf[pos..pos+length]` are within the allocated buffer.
+#[inline(always)]
+fn copy_match(buf: *mut u8, pos: usize, offset: usize, length: usize) {
+    let src = pos - offset;
+    // SAFETY: caller guarantees all positions are within bounds
+    unsafe {
+        if offset == 1 {
+            // Very common RLE case: fill with repeated byte (memset)
+            std::ptr::write_bytes(buf.add(pos), *buf.add(src), length);
+        } else if offset >= length {
+            // No overlap - single memcpy
+            std::ptr::copy_nonoverlapping(buf.add(src), buf.add(pos), length);
+        } else {
+            // General overlap - byte by byte
+            for i in 0..length {
+                *buf.add(pos + i) = *buf.add(src + i);
+            }
+        }
+    }
+}
+
+/// Fast 64-bit bit buffer for the inner decode loop.
+/// Keeps bits in a CPU register instead of reading from memory per symbol.
+struct FastBits {
+    buf: u64,
+    n: u32,
+    src: *const u8,
+    pos: usize,
+}
+
+impl FastBits {
+    /// Initialize from a BitDecoder's current state.
+    fn from_decoder(bits: &BitDecoder) -> Self {
+        let byte_pos = bits.position();
+        let bit_pos = bits.bit_pos();
+        let mut fb = Self {
+            buf: 0,
+            n: 0,
+            src: bits.buf_ptr(),
+            pos: byte_pos,
+        };
+        fb.refill();
+        if bit_pos > 0 {
+            fb.buf <<= bit_pos;
+            fb.n -= bit_pos as u32;
+        }
+        fb
+    }
+
+    /// Sync state back to a BitDecoder.
+    fn sync_to(&self, bits: &mut BitDecoder) {
+        let consumed = self.pos * 8 - self.n as usize;
+        bits.set_position_with_bit(consumed / 8, consumed % 8);
+    }
+
+    /// Reload from a BitDecoder (after it was used for block headers/tables).
+    fn reload_from(&mut self, bits: &BitDecoder) {
+        self.pos = bits.position();
+        self.buf = 0;
+        self.n = 0;
+        self.refill();
+        let bp = bits.bit_pos();
+        if bp > 0 {
+            self.buf <<= bp;
+            self.n -= bp as u32;
+        }
+    }
+
+    /// Refill buffer with a 4-byte read.
+    #[inline(always)]
+    fn refill(&mut self) {
+        if self.n <= 32 {
+            // SAFETY: source buffer is padded with 8 bytes
+            let v =
+                unsafe { u32::from_be((self.src.add(self.pos) as *const u32).read_unaligned()) };
+            self.buf |= (v as u64) << (32 - self.n);
+            self.n += 32;
+            self.pos += 4;
+        }
+    }
+
+    #[inline(always)]
+    fn ensure(&mut self, need: u32) {
+        if self.n < need {
+            self.refill();
+        }
+    }
+
+    #[inline(always)]
+    fn peek16(&mut self) -> u32 {
+        self.ensure(16);
+        (self.buf >> 48) as u32
+    }
+
+    #[inline(always)]
+    fn skip(&mut self, bits: u32) {
+        self.buf <<= bits;
+        self.n -= bits;
+    }
+
+    #[inline(always)]
+    fn read(&mut self, num: u32) -> u32 {
+        if num == 0 {
+            return 0;
+        }
+        self.ensure(num);
+        let v = (self.buf >> (64 - num)) as u32;
+        self.buf <<= num;
+        self.n -= num;
+        v
+    }
+
+    #[inline(always)]
+    fn is_block_over(&self, end_bits: usize) -> bool {
+        // pos * 8 compiles to a single shift (lea [pos*8])
+        self.pos * 8 - self.n as usize >= end_bits
+    }
+
+    /// Decode a Huffman symbol using the quick table.
+    #[inline(always)]
+    fn decode(&mut self, table: &HuffTable) -> u16 {
+        self.ensure(16);
+        let bit_field = (self.buf >> 48) as u32;
+
+        if bit_field < table.decode_len[table.quick_bits] {
+            let code = (bit_field >> (16 - table.quick_bits)) as usize;
+            let entry = unsafe { *table.quick_table.get_unchecked(code) };
+            if entry != 0 {
+                let len = (entry & 0xF) as u32;
+                self.skip(len);
+                return (entry >> 4) as u16;
+            }
+        }
+
+        // Slow path
+        let mut bit_len = 15u32;
+        for i in (table.quick_bits as u32 + 1)..15 {
+            if bit_field < table.decode_len[i as usize] {
+                bit_len = i;
+                break;
+            }
+        }
+        self.skip(bit_len);
+
+        let dist = bit_field.wrapping_sub(table.decode_len[bit_len as usize - 1]);
+        let dist_shifted = dist >> (16 - bit_len);
+        let pos = (table.first_symbol[bit_len as usize] as u32) + dist_shifted;
+        if (pos as usize) >= table.symbols.len() {
+            return 0;
+        }
+        unsafe { *table.symbols.get_unchecked(pos as usize) }
+    }
+}
+
 // ============================================================================
 // Multi-threaded decoding support
 // ============================================================================
@@ -1118,11 +1770,11 @@ impl Rar5BlockDecoder {
 impl Rar5BlockDecoder {
     /// Scan compressed data to find block boundaries.
     /// Returns a list of block headers that can be decoded in parallel.
-    /// 
+    ///
     /// # Arguments
     /// * `data` - The compressed data buffer
     /// * `max_blocks` - Maximum number of blocks to scan
-    /// 
+    ///
     /// # Returns
     /// Vector of (block_start, BlockHeader) pairs
     pub fn scan_blocks(
@@ -1131,33 +1783,33 @@ impl Rar5BlockDecoder {
         max_blocks: usize,
     ) -> Result<Vec<(usize, BlockHeader)>, DecompressError> {
         use super::bit_decoder::BitDecoder;
-        
+
         let mut bits = BitDecoder::new(data);
         let mut blocks = Vec::with_capacity(max_blocks);
         let large_block_size = 0x20000; // 128KB threshold
-        
+
         while blocks.len() < max_blocks && !bits.is_eof() {
             let header_start = bits.position();
-            
+
             // Read block header (same as read_block_header but returns metadata)
             bits.align_to_byte();
-            
+
             if bits.position() + 3 > data.len() {
                 break; // Not enough data for header
             }
-            
+
             let flags = bits.read_byte_aligned();
             let checksum = bits.read_byte_aligned();
             let mut check = flags ^ checksum;
-            
+
             let num = ((flags >> 3) & 3) as usize;
             if num >= 3 {
                 break; // Invalid header
             }
-            
+
             let mut block_size = bits.read_byte_aligned() as usize;
             check ^= block_size as u8;
-            
+
             if num >= 1 {
                 let b = bits.read_byte_aligned();
                 check ^= b;
@@ -1168,21 +1820,21 @@ impl Rar5BlockDecoder {
                 check ^= b;
                 block_size += (b as usize) << 16;
             }
-            
+
             if check != 0x5A {
                 break; // Checksum mismatch
             }
-            
+
             let block_bit_size = ((flags & 7) + 1) as usize;
             let block_start = bits.position();
             let table_present = (flags & 0x80) != 0;
             let last_block = (flags & 0x40) != 0;
-            
+
             // Check if block fits in buffer
             if block_start + block_size > data.len() {
                 break; // Block extends beyond buffer
             }
-            
+
             let header = BlockHeader {
                 block_start,
                 block_size,
@@ -1192,26 +1844,26 @@ impl Rar5BlockDecoder {
                 data_start: block_start, // Will be updated when tables are read
                 data_start_bit: 0,
             };
-            
+
             // Skip large blocks - they'll use single-threaded path
             if block_size > large_block_size {
                 blocks.push((header_start, header));
                 break;
             }
-            
+
             blocks.push((header_start, header));
-            
+
             if last_block {
                 break;
             }
-            
+
             // Move to next block
             bits.set_position(block_start + block_size);
         }
-        
+
         Ok(blocks)
     }
-    
+
     /// Read Huffman tables from a block into a BlockTables structure.
     /// This is used to prepare tables for parallel decoding.
     pub fn read_tables_into(
@@ -1223,7 +1875,7 @@ impl Rar5BlockDecoder {
         // Must match read_tables exactly: use read_bits_9fix
         let mut level_lens = [0u8; LEVEL_TABLE_SIZE];
         let mut level_table = HuffTable::new(LEVEL_TABLE_SIZE, QUICK_BITS_LEVEL);
-        
+
         let mut i = 0;
         while i < LEVEL_TABLE_SIZE {
             let len = bits.read_bits_9fix(4) as u8;
@@ -1241,19 +1893,19 @@ impl Rar5BlockDecoder {
             level_lens[i] = len;
             i += 1;
         }
-        
+
         level_table.build(&level_lens);
-        
+
         // Calculate total symbols needed
         let total_symbols = MAIN_TABLE_SIZE + DIST_TABLE_SIZE + ALIGN_TABLE_SIZE + LEN_TABLE_SIZE;
         let mut lens = vec![0u8; total_symbols];
-        
+
         // Decode all code lengths using level table
         // Must match read_tables exactly: use the same repeat code logic
         let mut idx = 0;
         while idx < total_symbols {
             let sym = level_table.decode(bits) as usize;
-            
+
             if sym < 16 {
                 lens[idx] = sym as u8;
                 idx += 1;
@@ -1271,7 +1923,11 @@ impl Rar5BlockDecoder {
                 }
                 let v = if sym < 18 {
                     // sym 16-17: repeat previous
-                    if idx > 0 { lens[idx - 1] } else { 0 }
+                    if idx > 0 {
+                        lens[idx - 1]
+                    } else {
+                        0
+                    }
                 } else {
                     // sym 18-19: repeat zeros
                     0
@@ -1282,31 +1938,39 @@ impl Rar5BlockDecoder {
                 }
             }
         }
-        
+
         // Build the four tables
         let mut offset = 0;
-        tables.main_table.build(&lens[offset..offset + MAIN_TABLE_SIZE]);
+        tables
+            .main_table
+            .build(&lens[offset..offset + MAIN_TABLE_SIZE]);
         offset += MAIN_TABLE_SIZE;
-        
-        tables.dist_table.build(&lens[offset..offset + DIST_TABLE_SIZE]);
+
+        tables
+            .dist_table
+            .build(&lens[offset..offset + DIST_TABLE_SIZE]);
         offset += DIST_TABLE_SIZE;
-        
+
         // Check if align table has non-default values
         tables.use_align_bits = false;
         for k in 0..ALIGN_TABLE_SIZE {
             if lens[offset + k] != NUM_ALIGN_BITS as u8 {
-                tables.align_table.build(&lens[offset..offset + ALIGN_TABLE_SIZE]);
+                tables
+                    .align_table
+                    .build(&lens[offset..offset + ALIGN_TABLE_SIZE]);
                 tables.use_align_bits = true;
                 break;
             }
         }
         offset += ALIGN_TABLE_SIZE;
-        
-        tables.len_table.build(&lens[offset..offset + LEN_TABLE_SIZE]);
-        
+
+        tables
+            .len_table
+            .build(&lens[offset..offset + LEN_TABLE_SIZE]);
+
         Ok(())
     }
-    
+
     /// Decode a single block using provided tables, outputting to DecodedItem buffer.
     /// This is stateless except for the tables, suitable for parallel execution.
     pub fn decode_block_stateless(
@@ -1315,33 +1979,33 @@ impl Rar5BlockDecoder {
         header: &BlockHeader,
         max_items: usize,
     ) -> Result<(Vec<DecodedItem>, usize), DecompressError> {
-        let mut items = Vec::with_capacity(max_items.min(0x4100));
+        let mut items = Vec::with_capacity(8192.min(max_items));
         let mut output_size = 0usize;
         let mut literal_buf = [0u8; 8];
         let mut literal_count = 0u8;
         let mut last_length = 0u32;
-        
+
         // Set block boundary
-        let block_end = header.block_start + header.block_size - 1;
-        bits.set_block_end(block_end, header.block_bit_size);
-        
+        let block_end_byte = header.block_start + header.block_size - 1;
+        bits.set_block_end(block_end_byte, header.block_bit_size);
+
+        let block_end = bits.block_end_total_bits();
+        let mut fb = FastBits::from_decoder(bits);
+
         let flush_literals = |items: &mut Vec<DecodedItem>, buf: &mut [u8; 8], count: &mut u8| {
             if *count > 0 {
-                // len is actual count (1-8)
-                items.push(DecodedItem::Literal { bytes: *buf, len: *count });
+                items.push(DecodedItem::Literal {
+                    bytes: *buf,
+                    len: *count,
+                });
                 *count = 0;
             }
         };
-        
-        while items.len() < max_items {
-            if bits.is_eof() || bits.is_block_over_read() {
-                break;
-            }
-            
-            let sym = tables.main_table.decode(bits) as usize;
-            
+
+        while items.len() < max_items && !fb.is_block_over(block_end) {
+            let sym = fb.decode(&tables.main_table) as usize;
+
             if sym < 256 {
-                // Literal byte
                 literal_buf[literal_count as usize] = sym as u8;
                 literal_count += 1;
                 output_size += 1;
@@ -1350,9 +2014,10 @@ impl Rar5BlockDecoder {
                 }
             } else {
                 flush_literals(&mut items, &mut literal_buf, &mut literal_count);
-                
+
                 if sym == 256 {
-                    // Filter command - read inline since we don't have self
+                    // Filter command — sync back to BitDecoder for complex reads
+                    fb.sync_to(bits);
                     let read_filter_data = |bits: &mut BitDecoder| -> u32 {
                         let v = bits.get_value_high32();
                         let byte_count = ((v >> 30) + 1) as usize;
@@ -1365,46 +2030,41 @@ impl Rar5BlockDecoder {
                         }
                         data
                     };
-                    
+
                     let block_start = read_filter_data(bits) as usize;
                     let block_length = read_filter_data(bits) as usize;
                     let v = bits.get_value_high32();
                     let filter_type = bits.read_bits_big(3, v) as u8;
-                    // Delta filter (type 0) has 5 extra bits for channel count
                     let channels = if filter_type == 0 {
                         let v = bits.get_value_high32();
                         (bits.read_bits_big(5, v) + 1) as u8
                     } else {
                         0
                     };
-                    items.push(DecodedItem::Filter { filter_type, block_start, block_length, channels });
+                    items.push(DecodedItem::Filter {
+                        filter_type,
+                        block_start,
+                        block_length,
+                        channels,
+                    });
+                    fb.reload_from(bits);
                 } else if sym == 257 {
-                    // Full repeat
                     if last_length != 0 {
                         output_size += last_length as usize;
                     }
                     items.push(DecodedItem::FullRep);
                 } else if sym < 262 {
-                    // Rep with index
                     let rep_idx = (sym - 258) as u8;
-                    
-                    // Decode length
-                    let length_slot = tables.len_table.decode(bits) as u32;
-                    let length = Self::slot_to_length_static(length_slot, bits);
-                    
+                    let length_slot = fb.decode(&tables.len_table) as u32;
+                    let length = Self::slot_to_length_fast(length_slot, &mut fb);
                     output_size += length as usize;
                     last_length = length;
                     items.push(DecodedItem::Rep { length, rep_idx });
                 } else {
-                    // Match with distance
                     let len_slot = (sym - 262) as u32;
-                    let mut length = Self::slot_to_length_static(len_slot, bits);
-                    
-                    // Decode distance
-                    let dist_slot = tables.dist_table.decode(bits) as u32;
-                    let offset = Self::decode_offset_static(dist_slot, tables, bits)?;
-                    
-                    // Adjust length based on distance (unrar: Distance>0x100, 0x2000, 0x40000)
+                    let mut length = Self::slot_to_length_fast(len_slot, &mut fb);
+                    let dist_slot = fb.decode(&tables.dist_table) as u32;
+                    let offset = Self::decode_offset_fast(dist_slot, tables, &mut fb);
                     if offset > 0x100 {
                         length += 1;
                         if offset > 0x2000 {
@@ -1414,22 +2074,197 @@ impl Rar5BlockDecoder {
                             }
                         }
                     }
-                    
                     output_size += length as usize;
                     last_length = length;
                     items.push(DecodedItem::Match { length, offset });
                 }
             }
         }
-        
+
         flush_literals(&mut items, &mut literal_buf, &mut literal_count);
-        
+
+        // Sync back to BitDecoder
+        fb.sync_to(bits);
+
         Ok((items, output_size))
     }
-    
-    /// Static version of slot_to_length for stateless decoding.
+
+    /// Decode a block into split buffers: literal bytes go into a flat Vec<u8>,
+    /// non-literal commands go into a Vec<DecodeCmd>. This avoids the per-literal
+    /// overhead of buffering into [u8;8] and pushing DecodedItem.
+    #[cfg(feature = "parallel")]
+    pub fn decode_block_split(
+        bits: &mut BitDecoder,
+        tables: &BlockTables,
+        header: &BlockHeader,
+        max_items: usize,
+    ) -> Result<SplitDecoded, DecompressError> {
+        // Pre-allocate literals with generous estimate to avoid reallocation
+        // block_size is compressed size; output is typically larger
+        let lit_cap = (header.block_size * 2).max(16384);
+        let mut literals: Vec<u8> = Vec::with_capacity(lit_cap);
+        let mut commands: Vec<DecodeCmd> = Vec::with_capacity(4096);
+        let mut output_size = 0usize;
+        let mut last_length = 0u32;
+        let mut literal_run = 0u32;
+
+        let block_end_byte = header.block_start + header.block_size - 1;
+        bits.set_block_end(block_end_byte, header.block_bit_size);
+
+        let block_end = bits.block_end_total_bits();
+        let mut fb = FastBits::from_decoder(bits);
+        let mut cmd_count = 0usize;
+        let mut lit_len = 0usize;
+
+        while cmd_count < max_items && !fb.is_block_over(block_end) {
+            let sym = fb.decode(&tables.main_table) as usize;
+
+            if sym < 256 {
+                // Ensure capacity for literal write
+                if lit_len >= literals.capacity() {
+                    literals.reserve(lit_len + 8192);
+                }
+                // SAFETY: We just ensured capacity >= lit_len + 1
+                unsafe {
+                    *literals.as_mut_ptr().add(lit_len) = sym as u8;
+                }
+                lit_len += 1;
+                literal_run += 1;
+                output_size += 1;
+            } else {
+                // Flush pending literal run
+                if literal_run > 0 {
+                    commands.push(DecodeCmd::LiteralRun { count: literal_run });
+                    literal_run = 0;
+                    cmd_count += 1;
+                }
+
+                if sym == 256 {
+                    fb.sync_to(bits);
+                    let read_filter_data = |bits: &mut BitDecoder| -> u32 {
+                        let v = bits.get_value_high32();
+                        let byte_count = ((v >> 30) + 1) as usize;
+                        bits.read_bits_big(2, v);
+                        let mut data: u32 = 0;
+                        for i in 0..byte_count {
+                            let v = bits.get_value_high32();
+                            let byte_val = bits.read_bits_big(8, v);
+                            data |= byte_val << (i * 8);
+                        }
+                        data
+                    };
+
+                    let block_start = read_filter_data(bits);
+                    let block_length = read_filter_data(bits);
+                    let v = bits.get_value_high32();
+                    let filter_type = bits.read_bits_big(3, v) as u8;
+                    let channels = if filter_type == 0 {
+                        let v = bits.get_value_high32();
+                        (bits.read_bits_big(5, v) + 1) as u8
+                    } else {
+                        0
+                    };
+                    commands.push(DecodeCmd::Filter {
+                        filter_type,
+                        block_start,
+                        block_length,
+                        channels,
+                    });
+                    fb.reload_from(bits);
+                } else if sym == 257 {
+                    if last_length != 0 {
+                        output_size += last_length as usize;
+                    }
+                    commands.push(DecodeCmd::FullRep);
+                } else if sym < 262 {
+                    let rep_idx = (sym - 258) as u8;
+                    let length_slot = fb.decode(&tables.len_table) as u32;
+                    let length = Self::slot_to_length_fast(length_slot, &mut fb);
+                    output_size += length as usize;
+                    last_length = length;
+                    commands.push(DecodeCmd::Rep { length, rep_idx });
+                } else {
+                    let len_slot = (sym - 262) as u32;
+                    let mut length = Self::slot_to_length_fast(len_slot, &mut fb);
+                    let dist_slot = fb.decode(&tables.dist_table) as u32;
+                    let offset = Self::decode_offset_fast(dist_slot, tables, &mut fb);
+                    if offset > 0x100 {
+                        length += 1;
+                        if offset > 0x2000 {
+                            length += 1;
+                            if offset > 0x40000 {
+                                length += 1;
+                            }
+                        }
+                    }
+                    output_size += length as usize;
+                    last_length = length;
+                    commands.push(DecodeCmd::Match {
+                        length,
+                        offset: offset as u32,
+                    });
+                }
+                cmd_count += 1;
+            }
+        }
+
+        if literal_run > 0 {
+            commands.push(DecodeCmd::LiteralRun { count: literal_run });
+        }
+
+        // SAFETY: we wrote lit_len bytes via raw pointer, set the actual length
+        unsafe {
+            literals.set_len(lit_len);
+        }
+
+        fb.sync_to(bits);
+
+        Ok(SplitDecoded {
+            literals,
+            commands,
+            output_size,
+        })
+    }
+
+    fn slot_to_length_fast(slot: u32, fb: &mut FastBits) -> u32 {
+        if slot < 8 {
+            slot + 2
+        } else {
+            let extra_bits = ((slot - 4) / 4) as u32;
+            let base = ((4 + (slot & 3)) << extra_bits) + 2;
+            let extra = fb.read(extra_bits);
+            base + extra
+        }
+    }
+
+    /// Fast version of decode_offset using FastBits.
+    fn decode_offset_fast(slot: u32, tables: &BlockTables, fb: &mut FastBits) -> usize {
+        if slot < 4 {
+            (slot + 1) as usize
+        } else {
+            let num_bits = (slot / 2 - 1) as u32;
+            let base = (2 | (slot & 1)) << num_bits;
+            if num_bits < NUM_ALIGN_BITS as u32 {
+                let extra = fb.read(num_bits);
+                (base + extra + 1) as usize
+            } else {
+                let high = if num_bits > NUM_ALIGN_BITS as u32 {
+                    fb.read(num_bits - NUM_ALIGN_BITS as u32)
+                } else {
+                    0
+                };
+                let low = if tables.use_align_bits {
+                    fb.decode(&tables.align_table) as u32
+                } else {
+                    fb.read(NUM_ALIGN_BITS as u32)
+                };
+                (base + (high << NUM_ALIGN_BITS) + low + 1) as usize
+            }
+        }
+    }
+
+    /// Static version of slot_to_length using BitDecoder (for large-block path).
     fn slot_to_length_static(slot: u32, bits: &mut BitDecoder) -> u32 {
-        // Match the instance version exactly
         if slot < 8 {
             slot + 2
         } else {
@@ -1440,8 +2275,8 @@ impl Rar5BlockDecoder {
             base + extra
         }
     }
-    
-    /// Static version of decode_offset for stateless decoding.
+
+    /// Static version of decode_offset using BitDecoder (for large-block path).
     fn decode_offset_static(
         slot: u32,
         tables: &BlockTables,
@@ -1452,32 +2287,27 @@ impl Rar5BlockDecoder {
         } else {
             let num_bits = (slot / 2 - 1) as usize;
             let base = (2 | (slot & 1)) << num_bits;
-            
             if num_bits < NUM_ALIGN_BITS {
                 let v = bits.get_value_high32();
                 let extra = bits.read_bits_big(num_bits, v);
                 Ok((base + extra + 1) as usize)
             } else {
                 let high = if num_bits > NUM_ALIGN_BITS {
-                    let high_bits_count = num_bits - NUM_ALIGN_BITS;
                     let v = bits.get_value_high32();
-                    bits.read_bits_big(high_bits_count, v)
+                    bits.read_bits_big(num_bits - NUM_ALIGN_BITS, v)
                 } else {
                     0
                 };
-                
                 let low = if tables.use_align_bits {
                     tables.align_table.decode(bits) as u32
                 } else {
                     bits.read_bits_9fix(NUM_ALIGN_BITS)
                 };
-                
-                let offset = base + (high << NUM_ALIGN_BITS) + low + 1;
-                Ok(offset as usize)
+                Ok((base + (high << NUM_ALIGN_BITS) + low + 1) as usize)
             }
         }
     }
-    
+
     /// Decode multiple blocks in parallel using rayon.
     /// Returns the combined output as a byte vector.
     pub fn decode_parallel(
@@ -1485,27 +2315,27 @@ impl Rar5BlockDecoder {
         data: &[u8],
         output_size: usize,
     ) -> Result<Vec<u8>, DecompressError> {
-        use rayon::prelude::*;
         use super::bit_decoder::BitDecoder;
-        
+        use rayon::prelude::*;
+
         // Scan for block boundaries
         let max_blocks = rayon::current_num_threads() * 2;
         let block_infos = self.scan_blocks(data, max_blocks)?;
-        
+
         if block_infos.is_empty() {
             return Err(DecompressError::Io(std::io::Error::new(
                 std::io::ErrorKind::InvalidData,
                 "No valid blocks found",
             )));
         }
-        
+
         // Prepare tables for each block
         // For blocks with table_present=true, we read their tables
         // For blocks without, they inherit from previous block
         let mut block_tables: Vec<BlockTables> = Vec::with_capacity(block_infos.len());
         let mut current_tables = BlockTables::new();
-        
-        for (header_start, header) in &block_infos {
+
+        for (_header_start, header) in &block_infos {
             if header.table_present {
                 let mut bits = BitDecoder::new(data);
                 bits.set_position(header.block_start);
@@ -1513,7 +2343,7 @@ impl Rar5BlockDecoder {
             }
             block_tables.push(current_tables.clone());
         }
-        
+
         // Parallel decode each block
         let decoded_blocks: Vec<Result<(Vec<DecodedItem>, usize), DecompressError>> = block_infos
             .par_iter()
@@ -1521,33 +2351,33 @@ impl Rar5BlockDecoder {
             .map(|((_, header), tables)| {
                 let mut bits = BitDecoder::new(data);
                 bits.set_position(header.block_start);
-                
+
                 // Skip tables if they were present (already parsed)
                 if header.table_present {
                     // Need to skip past tables - for now just decode from block start
                     // The tables reading will advance the bit position
                 }
-                
+
                 Self::decode_block_stateless(&mut bits, tables, header, 0x4100)
             })
             .collect();
-        
+
         // Apply decoded items sequentially
         let mut total_decoded = Vec::new();
         for result in decoded_blocks {
             let (items, _) = result?;
             total_decoded.push(items);
         }
-        
+
         // Apply all items to window
         for items in &total_decoded {
             self.apply_decoded(items)?;
         }
-        
+
         // Get output
         Ok(self.get_output(0, output_size.min(self.window_pos)))
     }
-    
+
     /// Decode with parallel configuration.
     /// Uses batched processing like unrar for better memory efficiency.
     #[cfg(feature = "parallel")]
@@ -1557,9 +2387,9 @@ impl Rar5BlockDecoder {
         output_size: usize,
         config: &ParallelConfig,
     ) -> Result<Vec<u8>, DecompressError> {
-        use rayon::prelude::*;
         use super::bit_decoder::BitDecoder;
-        
+        use rayon::prelude::*;
+
         // Determine batch size
         let num_threads = if config.num_threads == 0 {
             rayon::current_num_threads()
@@ -1571,45 +2401,51 @@ impl Rar5BlockDecoder {
         } else {
             config.blocks_per_batch
         };
-        
+
         let mut bits = BitDecoder::new(data);
         let mut current_tables = Arc::new(BlockTables::new());
         let mut tables_valid = false;
         let mut all_filters: Vec<super::filter::UnpackFilter> = Vec::new();
-        
-        // Pre-allocate output buffer
-        self.output.reserve(output_size);
-        
+
+        // Pre-allocate output buffer for direct writes (no window needed for small blocks)
+        let mut output: Vec<u8> = Vec::with_capacity(output_size);
+        unsafe {
+            output.set_len(output_size);
+        }
+        let out_ptr = output.as_mut_ptr();
+        let mut pos = 0usize;
+
         // Process in batches
-        while self.window_pos < output_size && !bits.is_eof() {
-            let mut batch_blocks: Vec<(BlockHeader, Arc<BlockTables>)> = Vec::with_capacity(blocks_per_batch);
+        while pos < output_size && !bits.is_eof() {
+            let mut batch_blocks: Vec<(BlockHeader, Arc<BlockTables>)> =
+                Vec::with_capacity(blocks_per_batch);
             let mut large_blocks: Vec<(BlockHeader, Arc<BlockTables>)> = Vec::new();
-            
+
             // Collect blocks for this batch
             while batch_blocks.len() + large_blocks.len() < blocks_per_batch {
                 if bits.is_eof() {
                     break;
                 }
-                
+
                 // Read block header
                 bits.align_to_byte();
-                
+
                 if bits.position() + 3 > data.len() {
                     break;
                 }
-                
+
                 let flags = bits.read_byte_aligned();
                 let checksum = bits.read_byte_aligned();
                 let mut check = flags ^ checksum;
-                
+
                 let num = ((flags >> 3) & 3) as usize;
                 if num >= 3 {
                     break;
                 }
-                
+
                 let mut block_size = bits.read_byte_aligned() as usize;
                 check ^= block_size as u8;
-                
+
                 if num >= 1 {
                     let b = bits.read_byte_aligned();
                     check ^= b;
@@ -1620,24 +2456,24 @@ impl Rar5BlockDecoder {
                     check ^= b;
                     block_size += (b as usize) << 16;
                 }
-                
+
                 if check != 0x5A {
                     break; // Invalid checksum
                 }
-                
+
                 let block_bit_size = ((flags & 7) + 1) as usize;
                 let block_start = bits.position();
                 let table_present = (flags & 0x80) != 0;
                 let last_block = (flags & 0x40) != 0;
-                
+
                 if block_start + block_size > data.len() {
                     break; // Block extends beyond data
                 }
-                
+
                 // Set block boundary for table reading
                 let block_end = block_start + block_size - 1;
                 bits.set_block_end(block_end, block_bit_size);
-                
+
                 // Read tables if present - create new Arc only when tables change
                 if table_present {
                     // Get mutable reference to create new tables
@@ -1650,10 +2486,10 @@ impl Rar5BlockDecoder {
                         "Block without tables but no previous tables",
                     )));
                 }
-                
+
                 let data_start = bits.position();
                 let data_start_bit = bits.bit_pos();
-                
+
                 let header = BlockHeader {
                     block_start,
                     block_size,
@@ -1663,7 +2499,7 @@ impl Rar5BlockDecoder {
                     data_start,
                     data_start_bit,
                 };
-                
+
                 // Check if large block (use single-thread path)
                 // Arc::clone is O(1) - just increments refcount
                 if block_size > config.large_block_size {
@@ -1671,79 +2507,95 @@ impl Rar5BlockDecoder {
                 } else {
                     batch_blocks.push((header, Arc::clone(&current_tables)));
                 }
-                
+
                 // Move to end of block
                 bits.set_position(block_start + block_size);
-                
+
                 if last_block {
                     break;
                 }
             }
-            
+
             if batch_blocks.is_empty() && large_blocks.is_empty() {
                 break; // No more blocks
             }
-            
-            // Process large blocks single-threaded first
+
+            // Process large blocks single-threaded with direct apply
             for (header, tables) in &large_blocks {
                 let mut block_bits = bits.clone_view();
                 block_bits.set_position_with_bit(header.data_start, header.data_start_bit);
-                let block_end = header.block_start + header.block_size - 1;
-                block_bits.set_block_end(block_end, header.block_bit_size);
-                
-                // Decode directly to window, collect filters
-                let filters = self.decode_large_block(&mut block_bits, tables)?;
+
+                let split = Self::decode_block_split(
+                    &mut block_bits,
+                    tables,
+                    header,
+                    config.max_items_per_block,
+                )?;
+                let filters = self.apply_split_direct(&split, out_ptr, &mut pos)?;
                 all_filters.extend(filters);
             }
-            
+
             // Parallel decode normal blocks
             if !batch_blocks.is_empty() {
-                // Use parallel decode with shared buffer (Arc clones are O(1))
-                let decoded_results: Vec<Result<(Vec<DecodedItem>, usize), DecompressError>> = 
-                    batch_blocks.par_iter()
-                        .map(|(header, tables)| {
-                            let mut block_bits = bits.clone_view();
-                            block_bits.set_position_with_bit(header.data_start, header.data_start_bit);
-                            let block_end = header.block_start + header.block_size - 1;
-                            block_bits.set_block_end(block_end, header.block_bit_size);
-                            
-                            Self::decode_block_stateless(&mut block_bits, tables, header, config.max_items_per_block)
-                        })
-                        .collect();
-                
+                let decoded_results: Vec<Result<SplitDecoded, DecompressError>> = batch_blocks
+                    .par_iter()
+                    .map(|(header, tables)| {
+                        let mut block_bits = bits.clone_view();
+                        block_bits.set_position_with_bit(header.data_start, header.data_start_bit);
+                        let block_end = header.block_start + header.block_size - 1;
+                        block_bits.set_block_end(block_end, header.block_bit_size);
+
+                        Self::decode_block_split(
+                            &mut block_bits,
+                            tables,
+                            header,
+                            config.max_items_per_block,
+                        )
+                    })
+                    .collect();
+
                 // Apply decoded items sequentially (order matters for REP references)
                 for result in decoded_results {
-                    let (items, _) = result?;
-                    let filters = self.apply_decoded(&items)?;
+                    let split = result?;
+                    let filters = self.apply_split_direct(&split, out_ptr, &mut pos)?;
                     all_filters.extend(filters);
                 }
             }
-            
+
             // Check if we hit the last block
-            let is_last = batch_blocks.last().map(|(h, _)| h.last_block).unwrap_or(false)
-                || large_blocks.last().map(|(h, _)| h.last_block).unwrap_or(false);
+            let is_last = batch_blocks
+                .last()
+                .map(|(h, _)| h.last_block)
+                .unwrap_or(false)
+                || large_blocks
+                    .last()
+                    .map(|(h, _)| h.last_block)
+                    .unwrap_or(false);
             if is_last {
                 break;
             }
         }
-        
-        // Get output from buffer (not window - window wraps)
-        let mut output = self.take_output();
-        
+
+        // Truncate output to actual decoded size
+        let final_len = pos.min(output_size);
+        unsafe {
+            output.set_len(final_len);
+        }
+
         // Apply filters if any
         if !all_filters.is_empty() {
             // Sort filters by block start position
             all_filters.sort_by_key(|f| f.block_start);
-            
+
             for filter in &all_filters {
                 let start = filter.block_start;
                 let end = start + filter.block_length;
-                
+
                 if end <= output.len() {
                     // Apply filter - may be in-place or return new buffer
                     let block = &mut output[start..end];
                     let filtered = super::filter::apply_filter(block, filter, start as u64);
-                    
+
                     // If filtered is non-empty, it's a Delta filter result (not in-place)
                     if !filtered.is_empty() {
                         output[start..end].copy_from_slice(&filtered);
@@ -1751,10 +2603,10 @@ impl Rar5BlockDecoder {
                 }
             }
         }
-        
+
         Ok(output)
     }
-    
+
     /// Decode a large block directly to window (single-threaded).
     /// Returns any filters found in the block.
     #[cfg(feature = "parallel")]
@@ -1764,10 +2616,10 @@ impl Rar5BlockDecoder {
         tables: &BlockTables,
     ) -> Result<Vec<super::filter::UnpackFilter>, DecompressError> {
         let mut filters = Vec::new();
-        
+
         while !bits.is_eof() && !bits.is_block_over_read() {
             let sym = tables.main_table.decode(bits) as usize;
-            
+
             if sym < 256 {
                 self.write_byte(sym as u8);
             } else if sym == 256 {
@@ -1776,7 +2628,7 @@ impl Rar5BlockDecoder {
                 }
             } else if sym == 257 {
                 if self.last_length != 0 && self.recent_offsets[0] != 0 {
-                    let length = self.last_length as usize;
+                    let length = self.last_length;
                     let offset = self.recent_offsets[0] as usize;
                     self.copy_bytes(offset, length);
                 }
@@ -1789,9 +2641,9 @@ impl Rar5BlockDecoder {
                         "Invalid zero offset in large block",
                     )));
                 }
-                
+
                 let length = self.decode_length_with_tables(bits, tables)?;
-                
+
                 if rep_idx > 0 {
                     let off = self.recent_offsets[rep_idx];
                     for j in (1..=rep_idx).rev() {
@@ -1799,14 +2651,14 @@ impl Rar5BlockDecoder {
                     }
                     self.recent_offsets[0] = off;
                 }
-                self.last_length = length as u32;
+                self.last_length = length;
                 self.copy_bytes(offset, length);
             } else {
                 let len_slot = (sym - 262) as u32;
                 let length = Self::slot_to_length_static(len_slot, bits);
                 let dist_slot = tables.dist_table.decode(bits) as u32;
                 let offset = Self::decode_offset_static(dist_slot, tables, bits)?;
-                
+
                 let mut adj_length = length;
                 if offset > 0x100 {
                     adj_length += 1;
@@ -1817,18 +2669,18 @@ impl Rar5BlockDecoder {
                         }
                     }
                 }
-                
+
                 for j in (1..NUM_REPS).rev() {
                     self.recent_offsets[j] = self.recent_offsets[j - 1];
                 }
-                self.recent_offsets[0] = offset as u64;
-                self.last_length = adj_length;
+                self.recent_offsets[0] = offset as u32;
+                self.last_length = adj_length as usize;
                 self.copy_bytes(offset, adj_length as usize);
             }
         }
         Ok(filters)
     }
-    
+
     /// Decode length using provided tables.
     #[cfg(feature = "parallel")]
     fn decode_length_with_tables(
@@ -1838,6 +2690,239 @@ impl Rar5BlockDecoder {
     ) -> Result<usize, DecompressError> {
         let sym = tables.len_table.decode(bits) as u32;
         Ok(Self::slot_to_length_static(sym, bits) as usize)
+    }
+
+    /// Pipeline-based parallel decode with minimal sync overhead.
+    /// Uses streaming instead of batch sync barriers.
+    #[cfg(feature = "parallel")]
+    pub fn decode_pipeline(
+        &mut self,
+        data: &[u8],
+        output_size: usize,
+    ) -> Result<Vec<u8>, DecompressError> {
+        use super::bit_decoder::BitDecoder;
+        use rayon::prelude::*;
+        use std::thread;
+
+        // Phase 1: Scan all block headers and prepare decode jobs
+        let mut bits = BitDecoder::new(data);
+        let mut current_tables = Arc::new(BlockTables::new());
+        let mut tables_valid = false;
+
+        // Collect all blocks with their sequence numbers and tables
+        let mut all_blocks: Vec<(usize, BlockHeader, Arc<BlockTables>)> = Vec::new();
+        let mut seq = 0usize;
+
+        while !bits.is_eof() {
+            bits.align_to_byte();
+
+            if bits.position() + 3 > data.len() {
+                break;
+            }
+
+            let flags = bits.read_byte_aligned();
+            let checksum = bits.read_byte_aligned();
+            let mut check = flags ^ checksum;
+
+            let num = ((flags >> 3) & 3) as usize;
+            if num >= 3 {
+                break;
+            }
+
+            let mut block_size = bits.read_byte_aligned() as usize;
+            check ^= block_size as u8;
+
+            if num >= 1 {
+                let b = bits.read_byte_aligned();
+                check ^= b;
+                block_size += (b as usize) << 8;
+            }
+            if num >= 2 {
+                let b = bits.read_byte_aligned();
+                check ^= b;
+                block_size += (b as usize) << 16;
+            }
+
+            if check != 0x5A {
+                break;
+            }
+
+            let block_bit_size = ((flags & 7) + 1) as usize;
+            let block_start = bits.position();
+            let table_present = (flags & 0x80) != 0;
+            let last_block = (flags & 0x40) != 0;
+
+            if block_start + block_size > data.len() {
+                break;
+            }
+
+            let block_end = block_start + block_size - 1;
+            bits.set_block_end(block_end, block_bit_size);
+
+            // Read tables if present
+            if table_present {
+                let new_tables = Arc::make_mut(&mut current_tables);
+                self.read_tables_into(&mut bits, new_tables)?;
+                tables_valid = true;
+            } else if !tables_valid {
+                return Err(DecompressError::Io(std::io::Error::new(
+                    std::io::ErrorKind::InvalidData,
+                    "Block without tables but no previous tables",
+                )));
+            }
+
+            let data_start = bits.position();
+            let data_start_bit = bits.bit_pos();
+
+            let header = BlockHeader {
+                block_start,
+                block_size,
+                block_bit_size,
+                table_present,
+                last_block,
+                data_start,
+                data_start_bit,
+            };
+
+            all_blocks.push((seq, header, Arc::clone(&current_tables)));
+            seq += 1;
+
+            bits.set_position(block_start + block_size);
+
+            if last_block {
+                break;
+            }
+        }
+
+        if all_blocks.is_empty() {
+            return Ok(Vec::new());
+        }
+
+        let total_blocks = all_blocks.len();
+
+        // Phase 2: Create channel and spawn apply thread
+        let (tx, rx) = crossbeam_channel::unbounded::<(usize, SplitDecoded)>();
+
+        let dict_size_log = (self.dict_size.trailing_zeros() as u8).max(17);
+        let apply_handle = thread::spawn(move || {
+            Self::apply_pipeline_split(rx, output_size, dict_size_log, total_blocks)
+        });
+
+        // Phase 3: Parallel decode all blocks, streaming to channel
+        let max_items = 0x4100usize;
+
+        all_blocks
+            .into_par_iter()
+            .for_each(|(seq, header, tables)| {
+                let mut block_bits = bits.clone_view();
+                block_bits.set_position_with_bit(header.data_start, header.data_start_bit);
+                let block_end = header.block_start + header.block_size - 1;
+                block_bits.set_block_end(block_end, header.block_bit_size);
+
+                match Self::decode_block_split(&mut block_bits, &tables, &header, max_items) {
+                    Ok(split) => {
+                        let _ = tx.send((seq, split));
+                    }
+                    Err(_) => {
+                        let _ = tx.send((
+                            seq,
+                            SplitDecoded {
+                                literals: Vec::new(),
+                                commands: Vec::new(),
+                                output_size: 0,
+                            },
+                        ));
+                    }
+                }
+            });
+
+        drop(tx); // Signal completion
+
+        // Phase 4: Wait for apply thread
+        apply_handle.join().map_err(|_| {
+            DecompressError::Io(std::io::Error::new(
+                std::io::ErrorKind::Other,
+                "Apply thread panicked",
+            ))
+        })?
+    }
+
+    /// Apply thread for pipeline decoding (split-buffer version).
+    #[cfg(feature = "parallel")]
+    fn apply_pipeline_split(
+        rx: crossbeam_channel::Receiver<(usize, SplitDecoded)>,
+        output_size: usize,
+        dict_size_log: u8,
+        _total_blocks: usize,
+    ) -> Result<Vec<u8>, DecompressError> {
+        use std::collections::BTreeMap;
+
+        let mut decoder = Rar5BlockDecoder::new(dict_size_log);
+
+        let mut output: Vec<u8> = Vec::with_capacity(output_size);
+        unsafe {
+            output.set_len(output_size);
+        }
+        let out_ptr = output.as_mut_ptr();
+        let mut pos = 0usize;
+
+        let mut pending: BTreeMap<usize, SplitDecoded> = BTreeMap::new();
+        let mut next_seq = 0usize;
+        let mut all_filters: Vec<super::filter::UnpackFilter> = Vec::new();
+
+        while let Ok((seq, split)) = rx.recv() {
+            if seq == next_seq {
+                let filters = decoder.apply_split_direct(&split, out_ptr, &mut pos)?;
+                all_filters.extend(filters);
+                next_seq += 1;
+
+                while let Some(split) = pending.remove(&next_seq) {
+                    let filters = decoder.apply_split_direct(&split, out_ptr, &mut pos)?;
+                    all_filters.extend(filters);
+                    next_seq += 1;
+                }
+            } else {
+                pending.insert(seq, split);
+            }
+        }
+
+        while let Some((seq, split)) = pending.pop_first() {
+            if seq != next_seq {
+                return Err(DecompressError::Io(std::io::Error::new(
+                    std::io::ErrorKind::InvalidData,
+                    format!("Missing block {} in pipeline", next_seq),
+                )));
+            }
+
+            let filters = decoder.apply_split_direct(&split, out_ptr, &mut pos)?;
+            all_filters.extend(filters);
+            next_seq += 1;
+        }
+
+        let final_len = pos.min(output_size);
+        unsafe {
+            output.set_len(final_len);
+        }
+
+        if !all_filters.is_empty() {
+            all_filters.sort_by_key(|f| f.block_start);
+
+            for filter in &all_filters {
+                let start = filter.block_start;
+                let end = start + filter.block_length;
+
+                if end <= output.len() {
+                    let block = &mut output[start..end];
+                    let filtered = super::filter::apply_filter(block, filter, start as u64);
+
+                    if !filtered.is_empty() {
+                        output[start..end].copy_from_slice(&filtered);
+                    }
+                }
+            }
+        }
+
+        Ok(output)
     }
 }
 

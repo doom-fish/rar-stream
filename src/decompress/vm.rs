@@ -136,10 +136,13 @@ impl RarVM {
         }
         #[cfg(test)]
         let checksum_ok = xor_sum == code[0];
-        
+
         if xor_sum != code[0] {
             #[cfg(test)]
-            eprintln!("    identify_filter: XOR checksum FAILED (expected 0x{:02x}, got 0x{:02x})", code[0], xor_sum);
+            eprintln!(
+                "    identify_filter: XOR checksum FAILED (expected 0x{:02x}, got 0x{:02x})",
+                code[0], xor_sum
+            );
             return StandardFilter::None;
         }
 
@@ -148,7 +151,10 @@ impl RarVM {
         let code_len = code.len() as u32;
 
         #[cfg(test)]
-        eprintln!("    identify_filter: len={}, crc=0x{:08x}, checksum={}", code_len, code_crc, checksum_ok);
+        eprintln!(
+            "    identify_filter: len={}, crc=0x{:08x}, checksum={}",
+            code_len, code_crc, checksum_ok
+        );
 
         for sig in FILTER_SIGNATURES {
             if sig.crc == code_crc && sig.length == code_len {
@@ -160,7 +166,7 @@ impl RarVM {
 
         #[cfg(test)]
         eprintln!("    identified: None (no matching signature)");
-        
+
         StandardFilter::None
     }
 
@@ -171,7 +177,11 @@ impl RarVM {
         let bits_available = data.len() * 8 - *bit_pos;
         if bits_available < 2 {
             #[cfg(test)]
-            eprintln!("      read_data: EOF at bit_pos={}, data.len={}", *bit_pos, data.len());
+            eprintln!(
+                "      read_data: EOF at bit_pos={}, data.len={}",
+                *bit_pos,
+                data.len()
+            );
             return 0;
         }
 
@@ -195,8 +205,8 @@ impl RarVM {
 
         #[cfg(test)]
         if *bit_pos < 100 {
-            eprintln!("      read_data at bit {}: bytes[{}..{}]=[{:02x},{:02x},{:02x}], bit_off={}, val=0x{:04x}", 
-                *bit_pos, byte_pos, byte_pos+3, 
+            eprintln!("      read_data at bit {}: bytes[{}..{}]=[{:02x},{:02x},{:02x}], bit_off={}, val=0x{:04x}",
+                *bit_pos, byte_pos, byte_pos+3,
                 data.get(byte_pos).copied().unwrap_or(0),
                 data.get(byte_pos+1).copied().unwrap_or(0),
                 data.get(byte_pos+2).copied().unwrap_or(0),
@@ -223,7 +233,7 @@ impl RarVM {
                 // Read 16 bits aligned to current bit position
                 let byte_pos = *bit_pos / 8;
                 let bit_off = *bit_pos % 8;
-                
+
                 let mut raw: u32 = 0;
                 if byte_pos < data.len() {
                     raw |= (data[byte_pos] as u32) << 16;
@@ -235,7 +245,7 @@ impl RarVM {
                     raw |= data[byte_pos + 2] as u32;
                 }
                 raw >>= 8 - bit_off;
-                
+
                 *bit_pos += 16;
                 raw & 0xffff
             }
@@ -245,7 +255,7 @@ impl RarVM {
                 // Read first 16 bits
                 let byte_pos = *bit_pos / 8;
                 let bit_off = *bit_pos % 8;
-                
+
                 let mut raw1: u32 = 0;
                 if byte_pos < data.len() {
                     raw1 |= (data[byte_pos] as u32) << 16;
@@ -258,13 +268,13 @@ impl RarVM {
                 }
                 raw1 >>= 8 - bit_off;
                 let high16 = raw1 & 0xffff;
-                
+
                 *bit_pos += 16;
-                
+
                 // Read second 16 bits
                 let byte_pos = *bit_pos / 8;
                 let bit_off = *bit_pos % 8;
-                
+
                 let mut raw2: u32 = 0;
                 if byte_pos < data.len() {
                     raw2 |= (data[byte_pos] as u32) << 16;
@@ -277,7 +287,7 @@ impl RarVM {
                 }
                 raw2 >>= 8 - bit_off;
                 let low16 = raw2 & 0xffff;
-                
+
                 *bit_pos += 16;
                 (high16 << 16) | low16
             }
@@ -287,12 +297,22 @@ impl RarVM {
     /// Add VM code and create filter
     /// `total_written` is the absolute total bytes written so far (not wrapped)
     /// `window_mask` is used to wrap block_start for window access
-    pub fn add_code(&mut self, first_byte: u8, code: &[u8], total_written: u64, window_mask: u32) -> bool {
+    pub fn add_code(
+        &mut self,
+        first_byte: u8,
+        code: &[u8],
+        total_written: u64,
+        window_mask: u32,
+    ) -> bool {
         let mut bit_pos = 0;
-        
+
         #[cfg(test)]
-        eprintln!("  add_code: first_byte=0x{:02x}, code.len={}", first_byte, code.len());
-        
+        eprintln!(
+            "  add_code: first_byte=0x{:02x}, code.len={}",
+            first_byte,
+            code.len()
+        );
+
         // Determine filter position
         let filt_pos = if (first_byte & 0x80) != 0 {
             let pos = Self::read_data(code, &mut bit_pos);
@@ -318,7 +338,7 @@ impl RarVM {
         if (first_byte & 0x40) != 0 {
             block_start = block_start.wrapping_add(258);
         }
-        
+
         // Read block_length
         let block_length = if (first_byte & 0x20) != 0 {
             let len = Self::read_data(code, &mut bit_pos);
@@ -332,11 +352,18 @@ impl RarVM {
             len
         } else if filt_pos < self.old_lengths.len() {
             #[cfg(test)]
-            eprintln!("    block_length from old_lengths[{}]: {}", filt_pos, self.old_lengths[filt_pos]);
+            eprintln!(
+                "    block_length from old_lengths[{}]: {}",
+                filt_pos, self.old_lengths[filt_pos]
+            );
             self.old_lengths[filt_pos]
         } else {
             #[cfg(test)]
-            eprintln!("    block_length: 0 (filt_pos {} >= old_lengths.len {})", filt_pos, self.old_lengths.len());
+            eprintln!(
+                "    block_length: 0 (filt_pos {} >= old_lengths.len {})",
+                filt_pos,
+                self.old_lengths.len()
+            );
             0
         };
 
@@ -355,7 +382,7 @@ impl RarVM {
             // Read 7-bit init mask like unrar: fgetbits()>>9, then faddbits(7)
             let byte_pos = bit_pos / 8;
             let bit_off = bit_pos % 8;
-            
+
             // Read 3 bytes and form 16-bit value like getbits()
             let mut val: u32 = 0;
             if byte_pos < code.len() {
@@ -370,10 +397,10 @@ impl RarVM {
             val >>= 8 - bit_off;
             let init_mask = ((val >> 9) & 0x7f) as u8;
             bit_pos += 7;
-            
+
             #[cfg(test)]
             eprintln!("    init_mask=0x{:02x} at bit {}", init_mask, bit_pos - 7);
-            
+
             for i in 0..7 {
                 if (init_mask & (1 << i)) != 0 {
                     init_r[i] = Self::read_data(code, &mut bit_pos);
@@ -388,12 +415,17 @@ impl RarVM {
             // Read VM code size
             let vm_code_size = Self::read_data(code, &mut bit_pos) as usize;
             #[cfg(test)]
-            eprintln!("    new_filter: vm_code_size={}, bit_pos={}, code.len={}", vm_code_size, bit_pos, code.len());
-            
+            eprintln!(
+                "    new_filter: vm_code_size={}, bit_pos={}, code.len={}",
+                vm_code_size,
+                bit_pos,
+                code.len()
+            );
+
             if vm_code_size == 0 || vm_code_size >= 0x10000 {
                 return false;
             }
-            
+
             // Read VM bytecode - bit aligned, reading each byte via getbits
             let mut vm_code = vec![0u8; vm_code_size];
             for i in 0..vm_code_size {
@@ -403,7 +435,7 @@ impl RarVM {
                 // Read 8 bits like unrar's (fgetbits()>>8)
                 let byte_idx = bit_pos / 8;
                 let bit_off = bit_pos % 8;
-                
+
                 let mut val: u32 = 0;
                 if byte_idx < code.len() {
                     val |= (code[byte_idx] as u32) << 16;
@@ -418,14 +450,16 @@ impl RarVM {
                 vm_code[i] = ((val >> 8) & 0xff) as u8;
                 bit_pos += 8;
             }
-            
+
             #[cfg(test)]
-            eprintln!("    vm_code first 4 bytes: {:02x} {:02x} {:02x} {:02x}", 
+            eprintln!(
+                "    vm_code first 4 bytes: {:02x} {:02x} {:02x} {:02x}",
                 vm_code.get(0).copied().unwrap_or(0),
                 vm_code.get(1).copied().unwrap_or(0),
                 vm_code.get(2).copied().unwrap_or(0),
-                vm_code.get(3).copied().unwrap_or(0));
-            
+                vm_code.get(3).copied().unwrap_or(0)
+            );
+
             Self::identify_filter(&vm_code)
         } else if filt_pos < self.filters.len() {
             self.filters[filt_pos].filter_type
@@ -439,8 +473,10 @@ impl RarVM {
         }
 
         #[cfg(test)]
-        eprintln!("    filter: type={:?}, block_start={} (raw {}+total_written {}), len={}", 
-            filter_type, absolute_block_start, block_start, total_written, block_length);
+        eprintln!(
+            "    filter: type={:?}, block_start={} (raw {}+total_written {}), len={}",
+            filter_type, absolute_block_start, block_start, total_written, block_length
+        );
 
         let filter = PreparedFilter {
             filter_type,
@@ -464,11 +500,11 @@ impl RarVM {
     pub fn find_ready_filter(&self, total_written: u64) -> Option<(usize, u64)> {
         let mut earliest_idx = None;
         let mut earliest_start = u64::MAX;
-        
+
         for (idx, filter) in self.stack.iter().enumerate() {
             let block_length = (filter.block_length & VM_MEMMASK) as u64;
             let block_end = filter.block_start + block_length;
-            
+
             // Filter is ready if we've written past its end
             if block_end <= total_written && filter.block_start < earliest_start {
                 #[cfg(test)]
@@ -480,7 +516,7 @@ impl RarVM {
                 earliest_idx = Some(idx);
             }
         }
-        
+
         earliest_idx.map(|idx| (idx, earliest_start))
     }
 
@@ -488,14 +524,15 @@ impl RarVM {
     pub fn next_filter_pos(&self) -> Option<u64> {
         self.stack.first().map(|f| f.block_start)
     }
-    
+
     /// Get the earliest filter end position (block_start + block_length)
     pub fn next_filter_end(&self) -> Option<u64> {
-        self.stack.iter()
+        self.stack
+            .iter()
             .map(|f| f.block_start + (f.block_length & VM_MEMMASK) as u64)
             .min()
     }
-    
+
     /// Peek at the next filter without removing it
     pub fn peek_filter(&self) -> Option<&PreparedFilter> {
         self.stack.first()
@@ -525,13 +562,17 @@ impl RarVM {
         let block_end = block_start + block_length as u64;
 
         #[cfg(test)]
-        eprintln!("EXECUTE filter {:?}: start={}, len={}, total_written={}", 
-            filter.filter_type, block_start, block_length, total_written);
+        eprintln!(
+            "EXECUTE filter {:?}: start={}, len={}, total_written={}",
+            filter.filter_type, block_start, block_length, total_written
+        );
+        #[cfg(not(test))]
+        let _ = total_written;
 
         // Copy data from window to VM memory using bulk copy when possible
         let copy_len = block_length.min(VM_MEMSIZE);
         let window_start = (block_start as usize) & window_mask;
-        
+
         // Check if we can do a contiguous copy (no wrap in window)
         if window_start + copy_len <= window.len() {
             self.mem[..copy_len].copy_from_slice(&window[window_start..window_start + copy_len]);
@@ -541,16 +582,23 @@ impl RarVM {
             self.mem[..first_part].copy_from_slice(&window[window_start..]);
             self.mem[first_part..copy_len].copy_from_slice(&window[..copy_len - first_part]);
         }
-        
+
         #[cfg(test)]
         {
             if block_start == 46592 {
                 // Show window contents at filter start
-                eprintln!("  WINDOW at filter start: window[46592..46608] = {:02x?}", 
-                    (46592..46608).map(|p| window[p & window_mask]).collect::<Vec<_>>());
+                eprintln!(
+                    "  WINDOW at filter start: window[46592..46608] = {:02x?}",
+                    (46592..46608)
+                        .map(|p| window[p & window_mask])
+                        .collect::<Vec<_>>()
+                );
                 // Show input bytes
                 eprintln!("  INPUT to filter: mem[0..16] = {:02x?}", &self.mem[0..16]);
-                eprintln!("  INPUT to filter: mem[9456..9472] = {:02x?}", &self.mem[9456..9472]);
+                eprintln!(
+                    "  INPUT to filter: mem[9456..9472] = {:02x?}",
+                    &self.mem[9456..9472]
+                );
             }
         }
 
@@ -563,7 +611,10 @@ impl RarVM {
         let (filtered_data_offset, filtered_size) = self.execute_filter(&filter, block_length);
 
         #[cfg(test)]
-        eprintln!("  result: filtered_data_offset={}, filtered_size={}", filtered_data_offset, filtered_size);
+        eprintln!(
+            "  result: filtered_data_offset={}, filtered_size={}",
+            filtered_data_offset, filtered_size
+        );
 
         // Return the filtered data as a Vec - DO NOT write back to window!
         // The window must keep the original LZSS data for future match references.
@@ -581,7 +632,11 @@ impl RarVM {
     /// Execute pending filters on the output buffer
     /// write_pos is the absolute total bytes written so far
     /// The buffer is the full output buffer, not the sliding window
-    pub fn execute_filters(&mut self, buffer: &mut [u8], write_pos: u64) -> Option<(usize, usize)> {
+    pub fn execute_filters(
+        &mut self,
+        buffer: &mut [u8],
+        _write_pos: u64,
+    ) -> Option<(usize, usize)> {
         if self.stack.is_empty() {
             return None;
         }
@@ -589,7 +644,7 @@ impl RarVM {
         let filter = &self.stack[0];
         let block_start = filter.block_start as usize;
         let block_length = (filter.block_length & VM_MEMMASK) as usize;
-        
+
         // Check if we've written enough data to cover this filter's range
         if block_start + block_length > buffer.len() {
             return None;
@@ -599,8 +654,13 @@ impl RarVM {
         let filter = self.stack.remove(0);
 
         #[cfg(test)]
-        eprintln!("EXECUTE filter {:?}: start={}, len={}, buffer.len={}", 
-            filter.filter_type, block_start, block_length, buffer.len());
+        eprintln!(
+            "EXECUTE filter {:?}: start={}, len={}, buffer.len={}",
+            filter.filter_type,
+            block_start,
+            block_length,
+            buffer.len()
+        );
 
         // Copy data to VM memory
         let copy_len = block_length.min(VM_MEMSIZE);
@@ -611,7 +671,10 @@ impl RarVM {
             eprintln!("  init_r: {:?}", filter.init_r);
             if block_start <= 4096 && block_start + block_length > 4096 {
                 let offset = 4096 - block_start;
-                eprintln!("  BEFORE buffer[4096..4104]: {:02x?}", &buffer[4096..4104.min(buffer.len())]);
+                eprintln!(
+                    "  BEFORE buffer[4096..4104]: {:02x?}",
+                    &buffer[4096..4104.min(buffer.len())]
+                );
             }
         }
 
@@ -619,16 +682,22 @@ impl RarVM {
         let (filtered_data, filtered_size) = self.execute_filter(&filter, block_length);
 
         #[cfg(test)]
-        eprintln!("  result: filtered_data={}, filtered_size={}", filtered_data, filtered_size);
+        eprintln!(
+            "  result: filtered_data={}, filtered_size={}",
+            filtered_data, filtered_size
+        );
 
         if filtered_size > 0 && filtered_size <= block_length {
             // Copy filtered data back
             buffer[block_start..block_start + filtered_size]
                 .copy_from_slice(&self.mem[filtered_data..filtered_data + filtered_size]);
-            
+
             #[cfg(test)]
             if block_start <= 4096 && block_start + block_length > 4096 {
-                eprintln!("  AFTER buffer[4096..4104]: {:02x?}", &buffer[4096..4104.min(buffer.len())]);
+                eprintln!(
+                    "  AFTER buffer[4096..4104]: {:02x?}",
+                    &buffer[4096..4104.min(buffer.len())]
+                );
             }
         }
 
@@ -665,11 +734,11 @@ impl RarVM {
         }
 
         const FILE_SIZE: u32 = 0x1000000;
-        
+
         // Use SIMD-accelerated search for E8/E9 bytes
         let search_end = data_size - 4;
         let mut cur_pos: usize = 0;
-        
+
         if include_e9 {
             // E8E9: search for either 0xE8 or 0xE9
             while cur_pos < search_end {
@@ -685,7 +754,12 @@ impl RarVM {
                         self.mem[addr_pos + 2],
                         self.mem[addr_pos + 3],
                     ]);
-                    Self::transform_e8e9_addr(&mut self.mem[addr_pos..addr_pos + 4], addr, offset_val, FILE_SIZE);
+                    Self::transform_e8e9_addr(
+                        &mut self.mem[addr_pos..addr_pos + 4],
+                        addr,
+                        offset_val,
+                        FILE_SIZE,
+                    );
                     cur_pos = addr_pos + 4;
                 } else {
                     break;
@@ -704,7 +778,12 @@ impl RarVM {
                         self.mem[addr_pos + 2],
                         self.mem[addr_pos + 3],
                     ]);
-                    Self::transform_e8e9_addr(&mut self.mem[addr_pos..addr_pos + 4], addr, offset_val, FILE_SIZE);
+                    Self::transform_e8e9_addr(
+                        &mut self.mem[addr_pos..addr_pos + 4],
+                        addr,
+                        offset_val,
+                        FILE_SIZE,
+                    );
                     cur_pos = addr_pos + 4;
                 } else {
                     break;
@@ -714,7 +793,7 @@ impl RarVM {
 
         (0, data_size)
     }
-    
+
     /// Transform an E8/E9 address in place
     #[inline(always)]
     fn transform_e8e9_addr(dest: &mut [u8], addr: u32, offset: u32, file_size: u32) {

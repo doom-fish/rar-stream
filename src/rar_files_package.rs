@@ -730,7 +730,7 @@ impl RarFilesPackage {
                         continues_in_next: false,
                         unpacked_size,
                         chunk_size,
-                        method: 0x30, // Continue chunks are always raw data
+                        method: 0x30,      // Continue chunks are always raw data
                         dict_size_log: 22, // Default, not used for stored data
                         rar_version,
                         is_solid,
@@ -797,7 +797,15 @@ impl RarFilesPackage {
             .map(|(name, value)| {
                 #[cfg(feature = "crypto")]
                 {
-                    let (chunks, method, dict_size_log, unpacked_size, rar_version, is_solid, encryption) = value;
+                    let (
+                        chunks,
+                        method,
+                        dict_size_log,
+                        unpacked_size,
+                        rar_version,
+                        is_solid,
+                        encryption,
+                    ) = value;
                     let enc_info = encryption.map(|e| match e {
                         FileEncryptionInfo::Rar5 {
                             salt,
@@ -826,7 +834,8 @@ impl RarFilesPackage {
                 }
                 #[cfg(not(feature = "crypto"))]
                 {
-                    let (chunks, method, dict_size_log, unpacked_size, rar_version, is_solid) = value;
+                    let (chunks, method, dict_size_log, unpacked_size, rar_version, is_solid) =
+                        value;
                     InnerFile::new_with_solid_dict(
                         name,
                         chunks,

@@ -790,7 +790,12 @@ impl PpmModel {
             let mean = ((bs as u32 + (1 << (PERIOD_BITS - 2))) >> PERIOD_BITS) as u16;
             let new_bs = bs.saturating_add((INTERVAL as u16).saturating_sub(mean));
             // SAFETY: freq_idx < 128 and idx1 < 64 guaranteed by bit masking above
-            unsafe { *self.bin_summ.get_unchecked_mut(freq_idx).get_unchecked_mut(idx1) = new_bs };
+            unsafe {
+                *self
+                    .bin_summ
+                    .get_unchecked_mut(freq_idx)
+                    .get_unchecked_mut(idx1) = new_bs
+            };
 
             self.found_state = self.min_context + 2; // OneState offset (in union at offset 2)
             self.prev_success = 1;
@@ -816,7 +821,12 @@ impl PpmModel {
             let mean = ((bs as u32 + (1 << (PERIOD_BITS - 2))) >> PERIOD_BITS) as u16;
             let new_bs = bs.saturating_sub(mean);
             // SAFETY: freq_idx < 128 and idx1 < 64 guaranteed by bit masking above
-            unsafe { *self.bin_summ.get_unchecked_mut(freq_idx).get_unchecked_mut(idx1) = new_bs };
+            unsafe {
+                *self
+                    .bin_summ
+                    .get_unchecked_mut(freq_idx)
+                    .get_unchecked_mut(idx1) = new_bs
+            };
 
             // InitEsc = ExpEscape[bs >> 10]
             static EXP_ESCAPE: [u8; 16] = [25, 14, 9, 7, 5, 5, 4, 4, 4, 3, 3, 3, 2, 2, 2, 2];

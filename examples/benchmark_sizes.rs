@@ -218,8 +218,12 @@ fn main() {
     // Summary
     let large_results: Vec<_> = results.iter().filter(|(s, _)| *s > 1024 * 1024).collect();
     if !large_results.is_empty() {
-        let avg_speed: f64 = large_results.iter().map(|(_, s)| s).sum::<f64>() / large_results.len() as f64;
-        let max_speed = large_results.iter().map(|(_, s)| *s).fold(0.0_f64, f64::max);
+        let avg_speed: f64 =
+            large_results.iter().map(|(_, s)| s).sum::<f64>() / large_results.len() as f64;
+        let max_speed = large_results
+            .iter()
+            .map(|(_, s)| *s)
+            .fold(0.0_f64, f64::max);
         println!("\nSummary (files > 1MB):");
         println!("  Average: {:.0} MB/s", avg_speed);
         println!("  Peak:    {:.0} MB/s", max_speed);

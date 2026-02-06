@@ -71,7 +71,7 @@ impl HuffmanTable {
         for i in 1..=MAX_CODE_LENGTH {
             code = (code + table.length_counts[i - 1] as u32) << 1;
             table.first_code[i] = code;
-            
+
             // unrar's DecodeLen calculation
             upper_limit += table.length_counts[i] as u32;
             table.decode_len[i] = upper_limit << (16 - i);
@@ -101,7 +101,7 @@ impl HuffmanTable {
         for len in 1..=QUICK_BITS as usize {
             let start_idx = table.first_symbol[len] as usize;
             let end_idx = table.first_symbol[len + 1] as usize;
-            
+
             for (i, &symbol) in table.symbols[start_idx..end_idx].iter().enumerate() {
                 let code = table.first_code[len] + i as u32;
                 let fill_bits = QUICK_BITS - len as u32;
@@ -150,7 +150,7 @@ impl HuffmanTable {
         for i in 1..=MAX_CODE_LENGTH {
             code = (code + self.length_counts[i - 1] as u32) << 1;
             self.first_code[i] = code;
-            
+
             // unrar's DecodeLen calculation
             upper_limit += self.length_counts[i] as u32;
             self.decode_len[i] = upper_limit << (16 - i);
@@ -178,13 +178,13 @@ impl HuffmanTable {
 
         // Rebuild quick lookup table - MUST clear to avoid stale entries
         self.quick_table.fill(HuffmanEntry::default());
-        
+
         // Build quick table by iterating through symbols list (already sorted by code)
         // This avoids O(n²) linear search for each symbol
         for len in 1..=QUICK_BITS as usize {
             let start_idx = self.first_symbol[len] as usize;
             let end_idx = self.first_symbol[len + 1] as usize;
-            
+
             for (i, &symbol) in self.symbols[start_idx..end_idx].iter().enumerate() {
                 let code = self.first_code[len] + i as u32;
                 let fill_bits = QUICK_BITS - len as u32;
@@ -271,7 +271,7 @@ impl HuffmanTable {
     pub fn decode(&self, reader: &mut BitReader) -> Result<u16> {
         // Get 16 bits left-aligned
         let bit_field = reader.peek_bits(16);
-        
+
         // Quick decode path - check against decode_len (upper limit)
         // If bit_field < decode_len[10], the code is guaranteed to be ≤10 bits
         // and have a valid quick table entry
@@ -378,18 +378,18 @@ impl HuffmanDecoder {
         // Read bit lengths for the precode (20 symbols, 4 bits each)
         let mut precode_lengths = [0u8; 20];
         let mut i = 0;
-        
+
         #[cfg(test)]
         let precode_start_bit = reader.bit_position();
-        
+
         #[cfg(test)]
         if precode_start_bit > 100000 {
             eprintln!("precode reader state: {}", reader.debug_state());
         }
-        
+
         while i < 20 {
             let len = reader.read_bits(4)? as u8;
-            
+
             if len == 0x0F {
                 // Special case: 0x0F could be length 15 or a zero run indicator
                 let zero_count = reader.read_bits(4)? as usize;
@@ -409,7 +409,12 @@ impl HuffmanDecoder {
                     #[cfg(test)]
                     {
                         if precode_start_bit > 100000 {
-                            eprintln!("    filling {} zeros (i={}..{})", fill_count, i, i + fill_count);
+                            eprintln!(
+                                "    filling {} zeros (i={}..{})",
+                                fill_count,
+                                i,
+                                i + fill_count
+                            );
                         }
                     }
                     for _ in 0..fill_count {
@@ -424,29 +429,44 @@ impl HuffmanDecoder {
         }
 
         #[cfg(test)]
-        eprintln!("precode at bits {}..{}: {:?}", precode_start_bit, reader.bit_position(), precode_lengths);
-        
+        eprintln!(
+            "precode at bits {}..{}: {:?}",
+            precode_start_bit,
+            reader.bit_position(),
+            precode_lengths
+        );
+
         #[cfg(test)]
         if precode_start_bit > 100000 {
             // Show old length_table values before reading new table
-            eprintln!("OLD length_table[0..30]: {:?}", &self.old_length_table[0..30]);
+            eprintln!(
+                "OLD length_table[0..30]: {:?}",
+                &self.old_length_table[0..30]
+            );
             // Show OLD low_dist portion
             let low_offset = MAINCODE_SIZE + OFFSETCODE_SIZE;
-            eprintln!("OLD length_table low_dist [{}..{}]: {:?}", 
-                low_offset, low_offset + LOWOFFSETCODE_SIZE,
-                &self.old_length_table[low_offset..low_offset + LOWOFFSETCODE_SIZE]);
+            eprintln!(
+                "OLD length_table low_dist [{}..{}]: {:?}",
+                low_offset,
+                low_offset + LOWOFFSETCODE_SIZE,
+                &self.old_length_table[low_offset..low_offset + LOWOFFSETCODE_SIZE]
+            );
             // Show reader state after precode
             eprintln!("After precode: {}", reader.debug_state());
             eprintln!("  peek_bytes(8): {:02x?}", reader.peek_bytes(8));
         }
 
         let precode_table = HuffmanTable::new(&precode_lengths)?;
-        
+
         #[cfg(test)]
         if precode_start_bit > 100000 {
             precode_table.dump_codes("SECOND precode", &precode_lengths);
             // Show bits at start of main table reading
-            eprintln!("Bits at start of main table: {:016b} (peek 16) at bit_pos {}", reader.peek_bits(16), reader.bit_position());
+            eprintln!(
+                "Bits at start of main table: {:016b} (peek 16) at bit_pos {}",
+                reader.peek_bits(16),
+                reader.bit_position()
+            );
         }
 
         // Read main length table using precode
@@ -460,8 +480,12 @@ impl HuffmanDecoder {
                 if precode_start_bit > 6060000 && precode_start_bit < 6065000 {
                     // Debug EVERY symbol decode for this specific table
                     if i >= 295 && i <= 365 {
-                        eprintln!("DEBUG[{}]: bit_pos={}, peek16={:016b}", 
-                            i, reader.bit_position(), reader.peek_bits(16));
+                        eprintln!(
+                            "DEBUG[{}]: bit_pos={}, peek16={:016b}",
+                            i,
+                            reader.bit_position(),
+                            reader.peek_bits(16)
+                        );
                     }
                 }
             }
@@ -474,7 +498,11 @@ impl HuffmanDecoder {
                     sym_count += 1;
                 }
                 // For the problematic table, show every symbol
-                if precode_start_bit > 6060000 && precode_start_bit < 6065000 && i >= 295 && i <= 365 {
+                if precode_start_bit > 6060000
+                    && precode_start_bit < 6065000
+                    && i >= 295
+                    && i <= 365
+                {
                     eprintln!("  sym at [{}] = {}", i, sym);
                 }
             }
@@ -487,7 +515,10 @@ impl HuffmanDecoder {
                 #[cfg(test)]
                 {
                     if precode_start_bit > 100000 && sym_count < 30 {
-                        eprintln!(" old={} sym={} new={}", old_val, sym, self.new_length_table[i]);
+                        eprintln!(
+                            " old={} sym={} new={}",
+                            old_val, sym, self.new_length_table[i]
+                        );
                     }
                 }
                 i += 1;
@@ -521,7 +552,13 @@ impl HuffmanDecoder {
                 #[cfg(test)]
                 {
                     if precode_start_bit > 100000 {
-                        eprintln!(" sym18: count_bits={} count={} filling i={}..{}", count_bits, count, i, i+count);
+                        eprintln!(
+                            " sym18: count_bits={} count={} filling i={}..{}",
+                            count_bits,
+                            count,
+                            i,
+                            i + count
+                        );
                     }
                 }
                 for _ in 0..count.min(HUFFMAN_TABLE_SIZE - i) {
@@ -534,7 +571,7 @@ impl HuffmanDecoder {
                 #[cfg(test)]
                 {
                     if precode_start_bit > 6060000 && precode_start_bit < 6065000 {
-                        eprintln!(" sym19: count={} filling i={}..{}", count, i, i+count);
+                        eprintln!(" sym19: count={} filling i={}..{}", count, i, i + count);
                     }
                 }
                 for _ in 0..count.min(HUFFMAN_TABLE_SIZE - i) {
@@ -546,29 +583,46 @@ impl HuffmanDecoder {
             {
                 // Track when we reach low_dist region
                 let low_offset = MAINCODE_SIZE + OFFSETCODE_SIZE;
-                if precode_start_bit > 6060000 && precode_start_bit < 6065000 && i >= low_offset && i < low_offset + 5 {
-                    eprintln!("  -> entering low_dist region at i={}, new_length_table[{}]={}", i, i, self.new_length_table[i]);
+                if precode_start_bit > 6060000
+                    && precode_start_bit < 6065000
+                    && i >= low_offset
+                    && i < low_offset + 5
+                {
+                    eprintln!(
+                        "  -> entering low_dist region at i={}, new_length_table[{}]={}",
+                        i, i, self.new_length_table[i]
+                    );
                 }
             }
         }
-        
+
         // Copy new table to old table for next table read (like unrar's memcpy)
-        self.old_length_table.copy_from_slice(&self.new_length_table);
-        
+        self.old_length_table
+            .copy_from_slice(&self.new_length_table);
+
         #[cfg(test)]
         eprintln!();
 
         #[cfg(test)]
-        eprintln!("new_length_table first 20: {:?}", &self.new_length_table[..20]);
-        
+        eprintln!(
+            "new_length_table first 20: {:?}",
+            &self.new_length_table[..20]
+        );
+
         #[cfg(test)]
         if precode_start_bit > 100000 {
-            eprintln!("SECOND TABLE new_length_table[0..50]: {:?}", &self.new_length_table[0..50]);
+            eprintln!(
+                "SECOND TABLE new_length_table[0..50]: {:?}",
+                &self.new_length_table[0..50]
+            );
             // Show low_dist portion (offset 359..376)
             let low_offset = MAINCODE_SIZE + OFFSETCODE_SIZE;
-            eprintln!("new_length_table low_dist portion [{}..{}]: {:?}", 
-                low_offset, low_offset + LOWOFFSETCODE_SIZE, 
-                &self.new_length_table[low_offset..low_offset + LOWOFFSETCODE_SIZE]);
+            eprintln!(
+                "new_length_table low_dist portion [{}..{}]: {:?}",
+                low_offset,
+                low_offset + LOWOFFSETCODE_SIZE,
+                &self.new_length_table[low_offset..low_offset + LOWOFFSETCODE_SIZE]
+            );
         }
 
         // Build the four Huffman tables from new_length_table
@@ -581,7 +635,7 @@ impl HuffmanDecoder {
         } else {
             self.main_table = Some(HuffmanTable::new(main_lengths)?);
         }
-        
+
         #[cfg(test)]
         {
             // Debug: print codes for symbols we care about
@@ -593,11 +647,18 @@ impl HuffmanDecoder {
                     let first_sym = table.first_symbol[len as usize];
                     for i in first_sym..first_sym + table.length_counts[len as usize] {
                         if table.symbols[i as usize] == sym {
-                            let code = table.first_code[len as usize] + (i as u32 - first_sym as u32);
+                            let code =
+                                table.first_code[len as usize] + (i as u32 - first_sym as u32);
                             let bp = reader.bit_position();
                             if bp > 6140000 && bp < 6290000 {
-                                eprintln!("main_table at {} symbol {}: len={}, code={:0width$b}", 
-                                    bp, sym, len, code, width=len as usize);
+                                eprintln!(
+                                    "main_table at {} symbol {}: len={}, code={:0width$b}",
+                                    bp,
+                                    sym,
+                                    len,
+                                    code,
+                                    width = len as usize
+                                );
                             }
                             break;
                         }
@@ -610,7 +671,7 @@ impl HuffmanDecoder {
                 }
             }
         }
-        
+
         offset += MAINCODE_SIZE;
 
         let dist_lengths = &self.new_length_table[offset..offset + OFFSETCODE_SIZE];
@@ -618,7 +679,10 @@ impl HuffmanDecoder {
         {
             let bp = reader.bit_position();
             if bp > 6140000 && bp < 6145000 {
-                eprintln!("dist_table at bit_pos={} FULL lengths: {:?}", bp, dist_lengths);
+                eprintln!(
+                    "dist_table at bit_pos={} FULL lengths: {:?}",
+                    bp, dist_lengths
+                );
             }
         }
         if let Some(ref mut table) = self.dist_table {
@@ -631,7 +695,11 @@ impl HuffmanDecoder {
         #[cfg(test)]
         {
             let low_lengths = &self.new_length_table[offset..offset + LOWOFFSETCODE_SIZE];
-            eprintln!("low_dist_table lengths at bit_pos={}: {:?}", reader.bit_position(), low_lengths);
+            eprintln!(
+                "low_dist_table lengths at bit_pos={}: {:?}",
+                reader.bit_position(),
+                low_lengths
+            );
         }
 
         let low_lengths = &self.new_length_table[offset..offset + LOWOFFSETCODE_SIZE];
@@ -649,14 +717,26 @@ impl HuffmanDecoder {
                 .unwrap()
                 .dump_codes("low_dist", low_lengths);
             // Dump symbols array
-            eprintln!("low_dist symbols: {:?}", self.low_dist_table.as_ref().unwrap().dump_symbols());
+            eprintln!(
+                "low_dist symbols: {:?}",
+                self.low_dist_table.as_ref().unwrap().dump_symbols()
+            );
             // Dump first_symbol
-            eprintln!("low_dist first_symbol[1..6]: {:?}", self.low_dist_table.as_ref().unwrap().dump_first_symbol());
+            eprintln!(
+                "low_dist first_symbol[1..6]: {:?}",
+                self.low_dist_table.as_ref().unwrap().dump_first_symbol()
+            );
             // Dump quick_table entries 512-575 (symbol 8's range)
-            eprintln!("low_dist quick_table[512..520]: {:?}", 
-                (512..520).map(|i| self.low_dist_table.as_ref().unwrap().quick_table_entry(i)).collect::<Vec<_>>());
-            eprintln!("low_dist quick_table[568]: {:?}", 
-                self.low_dist_table.as_ref().unwrap().quick_table_entry(568));
+            eprintln!(
+                "low_dist quick_table[512..520]: {:?}",
+                (512..520)
+                    .map(|i| self.low_dist_table.as_ref().unwrap().quick_table_entry(i))
+                    .collect::<Vec<_>>()
+            );
+            eprintln!(
+                "low_dist quick_table[568]: {:?}",
+                self.low_dist_table.as_ref().unwrap().quick_table_entry(568)
+            );
         }
 
         offset += LOWOFFSETCODE_SIZE;
@@ -716,14 +796,14 @@ mod tests {
         assert_eq!(table.decode(&mut reader).unwrap(), 1);
         assert_eq!(table.decode(&mut reader).unwrap(), 2);
     }
-    
+
     #[test]
     fn test_huffman_table_low_dist_all_4bit() {
         // All symbols 0-15 have length 4, symbol 16 has length 0
         // This is the typical low_dist table pattern
         let lengths: Vec<u8> = vec![4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 0];
         let table = HuffmanTable::new(&lengths).unwrap();
-        
+
         // For all-4-bit codes:
         // Symbol 0: code 0000
         // Symbol 1: code 0001
@@ -731,21 +811,21 @@ mod tests {
         // Symbol 8: code 1000
         // ...
         // Symbol 15: code 1111
-        
+
         // Check quick_table for index 568 (which is 1000111000 in 10 bits)
         // First 4 bits = 1000 = 8, so symbol should be 8
         let (sym, len) = table.quick_table_entry(568);
         eprintln!("quick_table[568] = (sym={}, len={})", sym, len);
         assert_eq!(sym, 8, "Symbol at quick_table[568] should be 8");
         assert_eq!(len, 4, "Length at quick_table[568] should be 4");
-        
+
         // Check all entries from 512-575 (where first 4 bits = 1000)
         for i in 512..576 {
             let (s, l) = table.quick_table_entry(i);
             assert_eq!(s, 8, "Symbol at quick_table[{}] should be 8, got {}", i, s);
             assert_eq!(l, 4, "Length at quick_table[{}] should be 4, got {}", i, l);
         }
-        
+
         // Test actual decoding
         // Bits 1000... should decode to symbol 8
         let data = [0b10000000, 0b00000000];
@@ -753,31 +833,48 @@ mod tests {
         assert_eq!(table.decode(&mut reader).unwrap(), 8);
         assert_eq!(reader.bit_position(), 4); // Should consume exactly 4 bits
     }
-    
+
     #[test]
     fn test_huffman_table_rebuild_changes() {
         // Start with a table that has different lengths
         // This tests that rebuild() properly clears and rebuilds the quick_table
         let initial_lengths: Vec<u8> = vec![4, 4, 5, 4, 3, 5, 4, 4, 4, 4, 4, 5, 4, 3, 5, 4, 0];
         let mut table = HuffmanTable::new(&initial_lengths).unwrap();
-        
+
         // Now rebuild with all 4-bit codes
         let new_lengths: Vec<u8> = vec![4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 0];
         table.rebuild(&new_lengths).unwrap();
-        
+
         // Check quick_table for index 568
         let (sym, len) = table.quick_table_entry(568);
-        eprintln!("After rebuild: quick_table[568] = (sym={}, len={})", sym, len);
-        assert_eq!(sym, 8, "Symbol at quick_table[568] should be 8 after rebuild");
-        assert_eq!(len, 4, "Length at quick_table[568] should be 4 after rebuild");
-        
+        eprintln!(
+            "After rebuild: quick_table[568] = (sym={}, len={})",
+            sym, len
+        );
+        assert_eq!(
+            sym, 8,
+            "Symbol at quick_table[568] should be 8 after rebuild"
+        );
+        assert_eq!(
+            len, 4,
+            "Length at quick_table[568] should be 4 after rebuild"
+        );
+
         // Check all entries from 512-575 (where first 4 bits = 1000)
         for i in 512..576 {
             let (s, l) = table.quick_table_entry(i);
-            assert_eq!(s, 8, "Symbol at quick_table[{}] should be 8 after rebuild, got {}", i, s);
-            assert_eq!(l, 4, "Length at quick_table[{}] should be 4 after rebuild, got {}", i, l);
+            assert_eq!(
+                s, 8,
+                "Symbol at quick_table[{}] should be 8 after rebuild, got {}",
+                i, s
+            );
+            assert_eq!(
+                l, 4,
+                "Length at quick_table[{}] should be 4 after rebuild, got {}",
+                i, l
+            );
         }
-        
+
         // Test actual decoding
         let data = [0b10000000, 0b00000000];
         let mut reader = BitReader::new(&data);
