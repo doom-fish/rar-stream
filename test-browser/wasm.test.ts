@@ -196,4 +196,83 @@ test.describe('rar-stream WASM decompression', () => {
     expect(result.error).toBeUndefined();
     expect(result.success).toBe(true);
   });
+
+  test('can decompress RAR5 compressed file', async ({ page }) => {
+    await page.goto('http://localhost:8765/test-browser/index.html');
+    await page.waitForFunction(() => document.querySelector('.test.pass') !== null);
+
+    const result = await page.evaluate(async () => {
+      try {
+        const response = await fetch('/__fixtures__/rar5/compressed.rar');
+        const buffer = await response.arrayBuffer();
+        const data = new Uint8Array(buffer);
+
+        const { parse_rar5_header, WasmRar5Decoder } = await import('../pkg/rar_stream.js');
+
+        // Parse header to get compression info
+        const header = parse_rar5_header(data);
+
+        // Find compressed data offset (skip signature + headers)
+        // For a simple single-file RAR5, data starts after headers
+        // We need to find the data start position
+        const sig_len = 8;
+        
+        // Read archive header size
+        let pos = sig_len + 4; // skip CRC32
+        // Read vint for header size
+        let headerSize = 0;
+        let shift = 0;
+        while (pos < data.length) {
+          const b = data[pos++];
+          headerSize |= (b & 0x7F) << shift;
+          if ((b & 0x80) === 0) break;
+          shift += 7;
+        }
+        const archEnd = pos + headerSize;
+        
+        // Read file header
+        pos = archEnd + 4; // skip CRC32
+        headerSize = 0;
+        shift = 0;
+        while (pos < data.length) {
+          const b = data[pos++];
+          headerSize |= (b & 0x7F) << shift;
+          if ((b & 0x80) === 0) break;
+          shift += 7;
+        }
+        const fileHeaderEnd = pos + headerSize;
+        
+        // Data starts after file header, length = packedSize
+        const compressedData = data.slice(fileHeaderEnd, fileHeaderEnd + header.packedSize);
+
+        const decoder = new WasmRar5Decoder(
+          BigInt(header.unpackedSize),
+          header.dictSizeLog,
+          header.method,
+          false
+        );
+        const decompressed = decoder.decompress(compressedData);
+        decoder.free();
+
+        const text = new TextDecoder().decode(decompressed);
+
+        return {
+          name: header.name,
+          method: header.method,
+          dictSizeLog: header.dictSizeLog,
+          decompressedSize: decompressed.length,
+          expectedSize: header.unpackedSize,
+          textPreview: text.substring(0, 50),
+          success: decompressed.length === header.unpackedSize,
+        };
+      } catch (e) {
+        return { error: e.message };
+      }
+    });
+
+    expect(result.error).toBeUndefined();
+    expect(result.success).toBe(true);
+    expect(result.name).toBe('compress_test.txt');
+    expect(result.decompressedSize).toBe(152);
+  });
 });

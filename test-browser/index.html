@@ -67,7 +67,9 @@
             is_rar_archive, 
             get_rar_version, 
             parse_rar_header,
-            WasmRarDecoder 
+            parse_rar5_header,
+            WasmRarDecoder,
+            WasmRar5Decoder
         } from '../pkg/rar_stream.js';
 
         const testsDiv = document.getElementById('tests');
@@ -187,50 +189,54 @@
                 }
 
                 const version = get_rar_version(data);
-                output.textContent += `RAR version: ${version === 15 ? 'RAR4 (v1.5-4.x)' : version === 50 ? 'RAR5' : 'Unknown'}\n`;
+                const isRar5 = version === 50;
+                output.textContent += `RAR version: ${isRar5 ? 'RAR5' : 'RAR4 (v1.5-4.x)'}\n`;
 
                 output.textContent += `Parsing header...\n`;
-                const header = parse_rar_header(data);
+                const header = isRar5 ? parse_rar5_header(data) : parse_rar_header(data);
                 output.textContent += `File name: ${header.name}\n`;
                 output.textContent += `Packed size: ${header.packedSize} bytes\n`;
                 output.textContent += `Unpacked size: ${header.unpackedSize} bytes\n`;
-                output.textContent += `Compression: ${header.isCompressed ? 'Yes (method 0x' + header.method.toString(16) + ')' : 'Store (no compression)'}\n`;
+                output.textContent += `Data offset: ${header.dataOffset}\n`;
+                output.textContent += `Compression: ${header.isCompressed ? 'Yes (method ' + header.method + ')' : 'Store (no compression)'}\n`;
 
-                if (header.isCompressed) {
-                    output.textContent += `\nAttempting decompression...\n`;
-                    
-                    // Find the data offset (after headers)
-                    // This is a simplified version - real implementation needs proper offset calculation
-                    const markerSize = 7;
-                    const archiveHeaderSize = 13;
-                    const fileHeaderSize = 32 + header.name.length + (header.unpackedSize > 0xFFFFFFFF ? 8 : 0);
-                    const dataOffset = markerSize + archiveHeaderSize + fileHeaderSize;
-                    
-                    output.textContent += `Data starts at offset ${dataOffset}\n`;
-                    
-                    const compressedData = data.slice(dataOffset, dataOffset + header.packedSize);
-                    output.textContent += `Compressed data: ${compressedData.length} bytes\n`;
+                const compressedData = data.slice(header.dataOffset, header.dataOffset + header.packedSize);
 
-                    const decoder = new WasmRarDecoder(BigInt(header.unpackedSize));
-                    try {
-                        const decompressed = decoder.decompress(compressedData);
-                        output.textContent += `✓ Decompressed: ${decompressed.length} bytes\n`;
-                        
-                        // Show first 200 bytes as text if it looks like text
-                        const preview = new TextDecoder().decode(decompressed.slice(0, 200));
-                        if (/^[\x20-\x7E\n\r\t]+$/.test(preview)) {
-                            output.textContent += `\nPreview (first 200 chars):\n${preview}...\n`;
-                        } else {
-                            output.textContent += `\nFirst 50 bytes (hex): ${Array.from(decompressed.slice(0, 50)).map(b => b.toString(16).padStart(2, '0')).join(' ')}\n`;
-                        }
-                    } catch (e) {
-                        output.textContent += `✗ Decompression failed: ${e.message}\n`;
+                if (!header.isCompressed) {
+                    output.textContent += `\n✓ File is stored (not compressed). Size: ${compressedData.length} bytes\n`;
+                    const preview = new TextDecoder().decode(compressedData.slice(0, 200));
+                    if (/^[\x20-\x7E\n\r\t]+$/.test(preview)) {
+                        output.textContent += `\nPreview:\n${preview}\n`;
                     }
-                    decoder.free();
-                } else {
-                    output.textContent += `\nFile is stored (not compressed). Raw data available.\n`;
+                    return;
                 }
 
+                output.textContent += `\nAttempting decompression...\n`;
+
+                let decompressed;
+                if (isRar5) {
+                    const decoder = new WasmRar5Decoder(
+                        BigInt(header.unpackedSize),
+                        header.dictSizeLog,
+                        header.method,
+                        false
+                    );
+                    decompressed = decoder.decompress(compressedData);
+                    decoder.free();
+                } else {
+                    const decoder = new WasmRarDecoder(BigInt(header.unpackedSize));
+                    decompressed = decoder.decompress(compressedData);
+                    decoder.free();
+                }
+
+                output.textContent += `✓ Decompressed: ${decompressed.length} bytes\n`;
+
+                const preview = new TextDecoder().decode(decompressed.slice(0, 200));
+                if (/^[\x20-\x7E\n\r\t]+$/.test(preview)) {
+                    output.textContent += `\nPreview (first 200 chars):\n${preview}...\n`;
+                } else {
+                    output.textContent += `\nFirst 50 bytes (hex): ${Array.from(decompressed.slice(0, 50)).map(b => b.toString(16).padStart(2, '0')).join(' ')}\n`;
+                }
             } catch (e) {
                 output.textContent += `ERROR: ${e.message}\n${e.stack}\n`;
             }
