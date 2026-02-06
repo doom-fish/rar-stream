@@ -21,3 +21,11 @@ playwright-report/
 # Rust
 Cargo.lock
 perf.data
+perf.data.*
+
+# Large benchmark fixtures (generated locally)
+__fixtures__/large/matrix/
+__fixtures__/large/alpine*
+
+# Machine-specific PGO profiles
+pgo-data/
