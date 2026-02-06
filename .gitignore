@@ -24,8 +24,7 @@ perf.data
 perf.data.*
 
 # Large benchmark fixtures (generated locally)
-__fixtures__/large/matrix/
-__fixtures__/large/alpine*
+__fixtures__/large/
 
 # Machine-specific PGO profiles
 pgo-data/
