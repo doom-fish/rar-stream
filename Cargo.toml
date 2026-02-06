@@ -1,6 +1,6 @@
 [package]
 name = "rar-stream"
-version = "5.0.1"
+version = "5.1.0"
 edition = "2021"
 rust-version = "1.85"
 license = "MIT"
@@ -10,6 +10,35 @@ readme = "README.md"
 description = "High-performance RAR streaming library with optional async, crypto, NAPI, and WASM support"
 keywords = ["rar", "archive", "streaming", "compression", "encryption"]
 categories = ["compression", "encoding", "parser-implementations"]
+exclude = [
+  "__fixtures__/",
+  "benches/",
+  "examples/",
+  "scripts/",
+  "test-browser/",
+  ".github/",
+  "*.node",
+  "pkg/",
+  "target/",
+  "node_modules/",
+  "test-results/",
+  "pgo-data/",
+  "*.mjs",
+  "*.ts",
+  "*.js",
+  "lib/",
+  "pw",
+  "cliff.toml",
+  "release-plz.toml",
+  "package.json",
+  "package-lock.json",
+  "eslint.config.mjs",
+  "playwright.config.ts",
+  "tsconfig.json",
+  "vitest.config.ts",
+  ".npmignore",
+  ".gitignore",
+]
 
 [package.metadata.docs.rs]
 # Build docs.rs with all features except napi (conflicts with wasm)

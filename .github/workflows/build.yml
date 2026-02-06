@@ -155,15 +155,13 @@ jobs:
       - name: Update npm to latest
         run: npm install -g npm@latest
       
-      - name: Publish to npm with OIDC
-        run: npm publish --access public --provenance || echo "npm publish failed (version may already exist)"
-        continue-on-error: true
-      
       - name: Publish to crates.io
-        run: cargo publish --allow-dirty || echo "cargo publish failed (version may already exist)"
-        continue-on-error: true
+        run: cargo publish --allow-dirty
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+      
+      - name: Publish to npm with OIDC
+        run: npm publish --access public --provenance
       
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
