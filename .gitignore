@@ -23,8 +23,10 @@ Cargo.lock
 perf.data
 perf.data.*
 
-# Large benchmark fixtures (generated locally)
-__fixtures__/large/
+# Large benchmark fixtures (generated locally, not committed)
+__fixtures__/large/matrix/
+__fixtures__/large/alpine-200mb*
+__fixtures__/large/large_mixed_*
 
 # Machine-specific PGO profiles
 pgo-data/
