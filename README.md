@@ -47,13 +47,14 @@ for (const file of files) {
 
 ## Examples
 
-Runnable examples in the [`examples/`](./examples) directory:
+Runnable examples in [`examples/`](./examples):
 
 | Example | Run | Description |
 |---------|-----|-------------|
-| [example.mjs](./example.mjs) | `node example.mjs <path>` | Parse RAR and list inner files |
-| [http-stream.mjs](./examples/http-stream.mjs) | `node examples/http-stream.mjs <rar>` | HTTP video server with range requests |
-| [webtorrent-stream.mjs](./examples/webtorrent-stream.mjs) | `node examples/webtorrent-stream.mjs <magnet>` | Stream video from RAR inside a torrent |
+| [basic.ts](./examples/basic.ts) | `npx tsx examples/basic.ts <path>` | Parse RAR, list files, read content |
+| [http-stream.ts](./examples/http-stream.ts) | `npx tsx examples/http-stream.ts <rar>` | HTTP video server with range requests |
+| [extract.rs](./examples/extract.rs) | `cargo run --release --example extract --features async -- archive.rar out/` | Extract files to disk |
+| [browser.html](./examples/browser.html) | Open in browser (after `npm run build:wasm`) | WASM decompression demo |
 | [profile.rs](./examples/profile.rs) | `cargo run --release --example profile` | Benchmark decompression loop |
 | [benchmark_sizes.rs](./examples/benchmark_sizes.rs) | `cargo run --release --example benchmark_sizes` | Benchmark across file sizes |
 

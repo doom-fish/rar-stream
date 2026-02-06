@@ -92,6 +92,10 @@ tokio = { version = "1", features = ["fs", "io-util", "sync", "rt", "macros"] }
 criterion = { version = "0.5", features = ["html_reports"] }
 unrar = "0.5"
 
+[[example]]
+name = "extract"
+required-features = ["async"]
+
 [[bench]]
 name = "decompress"
 harness = false

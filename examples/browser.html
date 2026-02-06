@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>rar-stream WASM Demo</title>
+    <style>
+        body { font-family: system-ui, sans-serif; max-width: 700px; margin: 40px auto; padding: 0 20px; }
+        pre { background: #f4f4f4; padding: 12px; border-radius: 4px; overflow-x: auto; white-space: pre-wrap; }
+        button { padding: 8px 16px; cursor: pointer; }
+    </style>
+</head>
+<body>
+    <h1>rar-stream WASM Demo</h1>
+    <p>Select a RAR file to detect format and decompress:</p>
+    <input type="file" id="fileInput" accept=".rar">
+    <button onclick="run()">Decompress</button>
+    <pre id="output">Initializing WASM...</pre>
+
+    <script type="module">
+        import init, {
+            is_rar_archive,
+            get_rar_version,
+            parse_rar_header,
+            parse_rar5_header,
+            WasmRarDecoder,
+            WasmRar5Decoder
+        } from '../pkg/rar_stream.js';
+
+        const output = document.getElementById('output');
+
+        await init();
+        output.textContent = 'Ready. Select a RAR file above.';
+
+        window.run = async function () {
+            const file = document.getElementById('fileInput').files[0];
+            if (!file) { output.textContent = 'No file selected.'; return; }
+
+            const data = new Uint8Array(await file.arrayBuffer());
+            let log = `File: ${file.name} (${data.length} bytes)\n`;
+
+            if (!is_rar_archive(data)) {
+                output.textContent = log + 'Not a valid RAR archive.';
+                return;
+            }
+
+            const version = get_rar_version(data);
+            const isRar5 = version === 50;
+            log += `Format: ${isRar5 ? 'RAR5' : 'RAR4'}\n`;
+
+            const header = isRar5 ? parse_rar5_header(data) : parse_rar_header(data);
+            log += `Inner file: ${header.name}\n`;
+            log += `Packed: ${header.packedSize} bytes, Unpacked: ${header.unpackedSize} bytes\n`;
+
+            const compressed = data.slice(header.dataOffset, header.dataOffset + header.packedSize);
+
+            if (!header.isCompressed) {
+                log += `\nStored (no compression). Size: ${compressed.length} bytes\n`;
+                output.textContent = log;
+                return;
+            }
+
+            log += '\nDecompressing...\n';
+            output.textContent = log;
+
+            let decompressed;
+            if (isRar5) {
+                const decoder = new WasmRar5Decoder(
+                    BigInt(header.unpackedSize), header.dictSizeLog, header.method, false
+                );
+                decompressed = decoder.decompress(compressed);
+                decoder.free();
+            } else {
+                const decoder = new WasmRarDecoder(BigInt(header.unpackedSize));
+                decompressed = decoder.decompress(compressed);
+                decoder.free();
+            }
+
+            log += `Done: ${decompressed.length} bytes\n`;
+
+            const preview = new TextDecoder().decode(decompressed.slice(0, 200));
+            if (/^[\x20-\x7E\n\r\t]+$/.test(preview)) {
+                log += `\nPreview:\n${preview}\n`;
+            } else {
+                log += `\nHex: ${Array.from(decompressed.slice(0, 50)).map(b => b.toString(16).padStart(2, '0')).join(' ')}\n`;
+            }
+
+            output.textContent = log;
+        };
+    </script>
+</body>
+</html>
