@@ -4,6 +4,34 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [5.1.0] - 2026-02-06
+
+### Performance
+
+- Parallel multi-threaded RAR5 decoding pipeline with split-buffer decode
+- Aggressive inlining in hot decode paths (Huffman, BitReader, copy_match)
+- SIMD memchr for E8/E8E9 filter byte search
+- Bulk copies in flush_to_output and VM filter
+- Optimized Huffman rebuild and BitReader
+- LTO and optimized release profile
+
+### Features
+
+- WASM RAR5 decompression and `dataOffset` in header parsers
+- Parallel feature flag for multi-threaded decoding
+
+### Bug Fixes
+
+- PPMd EXP_ESCAPE and ns2_bs_indx out-of-bounds access
+- Clippy compliance with SAFETY comments on all unsafe blocks
+- Cargo publish ordering: crates.io publishes before npm
+
+### Testing
+
+- E2E Playwright browser tests (RAR4/RAR5 upload → decompress → verify)
+- RAR5 browser decompression tests
+- Parallel feature unit tests
+
 ## [5.0.1] - 2026-02-06
 
 ### Miscellaneous Tasks
