@@ -160,7 +160,7 @@ jobs:
         continue-on-error: true
       
       - name: Publish to crates.io
-        run: cargo publish || echo "cargo publish failed (version may already exist)"
+        run: cargo publish --allow-dirty || echo "cargo publish failed (version may already exist)"
         continue-on-error: true
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
