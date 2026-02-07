@@ -4,6 +4,22 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [5.2.0] - 2026-02-07
+
+### Bug Fixes
+
+- Cargo fmt and eslint unused var
+
+### Features
+
+- *(wasm)* Add extract_file() for one-call decompression
+- *(wasm)* Add WasmRarArchive with entries() and extract() API
+
+### Refactor
+
+- *(wasm)* Align browser API naming with NAPI
+
+
 ## [5.1.1] - 2026-02-07
 
 ### Bug Fixes
