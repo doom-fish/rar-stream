@@ -168,7 +168,7 @@ test.describe('rar-stream RarFilesPackage', () => {
       const { WasmRarArchive } = await import('../pkg/rar_stream.js');
       const pkg = new WasmRarArchive(data);
       const len = pkg.length;
-      const files = pkg.parse();
+      pkg.parse(); // verify parse works
       const file = pkg.extract(0);
       const text = new TextDecoder().decode(file.data);
       pkg.free();

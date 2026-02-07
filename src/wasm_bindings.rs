@@ -291,11 +291,7 @@ fn extract_rar5_file(archive: &[u8]) -> Result<JsValue, JsError> {
 fn build_extract_result(name: &str, data: &[u8]) -> Result<JsValue, JsError> {
     let obj = js_sys::Object::new();
     let _ = js_sys::Reflect::set(&obj, &"name".into(), &JsValue::from_str(name));
-    let _ = js_sys::Reflect::set(
-        &obj,
-        &"data".into(),
-        &js_sys::Uint8Array::from(data).into(),
-    );
+    let _ = js_sys::Reflect::set(&obj, &"data".into(), &js_sys::Uint8Array::from(data).into());
     let _ = js_sys::Reflect::set(
         &obj,
         &"length".into(),
@@ -548,8 +544,7 @@ pub fn parse_rar5_headers(data: &[u8]) -> Result<JsValue, JsError> {
         let data_offset = offset + file_consumed;
 
         let obj = js_sys::Object::new();
-        let _ =
-            js_sys::Reflect::set(&obj, &"name".into(), &JsValue::from_str(&file_header.name));
+        let _ = js_sys::Reflect::set(&obj, &"name".into(), &JsValue::from_str(&file_header.name));
         let _ = js_sys::Reflect::set(
             &obj,
             &"packedSize".into(),
