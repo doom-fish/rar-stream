@@ -4,6 +4,39 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [5.1.1] - 2026-02-07
+
+### Bug Fixes
+
+- Address 9 issues from deep code review
+- Prevent subtract overflow in VM read_data with crafted RAR4 input
+- *(ci)* Exclude large alpine test from Miri to prevent timeout
+- Harden BitDecoder, FastBits and copy_bytes against buffer overreads and arithmetic overflow
+
+### Documentation
+
+- Streamline README, remove emojis, add examples table
+- Update copilot instructions with release flow, fuzz, miri
+- Update benchmarks with current numbers
+- Update benchmarks with parallel pipeline results
+
+### Performance
+
+- Use doubling copy for overlapping backreferences
+
+### Refactor
+
+- Rewrite examples as TypeScript, Rust, and WASM
+
+### Styling
+
+- Fix formatting
+
+### Testing
+
+- Add fuzz testing and Miri CI
+
+
 ## [5.1.0] - 2026-02-06
 
 ### Performance
