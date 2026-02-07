@@ -22,11 +22,40 @@ export declare function parseRar5Headers(data: Uint8Array): Promise<any[]>;
  * Extract the first file from a RAR archive buffer.
  * Auto-detects RAR4/RAR5, parses headers, and decompresses in one call.
  */
-export declare function extractFile(data: Uint8Array): Promise<{name: string, data: Uint8Array, size: number}>;
+export declare function extractFile(data: Uint8Array): Promise<{name: string, data: Uint8Array, length: number}>;
 
 // Classes (require init() before construction)
-export { WasmRarArchive, WasmRarDecoder, WasmRar5Decoder, WasmRar5Crypto } from '../pkg/rar_stream.d.ts';
-export { WasmRarArchive as RarArchive, WasmRarDecoder as RarDecoder, WasmRar5Decoder as Rar5Decoder } from '../pkg/rar_stream.d.ts';
+export declare class RarFilesPackage {
+  constructor(data: Uint8Array);
+  readonly length: number;
+  parse(): Array<{name: string, length: number, packedSize: number, isDirectory: boolean}>;
+  extract(index: number): {name: string, data: Uint8Array, length: number};
+  extractAll(): Array<{name: string, data: Uint8Array, length: number}>;
+  free(): void;
+}
+
+export declare class RarDecoder {
+  constructor(unpackedSize: bigint);
+  decompress(data: Uint8Array): Uint8Array;
+  bytes_written(): bigint;
+  is_complete(): boolean;
+  reset(): void;
+  free(): void;
+}
+
+export declare class Rar5Decoder {
+  constructor(unpackedSize: bigint, dictSizeLog: number, method: number, isSolid: boolean);
+  decompress(data: Uint8Array): Uint8Array;
+  reset(): void;
+  free(): void;
+}
+
+export declare class Rar5Crypto {
+  constructor(password: string, salt: Uint8Array, lg2Count: number);
+  decrypt(iv: Uint8Array, data: Uint8Array): Uint8Array;
+  verify_password(checkValue: Uint8Array): boolean;
+  free(): void;
+}
 
 // Direct snake_case access (require init() before use)
 export {

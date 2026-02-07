@@ -122,7 +122,7 @@ test.describe('rar-stream WASM multi-header parsing', () => {
   });
 });
 
-test.describe('rar-stream WasmRarArchive', () => {
+test.describe('rar-stream RarFilesPackage', () => {
   test('lists and extracts files from RAR4 multi-file archive', async ({ page }) => {
     await page.goto('http://localhost:8765/test-browser/index.html');
     await page.waitForFunction(() => document.querySelector('.test.pass') !== null);
@@ -133,17 +133,17 @@ test.describe('rar-stream WasmRarArchive', () => {
       const data = new Uint8Array(buffer);
 
       const { WasmRarArchive } = await import('../pkg/rar_stream.js');
-      const archive = new WasmRarArchive(data);
-      const entries = archive.entries();
-      const first = archive.extract(0);
+      const pkg = new WasmRarArchive(data);
+      const files = pkg.parse();
+      const first = pkg.extract(0);
       const text = new TextDecoder().decode(first.data);
-      const len = archive.length;
-      archive.free();
+      const len = pkg.length;
+      pkg.free();
       return {
         length: len,
-        names: entries.map((e: any) => e.name),
+        names: files.map((e: any) => e.name),
         firstName: first.name,
-        firstSize: first.size,
+        firstLength: first.length,
         textPreview: text.substring(0, 20),
       };
     });
@@ -153,7 +153,7 @@ test.describe('rar-stream WasmRarArchive', () => {
     expect(result.names).toContain('splitted2.txt');
     expect(result.names).toContain('splitted3.txt');
     expect(result.firstName).toBe('splitted1.txt');
-    expect(result.firstSize).toBeGreaterThan(0);
+    expect(result.firstLength).toBeGreaterThan(0);
   });
 
   test('lists and extracts from RAR5 archive', async ({ page }) => {
@@ -166,22 +166,22 @@ test.describe('rar-stream WasmRarArchive', () => {
       const data = new Uint8Array(buffer);
 
       const { WasmRarArchive } = await import('../pkg/rar_stream.js');
-      const archive = new WasmRarArchive(data);
-      const len = archive.length;
-      const entries = archive.entries();
-      const file = archive.extract(0);
+      const pkg = new WasmRarArchive(data);
+      const len = pkg.length;
+      const files = pkg.parse();
+      const file = pkg.extract(0);
       const text = new TextDecoder().decode(file.data);
-      archive.free();
+      pkg.free();
       return {
         length: len,
         name: file.name,
-        size: file.size,
+        fileLength: file.length,
         hasTestFile: text.includes('test file'),
       };
     });
 
     expect(result.name).toBe('compress_test.txt');
-    expect(result.size).toBe(152);
+    expect(result.fileLength).toBe(152);
     expect(result.hasTestFile).toBe(true);
   });
 
@@ -195,9 +195,9 @@ test.describe('rar-stream WasmRarArchive', () => {
       const data = new Uint8Array(buffer);
 
       const { WasmRarArchive } = await import('../pkg/rar_stream.js');
-      const archive = new WasmRarArchive(data);
-      const files = archive.extractAll();
-      archive.free();
+      const pkg = new WasmRarArchive(data);
+      const files = pkg.extractAll();
+      pkg.free();
       return {
         count: files.length,
         names: files.map((f: any) => f.name),
@@ -224,11 +224,11 @@ test.describe('rar-stream WASM extract_file', () => {
       const { extract_file } = await import('../pkg/rar_stream.js');
       const file = extract_file(data);
       const text = new TextDecoder().decode(file.data);
-      return { name: file.name, size: file.size, startsWithLorem: text.startsWith('Lorem ipsum') };
+      return { name: file.name, length: file.length, startsWithLorem: text.startsWith('Lorem ipsum') };
     });
 
     expect(result.name).toBe('lorem_ipsum.txt');
-    expect(result.size).toBe(3515);
+    expect(result.length).toBe(3515);
     expect(result.startsWithLorem).toBe(true);
   });
 
@@ -244,11 +244,11 @@ test.describe('rar-stream WASM extract_file', () => {
       const { extract_file } = await import('../pkg/rar_stream.js');
       const file = extract_file(data);
       const text = new TextDecoder().decode(file.data);
-      return { name: file.name, size: file.size, hasTestFile: text.includes('test file') };
+      return { name: file.name, length: file.length, hasTestFile: text.includes('test file') };
     });
 
     expect(result.name).toBe('compress_test.txt');
-    expect(result.size).toBe(152);
+    expect(result.length).toBe(152);
     expect(result.hasTestFile).toBe(true);
   });
 });
@@ -373,7 +373,7 @@ test.describe('rar-stream WASM decompression', () => {
 
       // Check if the crypto class is available
       if (typeof WasmRar5Crypto !== 'function') {
-        return { error: 'WasmRar5Crypto not available' };
+        return { error: 'Rar5Crypto not available' };
       }
 
       try {

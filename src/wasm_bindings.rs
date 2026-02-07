@@ -31,11 +31,11 @@ struct ParsedEntry {
 /// Parses all file entries on construction, then extracts on demand.
 ///
 /// ```js
-/// const archive = new WasmRarArchive(data);
-/// console.log(archive.length);           // number of files
-/// const info = archive.entries();         // [{name, size, isDirectory}, ...]
-/// const file = archive.extract(0);       // {name, data, size}
-/// const all = archive.extractAll();      // [{name, data, size}, ...]
+/// const pkg = new RarFilesPackage(data);
+/// console.log(pkg.length);               // number of files
+/// const files = pkg.parse();             // [{name, length, packedSize, isDirectory}, ...]
+/// const file = pkg.extract(0);           // {name, data, length}
+/// const all = pkg.extractAll();          // [{name, data, length}, ...]
 /// ```
 #[wasm_bindgen]
 pub struct WasmRarArchive {
@@ -71,16 +71,16 @@ impl WasmRarArchive {
     }
 
     /// Get info about all files in the archive.
-    /// Returns an array of `{name, size, packedSize, isDirectory}`.
+    /// Returns an array of `{name, length, packedSize, isDirectory}`.
     #[wasm_bindgen]
-    pub fn entries(&self) -> JsValue {
+    pub fn parse(&self) -> JsValue {
         let arr = js_sys::Array::new();
         for entry in &self.entries {
             let obj = js_sys::Object::new();
             let _ = js_sys::Reflect::set(&obj, &"name".into(), &JsValue::from_str(&entry.name));
             let _ = js_sys::Reflect::set(
                 &obj,
-                &"size".into(),
+                &"length".into(),
                 &JsValue::from_f64(entry.unpacked_size as f64),
             );
             let _ = js_sys::Reflect::set(
@@ -99,7 +99,7 @@ impl WasmRarArchive {
     }
 
     /// Extract a file by index.
-    /// Returns `{name, data, size}` where `data` is a `Uint8Array`.
+    /// Returns `{name, data, length}` where `data` is a `Uint8Array`.
     #[wasm_bindgen]
     pub fn extract(&self, index: u32) -> Result<JsValue, JsError> {
         let entry = self
@@ -147,7 +147,7 @@ impl WasmRarArchive {
         build_extract_result(&entry.name, &decompressed)
     }
 
-    /// Extract all files. Returns an array of `{name, data, size}`.
+    /// Extract all files. Returns an array of `{name, data, length}`.
     #[wasm_bindgen(js_name = extractAll)]
     pub fn extract_all(&self) -> Result<JsValue, JsError> {
         let arr = js_sys::Array::new();
@@ -298,7 +298,7 @@ fn build_extract_result(name: &str, data: &[u8]) -> Result<JsValue, JsError> {
     );
     let _ = js_sys::Reflect::set(
         &obj,
-        &"size".into(),
+        &"length".into(),
         &JsValue::from_f64(data.len() as f64),
     );
     Ok(obj.into())
