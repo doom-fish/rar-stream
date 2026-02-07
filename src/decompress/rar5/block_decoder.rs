@@ -532,7 +532,8 @@ impl Rar5BlockDecoder {
                 unsafe {
                     *self
                         .window
-                        .get_unchecked_mut(self.window_pos.wrapping_add(i) & self.window_mask) = byte;
+                        .get_unchecked_mut(self.window_pos.wrapping_add(i) & self.window_mask) =
+                        byte;
                 }
                 self.output.push(byte);
             }
@@ -542,7 +543,8 @@ impl Rar5BlockDecoder {
             let src_mask_start = src_start & self.window_mask;
             let dst_mask_start = self.window_pos & self.window_mask;
             let src_mask_end = (src_start.wrapping_add(length).wrapping_sub(1)) & self.window_mask;
-            let dst_mask_end = (self.window_pos.wrapping_add(length).wrapping_sub(1)) & self.window_mask;
+            let dst_mask_end =
+                (self.window_pos.wrapping_add(length).wrapping_sub(1)) & self.window_mask;
 
             // Fast path: no wraparound in either src or dst
             if src_mask_end >= src_mask_start && dst_mask_end >= dst_mask_start {
@@ -1088,7 +1090,10 @@ impl Rar5BlockDecoder {
                 } else {
                     fb.read(NUM_ALIGN_BITS as u32)
                 };
-                (base.wrapping_add(high << NUM_ALIGN_BITS).wrapping_add(low).wrapping_add(1)) as usize
+                (base
+                    .wrapping_add(high << NUM_ALIGN_BITS)
+                    .wrapping_add(low)
+                    .wrapping_add(1)) as usize
             }
         }
     }
@@ -1651,7 +1656,10 @@ impl Rar5BlockDecoder {
                     bits.read_bits_9fix(NUM_ALIGN_BITS)
                 };
 
-                let offset = base.wrapping_add(high << NUM_ALIGN_BITS).wrapping_add(low).wrapping_add(1);
+                let offset = base
+                    .wrapping_add(high << NUM_ALIGN_BITS)
+                    .wrapping_add(low)
+                    .wrapping_add(1);
                 Ok(offset as usize)
             }
         }
@@ -2335,7 +2343,9 @@ impl Rar5BlockDecoder {
                 } else {
                     fb.read(NUM_ALIGN_BITS as u32)
                 };
-                base.wrapping_add(high << NUM_ALIGN_BITS).wrapping_add(low).wrapping_add(1) as usize
+                base.wrapping_add(high << NUM_ALIGN_BITS)
+                    .wrapping_add(low)
+                    .wrapping_add(1) as usize
             }
         }
     }
@@ -2380,7 +2390,10 @@ impl Rar5BlockDecoder {
                 } else {
                     bits.read_bits_9fix(NUM_ALIGN_BITS)
                 };
-                Ok(base.wrapping_add(high << NUM_ALIGN_BITS).wrapping_add(low).wrapping_add(1) as usize)
+                Ok(base
+                    .wrapping_add(high << NUM_ALIGN_BITS)
+                    .wrapping_add(low)
+                    .wrapping_add(1) as usize)
             }
         }
     }
