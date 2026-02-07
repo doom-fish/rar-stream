@@ -1747,6 +1747,8 @@ struct FastBits {
     pos: usize,
     /// Maximum byte position for safe 4-byte reads (buf_len - 4).
     src_safe_end: usize,
+    /// Tracks consumed bits = pos*8 - n, updated incrementally.
+    consumed_bits: usize,
 }
 
 impl FastBits {
@@ -1760,19 +1762,20 @@ impl FastBits {
             src: bits.buf_ptr(),
             pos: byte_pos,
             src_safe_end: bits.buf_len().saturating_sub(4),
+            consumed_bits: 0,
         };
         fb.refill();
         if bit_pos > 0 {
             fb.buf <<= bit_pos;
             fb.n -= bit_pos as u32;
         }
+        fb.consumed_bits = (fb.pos * 8).saturating_sub(fb.n as usize);
         fb
     }
 
     /// Sync state back to a BitDecoder.
     fn sync_to(&self, bits: &mut BitDecoder) {
-        let consumed = (self.pos * 8).saturating_sub(self.n as usize);
-        bits.set_position_with_bit(consumed / 8, consumed % 8);
+        bits.set_position_with_bit(self.consumed_bits / 8, self.consumed_bits % 8);
     }
 
     /// Reload from a BitDecoder (after it was used for block headers/tables).
@@ -1786,16 +1789,18 @@ impl FastBits {
             self.buf <<= bp;
             self.n -= bp as u32;
         }
+        self.consumed_bits = (self.pos * 8).saturating_sub(self.n as usize);
     }
 
-    /// Refill buffer with a 4-byte read.
+    /// Refill buffer with a 4-byte read when buffer is getting low.
     #[inline(always)]
     fn refill(&mut self) {
         if self.n <= 32 && self.pos <= self.src_safe_end {
             // SAFETY: pos <= src_safe_end = buf_len - 4, so reading
             // 4 bytes at pos is within the allocated buffer.
-            let v =
-                unsafe { u32::from_be((self.src.add(self.pos) as *const u32).read_unaligned()) };
+            let v = unsafe {
+                u32::from_be((self.src.add(self.pos) as *const u32).read_unaligned())
+            };
             self.buf |= (v as u64) << (32 - self.n);
             self.n += 32;
             self.pos += 4;
@@ -1817,6 +1822,7 @@ impl FastBits {
 
     #[inline(always)]
     fn skip(&mut self, bits: u32) {
+        self.consumed_bits += bits as usize;
         if bits >= self.n {
             self.buf = 0;
             self.n = 0;
@@ -1838,6 +1844,7 @@ impl FastBits {
             return 0;
         }
         let v = (self.buf >> (64 - num)) as u32;
+        self.consumed_bits += num as usize;
         self.buf <<= num;
         self.n -= num;
         v
@@ -1845,8 +1852,7 @@ impl FastBits {
 
     #[inline(always)]
     fn is_block_over(&self, end_bits: usize) -> bool {
-        let consumed = (self.pos * 8).saturating_sub(self.n as usize);
-        consumed >= end_bits
+        self.consumed_bits >= end_bits
     }
 
     /// Decode a Huffman symbol using the quick table.
@@ -1860,12 +1866,21 @@ impl FastBits {
             let entry = unsafe { *table.quick_table.get_unchecked(code) };
             if entry != 0 {
                 let len = (entry & 0xF) as u32;
-                self.skip(len);
+                // Inline skip to avoid function call overhead on fast path
+                self.consumed_bits += len as usize;
+                self.buf <<= len;
+                self.n -= len;
                 return (entry >> 4) as u16;
             }
         }
 
-        // Slow path
+        self.decode_slow(bit_field, table)
+    }
+
+    /// Slow path for Huffman decoding — outlined to keep decode() small.
+    #[cold]
+    #[inline(never)]
+    fn decode_slow(&mut self, bit_field: u32, table: &HuffTable) -> u16 {
         let mut bit_len = 15u32;
         for i in (table.quick_bits as u32 + 1)..15 {
             if bit_field < table.decode_len[i as usize] {
