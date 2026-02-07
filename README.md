@@ -126,51 +126,53 @@ Core decompression (3 KB files, single-threaded):
 | Method | rar-stream | unrar | Speedup |
 |--------|-----------|-------|---------|
 | LZSS | 8 µs | 92 µs | 11x |
-| PPMd | 105 µs | 174 µs | 1.7x |
-| Stored | 54 ns | 122 µs | 2257x |
+| PPMd | 101 µs | 177 µs | 1.8x |
+| Stored | 54 ns | 123 µs | 2170x |
 
-Real archives (8 MB Alpine Linux ISO):
+With the `parallel` feature (enabled by default in npm), rar-stream's pipeline beats unrar across all 24 benchmark scenarios. Best case: 1.9x faster.
 
-| Method | rar-stream | unrar | Speedup |
-|--------|-----------|-------|---------|
-| LZSS | 26 ms | 32 ms | 1.3x |
-| PPMd | 26 ms | 32 ms | 1.2x |
+| Archive | Size | Pipeline | unrar | Ratio |
+|---------|------|----------|-------|-------|
+| Binary (ISO) | 200 MB | 289ms | 420ms | 0.69x |
+| Text | 200 MB | 119ms | 197ms | 0.61x |
+| Mixed | 200 MB | 307ms | 524ms | 0.59x |
+| Binary | 500 MB | 683ms | 1088ms | 0.63x |
+| Text | 500 MB | 357ms | 590ms | 0.61x |
+| Mixed | 1 GB | 1671ms | 2407ms | 0.69x |
 
 <details>
-<summary>Full benchmark matrix (24 scenarios, single-threaded)</summary>
+<summary>Full benchmark matrix (24 scenarios)</summary>
 
 ```
-Archive                  rar-stream     Unrar    Ratio
-------------------------------------------------------
-bin-500_m3_32m              1180ms     1152ms    1.02x
-bin-500_m5_128m             1144ms     1122ms    1.02x
-bin-500_m5_32m              1194ms     1140ms    1.05x
-bin-500_m5_4m               1324ms     1233ms    1.07x
-iso-200_m3_32m               690ms      435ms    1.58x
-iso-200_m5_128m              680ms      460ms    1.48x
-iso-200_m5_32m               685ms      436ms    1.57x
-iso-200_m5_4m                680ms      431ms    1.58x
-mixed-1g_m3_32m             2755ms     2673ms    1.03x
-mixed-1g_m5_128m            2964ms     2875ms    1.03x
-mixed-1g_m5_32m             2736ms     2635ms    1.04x
-mixed-1g_m5_4m              2636ms     2440ms    1.08x
-mixed-200_m3_32m             486ms      551ms    0.88x
-mixed-200_m5_128m            433ms      535ms    0.81x
-mixed-200_m5_32m             486ms      711ms    0.68x
-mixed-200_m5_4m              633ms      612ms    1.03x
-text-200_m3_32m              249ms      207ms    1.20x
-text-200_m5_128m             231ms      236ms    0.98x
-text-200_m5_32m              200ms      205ms    0.97x
-text-200_m5_4m               218ms      197ms    1.11x
-text-500_m3_32m              594ms      605ms    0.98x
-text-500_m5_128m             581ms      643ms    0.90x
-text-500_m5_32m              598ms      601ms    1.00x
-text-500_m5_4m               639ms      628ms    1.02x
+Archive                  Single   Pipeline    Unrar   Pipe/Unrar
+----------------------------------------------------------------
+bin-500_m3_32m            1187ms       736ms    1122ms     0.66x
+bin-500_m5_128m           1122ms       683ms    1088ms     0.63x
+bin-500_m5_32m            1183ms       711ms    1119ms     0.64x
+bin-500_m5_4m             1311ms       765ms    1206ms     0.63x
+iso-200_m3_32m             693ms       289ms     420ms     0.69x
+iso-200_m5_128m            694ms       296ms     455ms     0.65x
+iso-200_m5_32m             697ms       290ms     418ms     0.69x
+iso-200_m5_4m              694ms       293ms     426ms     0.69x
+mixed-1g_m3_32m           2690ms      1818ms    2603ms     0.70x
+mixed-1g_m5_128m          2909ms      1916ms    2852ms     0.67x
+mixed-1g_m5_32m           2699ms      1794ms    2598ms     0.69x
+mixed-1g_m5_4m            2611ms      1671ms    2407ms     0.69x
+mixed-200_m3_32m           465ms       344ms     537ms     0.64x
+mixed-200_m5_128m          413ms       307ms     524ms     0.59x
+mixed-200_m5_32m           463ms       338ms     527ms     0.64x
+mixed-200_m5_4m            487ms       350ms     531ms     0.66x
+text-200_m3_32m            199ms       120ms     200ms     0.60x
+text-200_m5_128m           196ms       119ms     230ms     0.52x
+text-200_m5_32m            197ms       120ms     197ms     0.61x
+text-200_m5_4m             218ms       127ms     199ms     0.64x
+text-500_m3_32m            583ms       362ms     591ms     0.61x
+text-500_m5_128m           572ms       365ms     628ms     0.58x
+text-500_m5_32m            567ms       357ms     590ms     0.61x
+text-500_m5_4m             623ms       382ms     620ms     0.62x
 ```
 
-Ratio < 1.0 = rar-stream is faster. On large archives, single-threaded performance
-is comparable to unrar. The `parallel` feature enables multi-threaded decompression
-for additional speedup on multi-core systems.
+Ratio < 1.0 = rar-stream is faster.
 
 </details>
 
