@@ -15,8 +15,8 @@ pub fn read_vint(data: &[u8]) -> Option<(u64, usize)> {
     let mut shift = 0;
 
     for (i, &byte) in data.iter().enumerate() {
-        // Prevent overflow - vint can be at most 10 bytes for u64
-        if i >= 10 {
+        // Limit to 9 bytes (63 bits of data) to prevent overflow
+        if i >= 9 {
             return None;
         }
 

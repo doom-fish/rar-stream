@@ -33,7 +33,6 @@ pub struct FileHeader {
     pub has_high_size: bool,
     pub has_special_name: bool,
     pub has_salt: bool,
-    pub is_old_version: bool,
     pub has_extended_time: bool,
     /// 8-byte encryption salt (if has_salt is true)
     pub salt: Option<[u8; 8]>,
@@ -130,7 +129,6 @@ impl FileHeaderParser {
         let has_high_size = (flags & 0x0100) != 0; // LHD_LARGE - 64-bit sizes follow
         let has_special_name = (flags & 0x0040) != 0; // LHD_UNICODE
         let has_salt = (flags & 0x0080) != 0;
-        let is_old_version = (flags & 0x0100) != 0;
         let has_extended_time = (flags & 0x0200) != 0;
 
         // Handle 64-bit sizes
@@ -197,7 +195,6 @@ impl FileHeaderParser {
             has_high_size,
             has_special_name,
             has_salt,
-            is_old_version,
             has_extended_time,
             salt,
         })

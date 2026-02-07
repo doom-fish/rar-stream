@@ -42,6 +42,9 @@ impl LocalFileMedia {
 
     #[napi]
     pub async fn create_read_stream(&self, opts: ReadIntervalJs) -> Result<Buffer> {
+        if opts.start < 0 || opts.end < 0 {
+            return Err(Error::from_reason("start and end must be non-negative"));
+        }
         let interval = ReadInterval {
             start: opts.start as u64,
             end: opts.end as u64,
@@ -67,6 +70,8 @@ pub struct ReadIntervalJs {
 /// but it's exported to JS as "InnerFile".
 #[napi]
 pub struct InnerFile {
+    name: String,
+    length: i64,
     inner: Arc<Mutex<RustInnerFile>>,
 }
 
@@ -74,25 +79,19 @@ pub struct InnerFile {
 impl InnerFile {
     #[napi(getter)]
     pub fn name(&self) -> String {
-        // Need to block to get the name - it's just a string copy
-        let rt = tokio::runtime::Handle::current();
-        rt.block_on(async {
-            let inner = self.inner.lock().await;
-            inner.name.clone()
-        })
+        self.name.clone()
     }
 
     #[napi(getter)]
     pub fn length(&self) -> i64 {
-        let rt = tokio::runtime::Handle::current();
-        rt.block_on(async {
-            let inner = self.inner.lock().await;
-            inner.length as i64
-        })
+        self.length
     }
 
     #[napi]
     pub async fn create_read_stream(&self, opts: ReadIntervalJs) -> Result<Buffer> {
+        if opts.start < 0 || opts.end < 0 {
+            return Err(Error::from_reason("start and end must be non-negative"));
+        }
         let inner = self.inner.lock().await;
         let interval = ReadInterval {
             start: opts.start as u64,
@@ -185,6 +184,8 @@ impl RarFilesPackage {
                 ParseOptions {
                     filter,
                     max_files: js_opts.max_files.map(|n| n as usize),
+                    #[cfg(feature = "crypto")]
+                    password: None,
                 }
             }
             None => ParseOptions::default(),
@@ -198,8 +199,14 @@ impl RarFilesPackage {
 
         Ok(inner_files
             .into_iter()
-            .map(|f| InnerFile {
-                inner: Arc::new(Mutex::new(f)),
+            .map(|f| {
+                let name = f.name.clone();
+                let length = f.length as i64;
+                InnerFile {
+                    name,
+                    length,
+                    inner: Arc::new(Mutex::new(f)),
+                }
             })
             .collect())
     }

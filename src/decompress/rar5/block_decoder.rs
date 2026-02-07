@@ -928,6 +928,12 @@ impl Rar5BlockDecoder {
                     self.recent_offsets[1] = self.recent_offsets[0];
                     self.recent_offsets[0] = offset as u32;
                     self.last_length = length;
+                    if offset > pos || pos + length > output_size {
+                        return Err(DecompressError::Io(std::io::Error::new(
+                            std::io::ErrorKind::InvalidData,
+                            "Invalid back-reference: offset or length out of bounds",
+                        )));
+                    }
                     copy_match(out_ptr, pos, offset, length);
                     pos += length;
                 } else if sym >= 258 {
@@ -952,12 +958,24 @@ impl Rar5BlockDecoder {
                         self.recent_offsets[0] = off;
                     }
                     self.last_length = length;
+                    if offset > pos || pos + length > output_size {
+                        return Err(DecompressError::Io(std::io::Error::new(
+                            std::io::ErrorKind::InvalidData,
+                            "Invalid back-reference: offset or length out of bounds",
+                        )));
+                    }
                     copy_match(out_ptr, pos, offset, length);
                     pos += length;
                 } else if sym == 257 {
                     if self.last_length != 0 && self.recent_offsets[0] != 0 {
                         let length = self.last_length;
                         let offset = self.recent_offsets[0] as usize;
+                        if offset > pos || pos + length > output_size {
+                            return Err(DecompressError::Io(std::io::Error::new(
+                                std::io::ErrorKind::InvalidData,
+                                "Invalid back-reference: offset or length out of bounds",
+                            )));
+                        }
                         copy_match(out_ptr, pos, offset, length);
                         pos += length;
                     }

@@ -6,6 +6,12 @@
 use super::{Rar5HeaderFlags, VintReader};
 use crate::error::{RarError, Result};
 
+/// Safely cast u64 to usize, returning an error on 32-bit overflow.
+#[inline]
+fn safe_usize(value: u64) -> Result<usize> {
+    usize::try_from(value).map_err(|_| RarError::InvalidHeader)
+}
+
 /// RAR5 file flags (specific to file header).
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct Rar5FileFlags {
@@ -165,13 +171,21 @@ impl Rar5FileHeader {
             if ftype == field_type {
                 // Return the data after the type field
                 let data_start = pos + header_consumed;
-                let data_end = pos + size_vint_len + size as usize;
+                let size_usize = size as usize;
+                if size_usize as u64 != size {
+                    return None; // Overflow on 32-bit
+                }
+                let data_end = pos + size_vint_len + size_usize;
                 if data_end <= extra.len() {
                     return Some(&extra[data_start..data_end]);
                 }
             }
 
-            pos += size_vint_len + size as usize;
+            let size_usize = size as usize;
+            if size_usize as u64 != size {
+                return None;
+            }
+            pos += size_vint_len + size_usize;
         }
         None
     }
@@ -256,14 +270,14 @@ impl Rar5FileHeaderParser {
         // Name length and name
         let name_len = reader.read().ok_or(RarError::InvalidHeader)?;
         let name_bytes = reader
-            .read_bytes(name_len as usize)
+            .read_bytes(safe_usize(name_len)?)
             .ok_or(RarError::InvalidHeader)?;
         let name = String::from_utf8_lossy(name_bytes).into_owned();
 
         // Read extra area if present
         let extra_area = if extra_area_size > 0 {
             let extra_bytes = reader
-                .read_bytes(extra_area_size as usize)
+                .read_bytes(safe_usize(extra_area_size)?)
                 .ok_or(RarError::InvalidHeader)?;
             Some(extra_bytes.to_vec())
         } else {
@@ -272,7 +286,7 @@ impl Rar5FileHeaderParser {
 
         // Calculate total bytes consumed
         // header_size indicates bytes after the header_size vint itself
-        let total_consumed = header_content_start + header_size as usize;
+        let total_consumed = header_content_start + safe_usize(header_size)?;
 
         Ok((
             Rar5FileHeader {

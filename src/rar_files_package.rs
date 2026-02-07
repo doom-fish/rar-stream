@@ -401,7 +401,11 @@ impl RarFilesPackage {
             }
 
             let data_start = offset + file_header.head_size as u64;
-            let data_end = data_start + file_header.packed_size - 1;
+            let data_end = if file_header.packed_size > 0 {
+                data_start + file_header.packed_size - 1
+            } else {
+                data_start
+            };
 
             // Apply filter
             let include = match &opts.filter {
@@ -622,7 +626,11 @@ impl RarFilesPackage {
             };
 
             let data_start = offset + header_consumed as u64;
-            let data_end = data_start + file_header.packed_size - 1;
+            let data_end = if file_header.packed_size > 0 {
+                data_start + file_header.packed_size - 1
+            } else {
+                data_start
+            };
 
             // Apply filter
             let include = match &opts.filter {

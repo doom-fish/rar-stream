@@ -52,7 +52,35 @@ impl RawTimestamp {
         let month = ((dos_time >> 21) & 0x0f) as i64;
         let year = ((dos_time >> 25) + 1980) as i64;
 
-        let days = (year - 1970) * 365 + (month - 1) * 30 + day;
+        // Count days from epoch (1970-01-01) to the given date
+        let mut days: i64 = 0;
+        for y in 1970..year {
+            days += if y % 4 == 0 && (y % 100 != 0 || y % 400 == 0) {
+                366
+            } else {
+                365
+            };
+        }
+        let is_leap = year % 4 == 0 && (year % 100 != 0 || year % 400 == 0);
+        let month_days = [
+            31,
+            if is_leap { 29 } else { 28 },
+            31,
+            30,
+            31,
+            30,
+            31,
+            31,
+            30,
+            31,
+            30,
+            31,
+        ];
+        for m in 0..(month - 1).min(11) as usize {
+            days += month_days[m] as i64;
+        }
+        days += day - 1;
+
         let secs = days * 86400 + hour * 3600 + minute * 60 + second;
         Self {
             nanos: secs * 1_000_000_000,

@@ -45,6 +45,7 @@ impl Rar5EncryptionHeaderParser {
         // Header size (vint)
         let mut reader = VintReader::new(&data[pos..]);
         let header_size = reader.read().ok_or(RarError::InvalidHeader)?;
+        let header_content_start = pos + reader.position();
         pos += reader.position();
 
         // Header type (vint)
@@ -99,7 +100,7 @@ impl Rar5EncryptionHeaderParser {
             None
         };
 
-        let total_consumed = 4 + 1 + header_size as usize; // CRC + size vint + content
+        let total_consumed = header_content_start + header_size as usize;
 
         Ok((
             Rar5EncryptionHeader {

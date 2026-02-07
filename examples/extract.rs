@@ -27,11 +27,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     println!("{} file(s) in archive:", files.len());
     for f in &files {
-        println!(
-            "  {} ({:.2} MB)",
-            f.name,
-            f.length as f64 / 1024.0 / 1024.0
-        );
+        println!("  {} ({:.2} MB)", f.name, f.length as f64 / 1024.0 / 1024.0);
     }
 
     for f in &files {
