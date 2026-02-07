@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [5.2.1] - 2026-02-07
+
+### Bug Fixes
+
+- Remove unused npm deps, fix all vulnerabilities
+
+### Refactor
+
+- Achieve true zero-dep core
+- Remove async feature, inline tokio into napi
+
+
 ## [5.2.0] - 2026-02-07
 
 ### Bug Fixes
