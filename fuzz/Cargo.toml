@@ -1,0 +1,63 @@
+[package]
+name = "rar-stream-fuzz"
+version = "0.0.0"
+publish = false
+edition = "2021"
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+
+[dependencies.rar-stream]
+path = ".."
+features = ["crypto"]
+
+# Fuzz target: RAR4 header parsing
+[[bin]]
+name = "fuzz_parse_rar4"
+path = "fuzz_targets/fuzz_parse_rar4.rs"
+test = false
+doc = false
+bench = false
+
+# Fuzz target: RAR5 header parsing
+[[bin]]
+name = "fuzz_parse_rar5"
+path = "fuzz_targets/fuzz_parse_rar5.rs"
+test = false
+doc = false
+bench = false
+
+# Fuzz target: RAR4 decompression (LZSS + PPMd)
+[[bin]]
+name = "fuzz_decompress_rar4"
+path = "fuzz_targets/fuzz_decompress_rar4.rs"
+test = false
+doc = false
+bench = false
+
+# Fuzz target: RAR5 decompression
+[[bin]]
+name = "fuzz_decompress_rar5"
+path = "fuzz_targets/fuzz_decompress_rar5.rs"
+test = false
+doc = false
+bench = false
+
+# Fuzz target: full RAR4 archive (parse + decompress)
+[[bin]]
+name = "fuzz_archive_rar4"
+path = "fuzz_targets/fuzz_archive_rar4.rs"
+test = false
+doc = false
+bench = false
+
+# Fuzz target: full RAR5 archive (parse + decompress)
+[[bin]]
+name = "fuzz_archive_rar5"
+path = "fuzz_targets/fuzz_archive_rar5.rs"
+test = false
+doc = false
+bench = false

@@ -130,3 +130,56 @@ jobs:
       
       - name: Run browser tests
         run: npm run test:browser
+
+  miri:
+    name: Miri (unsafe validation)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust nightly + Miri
+        uses: dtolnay/rust-toolchain@nightly
+        with:
+          components: miri
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+
+      - name: Miri - parsing tests
+        run: cargo +nightly miri test --lib -- parsing
+
+      - name: Miri - RAR4 decompression
+        run: MIRIFLAGS="-Zmiri-disable-isolation" cargo +nightly miri test --lib -- decompress::tests::test_decompress_lzss_default decompress::tests::test_decompress_ppmd decompress::tests::test_decompress_delta decompress::tests::test_lzss
+
+      - name: Miri - RAR5 decompression
+        run: MIRIFLAGS="-Zmiri-disable-isolation" cargo +nightly miri test --lib -- "decompress::rar5"
+
+  fuzz:
+    name: Fuzz (smoke test)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust nightly
+        uses: dtolnay/rust-toolchain@nightly
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+
+      - name: Install cargo-fuzz
+        run: cargo install cargo-fuzz
+
+      - name: Fuzz parsers (30s each)
+        run: |
+          cargo +nightly fuzz run fuzz_parse_rar4 -- -max_total_time=30
+          cargo +nightly fuzz run fuzz_parse_rar5 -- -max_total_time=30
+
+      - name: Fuzz decompression (30s each)
+        run: |
+          cargo +nightly fuzz run fuzz_decompress_rar4 -- -max_total_time=30
+          cargo +nightly fuzz run fuzz_decompress_rar5 -- -max_total_time=30
+
+      - name: Fuzz full archives (30s each)
+        run: |
+          cargo +nightly fuzz run fuzz_archive_rar4 -- -max_total_time=30
+          cargo +nightly fuzz run fuzz_archive_rar5 -- -max_total_time=30
