@@ -55,9 +55,9 @@ crate-type = ["cdylib", "rlib"]
 [features]
 default = []
 # Async file reading support
-async = ["dep:tokio", "dep:futures"]
+async = ["dep:tokio"]
 # Node.js NAPI bindings
-napi = ["dep:napi", "dep:napi-derive", "async", "parallel"]
+napi = ["dep:napi", "dep:napi-derive", "dep:napi-build", "async", "parallel"]
 # Browser WASM bindings
 wasm = ["dep:wasm-bindgen", "dep:js-sys"]
 # Encrypted archive support
@@ -70,7 +70,6 @@ parallel = ["dep:rayon", "dep:crossbeam-channel"]
 
 # Async (optional)
 tokio = { version = "1", features = ["fs", "io-util", "sync"], optional = true }
-futures = { version = "0.3", optional = true }
 
 # NAPI bindings (optional)
 napi = { version = "2", features = ["async", "napi6", "serde-json"], optional = true }
@@ -84,7 +83,6 @@ cbc = { version = "0.1.2", optional = true }
 pbkdf2 = { version = "0.12.2", optional = true }
 sha2 = { version = "0.10.9", optional = true }
 sha1 = { version = "0.10.6", optional = true }
-memchr = "2.7.6"
 rayon = { version = "1.10", optional = true }
 crossbeam-channel = { version = "0.5", optional = true }
 
@@ -110,7 +108,7 @@ lto = "fat"
 codegen-units = 1
 
 [build-dependencies]
-napi-build = "2"
+napi-build = { version = "2", optional = true }
 
 # Strict linting configuration
 [lints.rust]

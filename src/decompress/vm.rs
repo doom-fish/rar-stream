@@ -742,8 +742,11 @@ impl RarVM {
         if include_e9 {
             // E8E9: search for either 0xE8 or 0xE9
             while cur_pos < search_end {
-                // Find next E8 or E9 byte using SIMD
-                if let Some(offset) = memchr::memchr2(0xe8, 0xe9, &self.mem[cur_pos..search_end]) {
+                // Find next E8 or E9 byte
+                let found = self.mem[cur_pos..search_end]
+                    .iter()
+                    .position(|&b| b == 0xe8 || b == 0xe9);
+                if let Some(offset) = found {
                     cur_pos += offset;
                     // Process the found byte
                     let addr_pos = cur_pos + 1;
@@ -768,7 +771,10 @@ impl RarVM {
         } else {
             // E8 only: search for 0xE8
             while cur_pos < search_end {
-                if let Some(offset) = memchr::memchr(0xe8, &self.mem[cur_pos..search_end]) {
+                let found = self.mem[cur_pos..search_end]
+                    .iter()
+                    .position(|&b| b == 0xe8);
+                if let Some(offset) = found {
                     cur_pos += offset;
                     let addr_pos = cur_pos + 1;
                     let offset_val = addr_pos as u32 + file_offset;
