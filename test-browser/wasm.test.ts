@@ -122,6 +122,95 @@ test.describe('rar-stream WASM multi-header parsing', () => {
   });
 });
 
+test.describe('rar-stream WasmRarArchive', () => {
+  test('lists and extracts files from RAR4 multi-file archive', async ({ page }) => {
+    await page.goto('http://localhost:8765/test-browser/index.html');
+    await page.waitForFunction(() => document.querySelector('.test.pass') !== null);
+
+    const result = await page.evaluate(async () => {
+      const response = await fetch('/__fixtures__/single-splitted/single-splitted.rar');
+      const buffer = await response.arrayBuffer();
+      const data = new Uint8Array(buffer);
+
+      const { WasmRarArchive } = await import('../pkg/rar_stream.js');
+      const archive = new WasmRarArchive(data);
+      const entries = archive.entries();
+      const first = archive.extract(0);
+      const text = new TextDecoder().decode(first.data);
+      const len = archive.length;
+      archive.free();
+      return {
+        length: len,
+        names: entries.map((e: any) => e.name),
+        firstName: first.name,
+        firstSize: first.size,
+        textPreview: text.substring(0, 20),
+      };
+    });
+
+    expect(result.length).toBe(3);
+    expect(result.names).toContain('splitted1.txt');
+    expect(result.names).toContain('splitted2.txt');
+    expect(result.names).toContain('splitted3.txt');
+    expect(result.firstName).toBe('splitted1.txt');
+    expect(result.firstSize).toBeGreaterThan(0);
+  });
+
+  test('lists and extracts from RAR5 archive', async ({ page }) => {
+    await page.goto('http://localhost:8765/test-browser/index.html');
+    await page.waitForFunction(() => document.querySelector('.test.pass') !== null);
+
+    const result = await page.evaluate(async () => {
+      const response = await fetch('/__fixtures__/rar5/compressed.rar');
+      const buffer = await response.arrayBuffer();
+      const data = new Uint8Array(buffer);
+
+      const { WasmRarArchive } = await import('../pkg/rar_stream.js');
+      const archive = new WasmRarArchive(data);
+      const len = archive.length;
+      const entries = archive.entries();
+      const file = archive.extract(0);
+      const text = new TextDecoder().decode(file.data);
+      archive.free();
+      return {
+        length: len,
+        name: file.name,
+        size: file.size,
+        hasTestFile: text.includes('test file'),
+      };
+    });
+
+    expect(result.name).toBe('compress_test.txt');
+    expect(result.size).toBe(152);
+    expect(result.hasTestFile).toBe(true);
+  });
+
+  test('extractAll returns all files', async ({ page }) => {
+    await page.goto('http://localhost:8765/test-browser/index.html');
+    await page.waitForFunction(() => document.querySelector('.test.pass') !== null);
+
+    const result = await page.evaluate(async () => {
+      const response = await fetch('/__fixtures__/single-splitted/single-splitted.rar');
+      const buffer = await response.arrayBuffer();
+      const data = new Uint8Array(buffer);
+
+      const { WasmRarArchive } = await import('../pkg/rar_stream.js');
+      const archive = new WasmRarArchive(data);
+      const files = archive.extractAll();
+      archive.free();
+      return {
+        count: files.length,
+        names: files.map((f: any) => f.name),
+        allHaveData: files.every((f: any) => f.data.length > 0),
+      };
+    });
+
+    expect(result.count).toBe(3);
+    expect(result.names).toContain('splitted1.txt');
+    expect(result.allHaveData).toBe(true);
+  });
+});
+
 test.describe('rar-stream WASM extract_file', () => {
   test('extracts RAR4 compressed file in one call', async ({ page }) => {
     await page.goto('http://localhost:8765/test-browser/index.html');

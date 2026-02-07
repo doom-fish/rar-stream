@@ -12,6 +12,220 @@ use crate::formats::Signature;
 use crate::parsing::rar5::{Rar5ArchiveHeaderParser, Rar5FileHeaderParser};
 use crate::parsing::{ArchiveHeaderParser, FileHeaderParser, MarkerHeaderParser};
 
+/// Parsed file entry inside an archive (internal).
+struct ParsedEntry {
+    name: String,
+    unpacked_size: u64,
+    packed_size: u64,
+    data_offset: usize,
+    is_directory: bool,
+    // RAR4 fields
+    rar4_method: Option<u8>,
+    // RAR5 fields
+    rar5_method: Option<u8>,
+    rar5_dict_size_log: Option<u8>,
+    rar5_is_stored: bool,
+}
+
+/// High-level RAR archive reader for WASM.
+/// Parses all file entries on construction, then extracts on demand.
+///
+/// ```js
+/// const archive = new WasmRarArchive(data);
+/// console.log(archive.length);           // number of files
+/// const info = archive.entries();         // [{name, size, isDirectory}, ...]
+/// const file = archive.extract(0);       // {name, data, size}
+/// const all = archive.extractAll();      // [{name, data, size}, ...]
+/// ```
+#[wasm_bindgen]
+pub struct WasmRarArchive {
+    data: Vec<u8>,
+    entries: Vec<ParsedEntry>,
+    is_rar5: bool,
+}
+
+#[wasm_bindgen]
+impl WasmRarArchive {
+    /// Create a new archive reader from a buffer.
+    /// Parses all file headers immediately.
+    #[wasm_bindgen(constructor)]
+    pub fn new(data: &[u8]) -> Result<WasmRarArchive, JsError> {
+        let sig = Signature::from_bytes(data).ok_or_else(|| JsError::new("Not a RAR archive"))?;
+        let is_rar5 = sig == Signature::Rar50;
+        let entries = if is_rar5 {
+            Self::parse_rar5_entries(data)?
+        } else {
+            Self::parse_rar4_entries(data)?
+        };
+        Ok(Self {
+            data: data.to_vec(),
+            entries,
+            is_rar5,
+        })
+    }
+
+    /// Number of files in the archive.
+    #[wasm_bindgen(getter)]
+    pub fn length(&self) -> u32 {
+        self.entries.len() as u32
+    }
+
+    /// Get info about all files in the archive.
+    /// Returns an array of `{name, size, packedSize, isDirectory}`.
+    #[wasm_bindgen]
+    pub fn entries(&self) -> JsValue {
+        let arr = js_sys::Array::new();
+        for entry in &self.entries {
+            let obj = js_sys::Object::new();
+            let _ = js_sys::Reflect::set(&obj, &"name".into(), &JsValue::from_str(&entry.name));
+            let _ = js_sys::Reflect::set(
+                &obj,
+                &"size".into(),
+                &JsValue::from_f64(entry.unpacked_size as f64),
+            );
+            let _ = js_sys::Reflect::set(
+                &obj,
+                &"packedSize".into(),
+                &JsValue::from_f64(entry.packed_size as f64),
+            );
+            let _ = js_sys::Reflect::set(
+                &obj,
+                &"isDirectory".into(),
+                &JsValue::from_bool(entry.is_directory),
+            );
+            arr.push(&obj);
+        }
+        arr.into()
+    }
+
+    /// Extract a file by index.
+    /// Returns `{name, data, size}` where `data` is a `Uint8Array`.
+    #[wasm_bindgen]
+    pub fn extract(&self, index: u32) -> Result<JsValue, JsError> {
+        let entry = self
+            .entries
+            .get(index as usize)
+            .ok_or_else(|| JsError::new(&format!("Index {} out of range", index)))?;
+
+        if entry.is_directory {
+            return build_extract_result(&entry.name, &[]);
+        }
+
+        let end = entry.data_offset + entry.packed_size as usize;
+        if end > self.data.len() {
+            return Err(JsError::new("Archive data truncated"));
+        }
+        let compressed = &self.data[entry.data_offset..end];
+
+        let decompressed = if self.is_rar5 {
+            if entry.rar5_is_stored {
+                compressed[..entry.unpacked_size as usize].to_vec()
+            } else {
+                let mut decoder =
+                    Rar5Decoder::with_dict_size(entry.rar5_dict_size_log.unwrap_or(22));
+                decoder
+                    .decompress(
+                        compressed,
+                        entry.unpacked_size,
+                        entry.rar5_method.unwrap_or(1),
+                        false,
+                    )
+                    .map_err(|e| JsError::new(&e.to_string()))?
+            }
+        } else {
+            let method = entry.rar4_method.unwrap_or(0x30);
+            if method == 0x30 {
+                compressed.to_vec()
+            } else {
+                let mut decoder = Rar29Decoder::new();
+                decoder
+                    .decompress(compressed, entry.unpacked_size)
+                    .map_err(|e| JsError::new(&e.to_string()))?
+            }
+        };
+
+        build_extract_result(&entry.name, &decompressed)
+    }
+
+    /// Extract all files. Returns an array of `{name, data, size}`.
+    #[wasm_bindgen(js_name = extractAll)]
+    pub fn extract_all(&self) -> Result<JsValue, JsError> {
+        let arr = js_sys::Array::new();
+        for i in 0..self.entries.len() {
+            arr.push(&self.extract(i as u32)?);
+        }
+        Ok(arr.into())
+    }
+}
+
+impl WasmRarArchive {
+    fn parse_rar4_entries(data: &[u8]) -> Result<Vec<ParsedEntry>, JsError> {
+        let marker = MarkerHeaderParser::parse(data)
+            .map_err(|e| JsError::new(&format!("Invalid marker: {e}")))?;
+        let mut offset = marker.size as usize;
+
+        let arch = ArchiveHeaderParser::parse(&data[offset..])
+            .map_err(|e| JsError::new(&format!("Invalid archive header: {e}")))?;
+        offset += arch.size as usize;
+
+        let mut entries = Vec::new();
+        while offset + 32 <= data.len() {
+            let fh = match FileHeaderParser::parse(&data[offset..]) {
+                Ok(h) if h.header_type == 0x74 => h,
+                _ => break,
+            };
+            let data_offset = offset + fh.head_size as usize;
+            entries.push(ParsedEntry {
+                name: fh.name,
+                unpacked_size: fh.unpacked_size,
+                packed_size: fh.packed_size,
+                data_offset,
+                is_directory: false,
+                rar4_method: Some(fh.method),
+                rar5_method: None,
+                rar5_dict_size_log: None,
+                rar5_is_stored: false,
+            });
+            offset = data_offset + fh.packed_size as usize;
+        }
+        Ok(entries)
+    }
+
+    fn parse_rar5_entries(data: &[u8]) -> Result<Vec<ParsedEntry>, JsError> {
+        let mut offset = 8usize;
+
+        let (_arch, arch_consumed) = Rar5ArchiveHeaderParser::parse(&data[offset..])
+            .map_err(|e| JsError::new(&format!("Invalid archive header: {e}")))?;
+        offset += arch_consumed;
+
+        let mut entries = Vec::new();
+        while offset + 12 <= data.len() {
+            let (fh, file_consumed) = match Rar5FileHeaderParser::parse(&data[offset..]) {
+                Ok(result) => result,
+                Err(_) => break,
+            };
+            let data_offset = offset + file_consumed;
+            let is_dir = fh.is_directory();
+            let method = fh.compression.method;
+            let dict_size_log = fh.compression.dict_size_log;
+            let is_stored = fh.compression.is_stored();
+            entries.push(ParsedEntry {
+                name: fh.name,
+                unpacked_size: fh.unpacked_size,
+                packed_size: fh.packed_size,
+                data_offset,
+                is_directory: is_dir,
+                rar4_method: None,
+                rar5_method: Some(method),
+                rar5_dict_size_log: Some(dict_size_log),
+                rar5_is_stored: is_stored,
+            });
+            offset = data_offset + fh.packed_size as usize;
+        }
+        Ok(entries)
+    }
+}
+
 /// Extract the first file from a RAR archive buffer.
 /// Auto-detects RAR4/RAR5 format, parses headers, and decompresses.
 /// Returns a JS object with `name`, `data` (Uint8Array), and `size`.

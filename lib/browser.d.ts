@@ -25,8 +25,8 @@ export declare function parseRar5Headers(data: Uint8Array): Promise<any[]>;
 export declare function extractFile(data: Uint8Array): Promise<{name: string, data: Uint8Array, size: number}>;
 
 // Classes (require init() before construction)
-export { WasmRarDecoder, WasmRar5Decoder, WasmRar5Crypto } from '../pkg/rar_stream.d.ts';
-export { WasmRarDecoder as RarDecoder, WasmRar5Decoder as Rar5Decoder } from '../pkg/rar_stream.d.ts';
+export { WasmRarArchive, WasmRarDecoder, WasmRar5Decoder, WasmRar5Crypto } from '../pkg/rar_stream.d.ts';
+export { WasmRarArchive as RarArchive, WasmRarDecoder as RarDecoder, WasmRar5Decoder as Rar5Decoder } from '../pkg/rar_stream.d.ts';
 
 // Direct snake_case access (require init() before use)
 export {
