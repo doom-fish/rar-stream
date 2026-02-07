@@ -54,13 +54,13 @@ impl LocalFileMedia {
 }
 
 // Async FileMedia trait (requires 'async' feature)
-#[cfg(feature = "async")]
+#[cfg(feature = "napi")]
 use std::future::Future;
-#[cfg(feature = "async")]
+#[cfg(feature = "napi")]
 use std::pin::Pin;
 
 /// Abstract file source that can provide byte ranges asynchronously.
-#[cfg(feature = "async")]
+#[cfg(feature = "napi")]
 pub trait FileMedia: Send + Sync {
     fn length(&self) -> u64;
     fn name(&self) -> &str;
@@ -70,7 +70,7 @@ pub trait FileMedia: Send + Sync {
     ) -> Pin<Box<dyn Future<Output = Result<Vec<u8>>> + Send + '_>>;
 }
 
-#[cfg(feature = "async")]
+#[cfg(feature = "napi")]
 impl FileMedia for LocalFileMedia {
     fn length(&self) -> u64 {
         self.length

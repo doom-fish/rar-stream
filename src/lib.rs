@@ -10,9 +10,8 @@
 //!
 //! | Feature | Default | Description |
 //! |---------|---------|-------------|
-//! | `async` | No | Async file reading with tokio ([`RarFilesPackage`], [`InnerFile`]) |
 //! | `crypto` | No | Encrypted archive support (AES-256 for RAR5, AES-128 for RAR4) |
-//! | `napi` | No | Node.js native bindings via napi-rs |
+//! | `napi` | No | Node.js native bindings via napi-rs (includes async I/O) |
 //! | `wasm` | No | Browser WebAssembly bindings |
 //!
 //! ## Supported Formats
@@ -44,7 +43,7 @@
 //!
 //! ## Quick Start
 //!
-//! ### High-Level API (requires `async` feature)
+//! ### High-Level API (requires `napi` feature for Node.js)
 //!
 //! ```rust,ignore
 //! use rar_stream::{RarFilesPackage, ParseOptions, LocalFileMedia, FileMedia};
@@ -138,12 +137,12 @@ mod file_media;
 pub mod formats;
 pub mod parsing;
 
-// Async modules (require 'async' feature)
-#[cfg(feature = "async")]
+// Async modules (require 'napi' feature)
+#[cfg(feature = "napi")]
 mod inner_file;
-#[cfg(feature = "async")]
+#[cfg(feature = "napi")]
 mod rar_file_chunk;
-#[cfg(feature = "async")]
+#[cfg(feature = "napi")]
 mod rar_files_package;
 
 #[cfg(feature = "napi")]
@@ -155,13 +154,13 @@ mod wasm_bindings;
 pub use error::RarError;
 pub use file_media::{LocalFileMedia, ReadInterval};
 
-#[cfg(feature = "async")]
+#[cfg(feature = "napi")]
 pub use file_media::FileMedia;
-#[cfg(feature = "async")]
+#[cfg(feature = "napi")]
 pub use inner_file::{ChunkMapEntry, InnerFile, InnerFileStream, StreamChunkInfo};
-#[cfg(feature = "async")]
+#[cfg(feature = "napi")]
 pub use rar_file_chunk::RarFileChunk;
-#[cfg(feature = "async")]
+#[cfg(feature = "napi")]
 pub use rar_files_package::{ParseOptions, RarFilesPackage};
 
 // Re-export decompression types

@@ -867,7 +867,7 @@ mod tests {
     use crate::file_media::{FileMedia, LocalFileMedia};
 
     #[tokio::test]
-    #[cfg(feature = "async")]
+    #[cfg(feature = "napi")]
     async fn test_get_archive_info_rar5() {
         let file: Arc<dyn FileMedia> =
             Arc::new(LocalFileMedia::new("__fixtures__/rar5/test.rar").unwrap());
@@ -879,7 +879,7 @@ mod tests {
     }
 
     #[tokio::test]
-    #[cfg(feature = "async")]
+    #[cfg(feature = "napi")]
     async fn test_get_archive_info_rar4() {
         let file: Arc<dyn FileMedia> =
             Arc::new(LocalFileMedia::new("__fixtures__/single/single.rar").unwrap());
@@ -891,7 +891,7 @@ mod tests {
     }
 
     #[tokio::test]
-    #[cfg(feature = "async")]
+    #[cfg(feature = "napi")]
     async fn test_parse_rar5_stored() {
         // Test parsing a RAR5 stored file
         let file: Arc<dyn FileMedia> =
@@ -905,7 +905,7 @@ mod tests {
     }
 
     #[tokio::test]
-    #[cfg(feature = "async")]
+    #[cfg(feature = "napi")]
     async fn test_parse_rar5_compressed() {
         // Test parsing a RAR5 compressed file
         let file: Arc<dyn FileMedia> =
@@ -960,7 +960,7 @@ mod tests {
     }
 
     #[tokio::test]
-    #[cfg(feature = "async")]
+    #[cfg(feature = "napi")]
     async fn test_parse_rar5_multivolume() {
         // Test parsing a multi-volume RAR5 archive
         let fixture_dir = "__fixtures__/rar5-multivolume";
@@ -1016,7 +1016,7 @@ mod tests {
     }
 
     #[tokio::test]
-    #[cfg(all(feature = "async", feature = "crypto"))]
+    #[cfg(all(feature = "napi", feature = "crypto"))]
     async fn test_parse_rar5_encrypted_stored() {
         // Test parsing and extracting an encrypted RAR5 file (stored, no compression)
         let fixture = "__fixtures__/encrypted/rar5-encrypted-stored.rar";
@@ -1049,7 +1049,7 @@ mod tests {
     }
 
     #[tokio::test]
-    #[cfg(all(feature = "async", feature = "crypto"))]
+    #[cfg(all(feature = "napi", feature = "crypto"))]
     async fn test_parse_rar5_encrypted_no_password() {
         let fixture = "__fixtures__/encrypted/rar5-encrypted-stored.rar";
 
@@ -1081,7 +1081,7 @@ mod tests {
     }
 
     #[tokio::test]
-    #[cfg(all(feature = "async", feature = "crypto"))]
+    #[cfg(all(feature = "napi", feature = "crypto"))]
     async fn test_parse_rar5_encrypted_headers() {
         // Test parsing an archive with encrypted headers (created with rar -hp)
         let fixture = "__fixtures__/encrypted/rar5-encrypted-headers.rar";
@@ -1128,7 +1128,7 @@ mod tests {
     }
 
     #[tokio::test]
-    #[cfg(all(feature = "async", feature = "crypto"))]
+    #[cfg(all(feature = "napi", feature = "crypto"))]
     async fn test_get_archive_info_encrypted_headers() {
         // Test that get_archive_info detects encrypted headers
         let fixture = "__fixtures__/encrypted/rar5-encrypted-headers.rar";
@@ -1148,7 +1148,7 @@ mod tests {
     }
 
     #[tokio::test]
-    #[cfg(all(feature = "async", feature = "crypto"))]
+    #[cfg(all(feature = "napi", feature = "crypto"))]
     async fn test_parse_rar4_encrypted_stored() {
         // Test parsing and extracting an encrypted RAR4 file (stored, no compression)
         let fixture = "__fixtures__/encrypted/rar4-encrypted-stored.rar";
@@ -1189,7 +1189,7 @@ mod tests {
     }
 
     #[tokio::test]
-    #[cfg(all(feature = "async", feature = "crypto"))]
+    #[cfg(all(feature = "napi", feature = "crypto"))]
     async fn test_parse_rar4_encrypted_compressed() {
         // Test parsing and extracting an encrypted RAR4 file (compressed)
         let fixture = "__fixtures__/encrypted/rar4-encrypted.rar";
