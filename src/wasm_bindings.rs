@@ -163,6 +163,144 @@ impl WasmRar5Decoder {
     }
 }
 
+/// Parse all RAR4 file headers from a buffer.
+/// Returns an array of file info objects for every file in the archive.
+#[wasm_bindgen]
+pub fn parse_rar_headers(data: &[u8]) -> Result<JsValue, JsError> {
+    if data.len() < 50 {
+        return Err(JsError::new("Buffer too small"));
+    }
+
+    let marker = MarkerHeaderParser::parse(data)
+        .map_err(|e| JsError::new(&format!("Invalid marker: {}", e)))?;
+    let mut offset = marker.size as usize;
+
+    if data.len() < offset + ArchiveHeaderParser::HEADER_SIZE {
+        return Err(JsError::new("Buffer too small for archive header"));
+    }
+    let archive = ArchiveHeaderParser::parse(&data[offset..])
+        .map_err(|e| JsError::new(&format!("Invalid archive header: {}", e)))?;
+    offset += archive.size as usize;
+
+    let arr = js_sys::Array::new();
+
+    while offset + 32 <= data.len() {
+        let header_buf = &data[offset..];
+        let file_header = match FileHeaderParser::parse(header_buf) {
+            Ok(h) if h.header_type == 0x74 => h,
+            _ => break,
+        };
+
+        let data_offset = offset + file_header.head_size as usize;
+
+        let obj = js_sys::Object::new();
+        let _ = js_sys::Reflect::set(&obj, &"name".into(), &file_header.name.into());
+        let _ = js_sys::Reflect::set(
+            &obj,
+            &"packedSize".into(),
+            &JsValue::from_f64(file_header.packed_size as f64),
+        );
+        let _ = js_sys::Reflect::set(
+            &obj,
+            &"unpackedSize".into(),
+            &JsValue::from_f64(file_header.unpacked_size as f64),
+        );
+        let _ = js_sys::Reflect::set(
+            &obj,
+            &"method".into(),
+            &JsValue::from_f64(file_header.method as f64),
+        );
+        let _ = js_sys::Reflect::set(
+            &obj,
+            &"isCompressed".into(),
+            &JsValue::from_bool(file_header.method != 0x30),
+        );
+        let _ = js_sys::Reflect::set(
+            &obj,
+            &"dataOffset".into(),
+            &JsValue::from_f64(data_offset as f64),
+        );
+
+        arr.push(&obj);
+        offset = data_offset + file_header.packed_size as usize;
+    }
+
+    Ok(arr.into())
+}
+
+/// Parse all RAR5 file headers from a buffer.
+/// Returns an array of file info objects for every file in the archive.
+#[wasm_bindgen]
+pub fn parse_rar5_headers(data: &[u8]) -> Result<JsValue, JsError> {
+    let sig = Signature::from_bytes(data);
+    if sig != Some(Signature::Rar50) {
+        return Err(JsError::new("Not a RAR5 archive"));
+    }
+    let mut offset = 8usize; // RAR5 signature length
+
+    if offset + 4 >= data.len() {
+        return Err(JsError::new("Buffer too small"));
+    }
+    let (_archive, archive_consumed) = Rar5ArchiveHeaderParser::parse(&data[offset..])
+        .map_err(|e| JsError::new(&format!("Invalid archive header: {}", e)))?;
+    offset += archive_consumed;
+
+    let arr = js_sys::Array::new();
+
+    while offset + 12 <= data.len() {
+        let (file_header, file_consumed) = match Rar5FileHeaderParser::parse(&data[offset..]) {
+            Ok(result) => result,
+            Err(_) => break,
+        };
+
+        let data_offset = offset + file_consumed;
+
+        let obj = js_sys::Object::new();
+        let _ =
+            js_sys::Reflect::set(&obj, &"name".into(), &JsValue::from_str(&file_header.name));
+        let _ = js_sys::Reflect::set(
+            &obj,
+            &"packedSize".into(),
+            &JsValue::from_f64(file_header.packed_size as f64),
+        );
+        let _ = js_sys::Reflect::set(
+            &obj,
+            &"unpackedSize".into(),
+            &JsValue::from_f64(file_header.unpacked_size as f64),
+        );
+        let _ = js_sys::Reflect::set(
+            &obj,
+            &"method".into(),
+            &JsValue::from_f64(file_header.compression.method as f64),
+        );
+        let _ = js_sys::Reflect::set(
+            &obj,
+            &"dictSizeLog".into(),
+            &JsValue::from_f64(file_header.compression.dict_size_log as f64),
+        );
+        let _ = js_sys::Reflect::set(
+            &obj,
+            &"isCompressed".into(),
+            &JsValue::from_bool(!file_header.compression.is_stored()),
+        );
+        let _ = js_sys::Reflect::set(
+            &obj,
+            &"isDirectory".into(),
+            &JsValue::from_bool(file_header.is_directory()),
+        );
+        let _ = js_sys::Reflect::set(
+            &obj,
+            &"dataOffset".into(),
+            &JsValue::from_f64(data_offset as f64),
+        );
+
+        arr.push(&obj);
+        offset = data_offset + file_header.packed_size as usize;
+    }
+
+    Ok(arr.into())
+}
+
 /// Parse RAR file header information.
 #[wasm_bindgen]
 pub fn parse_rar_header(data: &[u8]) -> Result<JsValue, JsError> {

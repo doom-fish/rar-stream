@@ -21,9 +21,42 @@ jobs:
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
       
-      - name: Run release-plz
+      - name: Release-plz release-pr
         uses: MarcoIeni/release-plz-action@v0.5
         with:
           command: release-pr
+        env:
+          GITHUB_TOKEN: ${{ secrets.RELEASE_TOKEN }}
+
+      - name: Sync package.json version on release PR
+        run: |
+          PR_BRANCH=$(gh pr list --author 'github-actions[bot]' --search 'release-plz' --json headRefName -q '.[0].headRefName' || true)
+          if [ -z "$PR_BRANCH" ]; then
+            echo "No release PR found, skipping sync"
+            exit 0
+          fi
+
+          git checkout "$PR_BRANCH"
+          CARGO_VERSION=$(grep '^version' Cargo.toml | head -1 | sed 's/.*"\(.*\)".*/\1/')
+          NPM_VERSION=$(node -p "require('./package.json').version")
+
+          if [ "$CARGO_VERSION" != "$NPM_VERSION" ]; then
+            echo "Syncing package.json $NPM_VERSION -> $CARGO_VERSION"
+            npm version "$CARGO_VERSION" --no-git-tag-version
+            git add package.json package-lock.json
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git commit -m "chore: sync package.json version to $CARGO_VERSION"
+            git push
+          else
+            echo "Versions already in sync ($CARGO_VERSION)"
+          fi
+        env:
+          GITHUB_TOKEN: ${{ secrets.RELEASE_TOKEN }}
+
+      - name: Release-plz release
+        uses: MarcoIeni/release-plz-action@v0.5
+        with:
+          command: release
         env:
           GITHUB_TOKEN: ${{ secrets.RELEASE_TOKEN }}

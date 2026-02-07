@@ -30,3 +30,4 @@ __fixtures__/large/large_mixed_*
 
 # Machine-specific PGO profiles
 pgo-data/
+npm/

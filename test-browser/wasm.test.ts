@@ -53,6 +53,75 @@ test.describe('rar-stream WASM', () => {
   });
 });
 
+test.describe('rar-stream WASM multi-header parsing', () => {
+  test('parse_rar_headers lists all files in RAR4 archive', async ({ page }) => {
+    await page.goto('http://localhost:8765/test-browser/index.html');
+    await page.waitForFunction(() => document.querySelector('.test.pass') !== null);
+
+    const result = await page.evaluate(async () => {
+      const response = await fetch('/__fixtures__/single-splitted/single-splitted.rar');
+      const buffer = await response.arrayBuffer();
+      const data = new Uint8Array(buffer);
+
+      const { parse_rar_headers } = await import('../pkg/rar_stream.js');
+      const headers = parse_rar_headers(data);
+      return {
+        count: headers.length,
+        names: headers.map((h: any) => h.name),
+      };
+    });
+
+    expect(result.count).toBe(3);
+    expect(result.names).toContain('splitted1.txt');
+    expect(result.names).toContain('splitted2.txt');
+    expect(result.names).toContain('splitted3.txt');
+  });
+
+  test('parse_rar_headers returns empty array for single-file archive', async ({ page }) => {
+    await page.goto('http://localhost:8765/test-browser/index.html');
+    await page.waitForFunction(() => document.querySelector('.test.pass') !== null);
+
+    const result = await page.evaluate(async () => {
+      const response = await fetch('/__fixtures__/compressed/lipsum_rar4_store.rar');
+      const buffer = await response.arrayBuffer();
+      const data = new Uint8Array(buffer);
+
+      const { parse_rar_headers } = await import('../pkg/rar_stream.js');
+      const headers = parse_rar_headers(data);
+      return {
+        count: headers.length,
+        firstName: headers[0]?.name,
+      };
+    });
+
+    expect(result.count).toBe(1);
+    expect(result.firstName).toBe('lorem_ipsum.txt');
+  });
+
+  test('parse_rar5_headers lists files in RAR5 archive', async ({ page }) => {
+    await page.goto('http://localhost:8765/test-browser/index.html');
+    await page.waitForFunction(() => document.querySelector('.test.pass') !== null);
+
+    const result = await page.evaluate(async () => {
+      const response = await fetch('/__fixtures__/rar5/compressed.rar');
+      const buffer = await response.arrayBuffer();
+      const data = new Uint8Array(buffer);
+
+      const { parse_rar5_headers } = await import('../pkg/rar_stream.js');
+      const headers = parse_rar5_headers(data);
+      return {
+        count: headers.length,
+        firstName: headers[0]?.name,
+        firstIsCompressed: headers[0]?.isCompressed,
+      };
+    });
+
+    expect(result.count).toBe(1);
+    expect(result.firstName).toBe('compress_test.txt');
+    expect(result.firstIsCompressed).toBe(true);
+  });
+});
+
 test.describe('rar-stream WASM decompression', () => {
   test('can decompress LZSS store file', async ({ page }) => {
     await page.goto('http://localhost:8765/test-browser/index.html');

@@ -33,6 +33,11 @@ jobs:
       - name: Clippy (WASM)
         run: cargo clippy --features wasm,crypto --no-default-features -- -D warnings
 
+      - name: Security audit
+        run: |
+          cargo install cargo-audit --quiet
+          cargo audit
+
   lint-typescript:
     name: Lint TypeScript
     runs-on: ubuntu-latest

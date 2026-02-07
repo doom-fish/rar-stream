@@ -5,7 +5,7 @@ allow_dirty = false
 [[package]]
 name = "rar-stream"
 changelog_update = true
-# Disable release-plz publishing - build.yml handles npm, crates.io, and GitHub releases on tag push
+# release-plz creates the git tag; build.yml handles npm, crates.io, and GitHub releases on tag push
 git_release_enable = false
-git_tag_enable = false
+git_tag_enable = true
 publish = false

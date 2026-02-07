@@ -155,6 +155,11 @@ jobs:
       - name: Update npm to latest
         run: npm install -g npm@latest
       
+      - name: Sync package.json version from Cargo.toml
+        run: |
+          CARGO_VERSION=$(grep '^version' Cargo.toml | head -1 | sed 's/.*"\(.*\)".*/\1/')
+          npm version "$CARGO_VERSION" --no-git-tag-version --allow-same-version
+      
       - name: Publish to crates.io
         run: cargo publish --allow-dirty
         env:
