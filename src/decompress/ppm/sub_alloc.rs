@@ -417,11 +417,13 @@ impl SubAllocator {
         // Need to allocate new block and copy
         let new_ptr = self.alloc_units(new_nu)?;
 
-        // Copy old data
+        // Copy old data using bulk copy
         let copy_size = self.idx2units[old_idx] as usize * UNIT_SIZE;
-        for i in 0..copy_size {
-            let byte = self.read_byte(old_ptr + i);
-            self.write_byte(new_ptr + i, byte);
+        // SAFETY: both old_ptr and new_ptr are valid heap offsets, non-overlapping
+        unsafe {
+            let src = self.heap.as_ptr().add(old_ptr);
+            let dst = self.heap.as_mut_ptr().add(new_ptr);
+            core::ptr::copy_nonoverlapping(src, dst, copy_size);
         }
 
         // Free old block

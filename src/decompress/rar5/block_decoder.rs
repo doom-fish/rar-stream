@@ -418,6 +418,8 @@ pub struct Rar5BlockDecoder {
     use_align_bits: bool,
     /// Is last block
     is_last_block: bool,
+    /// Reusable buffer for read_tables (avoids per-block allocation)
+    table_lens: Vec<u8>,
 }
 
 impl Rar5BlockDecoder {
@@ -442,6 +444,10 @@ impl Rar5BlockDecoder {
             tables_valid: false,
             use_align_bits: false,
             is_last_block: false,
+            table_lens: vec![
+                0u8;
+                MAIN_TABLE_SIZE + DIST_TABLE_SIZE + ALIGN_TABLE_SIZE + LEN_TABLE_SIZE
+            ],
         }
     }
 
@@ -525,17 +531,23 @@ impl Rar5BlockDecoder {
             }
             self.window_pos = self.window_pos.wrapping_add(length);
         } else if offset < length {
-            // offset == 1: RLE case
+            // offset == 1: RLE case — fill with single byte
             self.output.reserve(length);
             let byte = unsafe { *self.window.get_unchecked(src_start & self.window_mask) };
+
+            // Fill window
+            let window_ptr = self.window.as_mut_ptr();
             for i in 0..length {
                 unsafe {
-                    *self
-                        .window
-                        .get_unchecked_mut(self.window_pos.wrapping_add(i) & self.window_mask) =
-                        byte;
+                    *window_ptr.add(self.window_pos.wrapping_add(i) & self.window_mask) = byte;
                 }
-                self.output.push(byte);
+            }
+
+            // Fill output with memset-style bulk write
+            let out_len = self.output.len();
+            unsafe {
+                core::ptr::write_bytes(self.output.as_mut_ptr().add(out_len), byte, length);
+                self.output.set_len(out_len + length);
             }
             self.window_pos = self.window_pos.wrapping_add(length);
         } else {
@@ -683,7 +695,8 @@ impl Rar5BlockDecoder {
 
         // Total table size (main + dist + align + len)
         let table_size = MAIN_TABLE_SIZE + DIST_TABLE_SIZE + ALIGN_TABLE_SIZE + LEN_TABLE_SIZE;
-        let mut lens = vec![0u8; table_size];
+        self.table_lens[..table_size].fill(0);
+        let lens = &mut self.table_lens;
 
         // Decode all table lengths using level table
         i = 0;
