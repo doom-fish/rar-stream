@@ -177,7 +177,7 @@ impl Rar29Decoder {
                     .execute_filter_at_index(filter_idx, window, window_mask, total_written)
             {
                 // Write filtered data directly to output
-                self.lzss.write_filtered_to_output(&filtered_data, next_pos);
+                self.lzss.write_filtered_to_output(filtered_data, next_pos);
             } else {
                 break;
             }
@@ -867,7 +867,7 @@ impl Rar29Decoder {
                     .execute_filter_at_index(filter_idx, window, window_mask, total_written)
             {
                 // Write filtered data directly to output (bypasses window)
-                self.lzss.write_filtered_to_output(&filtered_data, next_pos);
+                self.lzss.write_filtered_to_output(filtered_data, next_pos);
                 // Update next check to after this filter
                 self.next_filter_check = filter_end;
             } else {

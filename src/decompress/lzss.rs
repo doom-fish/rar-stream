@@ -61,6 +61,7 @@ impl LzssDecoder {
     }
 
     /// Enable output accumulation for extracting files larger than window.
+    #[inline]
     pub fn enable_output(&mut self, capacity: usize) {
         self.output = Vec::with_capacity(capacity);
     }
@@ -129,14 +130,19 @@ impl LzssDecoder {
         // Ensure we're at the right position - if not, we might have missed a flush
         let current_len = self.output.len() as u64;
         if current_len < position {
-            // Need to flush unfiltered data from window up to this position first
-            // This can happen if there's data between the last flush and the filter start
+            // Flush unfiltered data from window up to this position
             let window_start = current_len as usize;
             let flush_len = (position - current_len) as usize;
             self.output.reserve(flush_len);
-            for i in 0..flush_len {
-                let window_idx = (window_start + i) & self.mask;
-                self.output.push(self.window[window_idx]);
+            let ws = window_start & self.mask;
+            if ws + flush_len <= self.window.len() {
+                self.output
+                    .extend_from_slice(&self.window[ws..ws + flush_len]);
+            } else {
+                let first = self.window.len() - ws;
+                self.output.extend_from_slice(&self.window[ws..]);
+                self.output
+                    .extend_from_slice(&self.window[..flush_len - first]);
             }
         }
         self.output.extend_from_slice(data);
@@ -187,19 +193,39 @@ impl LzssDecoder {
             return Ok(());
         }
 
-        // Slow path: handle wrapping or very short distance copies byte-by-byte
-        // Use unchecked access since we've already validated distance
+        // Slow path: handle wrapping or very short distance copies
+        // Chunk into non-wrapping segments where possible
         let src_pos = (self.pos.wrapping_sub(dist)) & self.mask;
-        let window_ptr = self.window.as_mut_ptr();
+        let window_len = self.window.len();
 
-        for i in 0..len {
-            let src_idx = (src_pos + i) & self.mask;
-            let dest_idx = (self.pos + i) & self.mask;
-            // SAFETY: src_idx and dest_idx are always < window.len() due to mask
-            unsafe {
-                let byte = *window_ptr.add(src_idx);
-                *window_ptr.add(dest_idx) = byte;
+        let mut remaining = len;
+        let mut si = src_pos;
+        let mut di = self.pos;
+
+        while remaining > 0 {
+            // How many bytes until src or dest wraps?
+            let src_avail = window_len - si;
+            let dst_avail = window_len - di;
+            let chunk = remaining.min(src_avail).min(dst_avail);
+
+            // For overlapping copies with very short distance, fall back to byte-by-byte
+            if si < di && di < si + chunk || di < si && si < di + chunk {
+                // Overlapping within this chunk — byte-by-byte
+                let window_ptr = self.window.as_mut_ptr();
+                for _ in 0..chunk {
+                    // SAFETY: si and di are always < window.len() due to mask
+                    unsafe {
+                        *window_ptr.add(di) = *window_ptr.add(si);
+                    }
+                    si = (si + 1) & self.mask;
+                    di = (di + 1) & self.mask;
+                }
+            } else {
+                self.window.copy_within(si..si + chunk, di);
+                si = (si + chunk) & self.mask;
+                di = (di + chunk) & self.mask;
             }
+            remaining -= chunk;
         }
         self.pos = (self.pos + len) & self.mask;
 
@@ -237,7 +263,6 @@ impl LzssDecoder {
             return self.output[start..end].to_vec();
         }
 
-        let mut output = Vec::with_capacity(len);
         let window_len = self.window.len();
 
         // Calculate start position in window
@@ -245,20 +270,14 @@ impl LzssDecoder {
             start as usize
         } else {
             // Window has wrapped
-            let _written_in_window = self.total_written as usize % window_len;
             let offset = (self.total_written - start) as usize;
             if offset > window_len {
-                return output; // Data no longer in window
+                return Vec::new(); // Data no longer in window
             }
             (self.pos.wrapping_sub(offset)) & self.mask
         };
 
-        for i in 0..len {
-            let idx = (start_pos + i) & self.mask;
-            output.push(self.window[idx]);
-        }
-
-        output
+        self.copy_from_window(start_pos, len)
     }
 
     /// Take ownership of the accumulated output buffer.
@@ -280,15 +299,22 @@ impl LzssDecoder {
     /// Get the most recent `len` bytes from the window.
     pub fn get_recent(&self, len: usize) -> Vec<u8> {
         let actual_len = len.min(self.total_written as usize);
-        let mut output = Vec::with_capacity(actual_len);
-
         let start = (self.pos.wrapping_sub(actual_len)) & self.mask;
-        for i in 0..actual_len {
-            let idx = (start + i) & self.mask;
-            output.push(self.window[idx]);
-        }
+        self.copy_from_window(start, actual_len)
+    }
 
-        output
+    /// Bulk copy from window handling wrap-around with extend_from_slice.
+    fn copy_from_window(&self, start: usize, len: usize) -> Vec<u8> {
+        let mut out = Vec::with_capacity(len);
+        let ws = start & self.mask;
+        if ws + len <= self.window.len() {
+            out.extend_from_slice(&self.window[ws..ws + len]);
+        } else {
+            let first = self.window.len() - ws;
+            out.extend_from_slice(&self.window[ws..]);
+            out.extend_from_slice(&self.window[..len - first]);
+        }
+        out
     }
 }
 

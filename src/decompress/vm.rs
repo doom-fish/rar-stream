@@ -712,7 +712,7 @@ impl RarVM {
         window: &[u8],
         window_mask: usize,
         total_written: u64,
-    ) -> Option<(u64, Vec<u8>)> {
+    ) -> Option<(u64, &[u8])> {
         if filter_idx >= self.stack.len() {
             return None;
         }
@@ -778,17 +778,17 @@ impl RarVM {
             filtered_data_offset, filtered_size
         );
 
-        // Return the filtered data as a Vec - DO NOT write back to window!
-        // The window must keep the original LZSS data for future match references.
+        // Return a slice into VM memory — no allocation needed.
+        // The caller must use this before the next execute_filter call.
         let output_size = filtered_size.max(block_length);
-        let output_data = if filtered_size > 0 && filtered_size <= output_size {
-            self.mem[filtered_data_offset..filtered_data_offset + filtered_size].to_vec()
+        let data = if filtered_size > 0 && filtered_size <= output_size {
+            &self.mem[filtered_data_offset..filtered_data_offset + filtered_size]
         } else {
             // Filter failed or no output - return original data
-            self.mem[0..block_length].to_vec()
+            &self.mem[0..block_length]
         };
 
-        Some((block_end, output_data))
+        Some((block_end, data))
     }
 
     /// Execute pending filters on the output buffer
