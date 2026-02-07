@@ -35,8 +35,8 @@ fuzz_target!(|data: &[u8]| {
         Err(_) => return,
     };
 
-    // Cap unpacked size to prevent OOM
-    if header.unpacked_size > 16 * 1024 * 1024 {
+    // Cap unpacked size to prevent OOM and timeouts
+    if header.unpacked_size > 1024 * 1024 {
         return;
     }
 

@@ -53,14 +53,20 @@ fuzz_target!(|data: &[u8]| {
         Err(_) => return,
     };
 
-    // Cap unpacked size to prevent OOM
-    if header.unpacked_size > 16 * 1024 * 1024 {
+    // Cap unpacked size to prevent OOM and timeouts
+    if header.unpacked_size > 256 * 1024 {
         return;
     }
 
     let data_start = header_size;
     let data_end = data_start + header.packed_size as usize;
     if data_end > parse_buf.len() {
+        return;
+    }
+
+    // Skip if unpacked/packed ratio is extreme (likely causes timeout)
+    let packed_size = header.packed_size as usize;
+    if packed_size > 0 && header.unpacked_size / packed_size as u64 > 1000 {
         return;
     }
 

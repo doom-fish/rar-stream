@@ -6,8 +6,11 @@
 #[cfg(feature = "parallel")]
 use std::sync::Arc;
 
-/// Padding bytes added to buffer to allow unchecked reads near end
-const BUFFER_PADDING: usize = 8;
+/// Padding bytes added to buffer to allow unchecked reads near end.
+/// Must accommodate the largest unchecked read (8 bytes for
+/// get_value_high32). Since move_pos clamps pos to data_len,
+/// reads at data_len + 8 are always within bounds.
+const BUFFER_PADDING: usize = 16;
 
 /// Bit-level stream decoder for RAR5 decompression.
 pub struct BitDecoder {
@@ -79,7 +82,10 @@ impl BitDecoder {
     /// Read a byte when already aligned.
     #[inline]
     pub fn read_byte_aligned(&mut self) -> u8 {
-        // SAFETY: buffer is padded
+        if self.pos >= self.data_len {
+            return 0;
+        }
+        // SAFETY: pos < data_len, which is within allocated buffer
         let b = unsafe { *self.buf.get_unchecked(self.pos) };
         self.pos += 1;
         b
@@ -92,16 +98,21 @@ impl BitDecoder {
             return 0;
         }
         let mask = (1u32 << num_bits) - 1;
-        // SAFETY: buffer is padded with 8 bytes
+        // SAFETY: pos is clamped to data_len, buffer has BUFFER_PADDING bytes
+        // after data_len, so pos+1 is always within bounds.
         let v = unsafe {
-            let b0 = *self.buf.get_unchecked(self.pos) as u32;
-            let b1 = *self.buf.get_unchecked(self.pos + 1) as u32;
+            let p = self.pos.min(self.data_len);
+            let b0 = *self.buf.get_unchecked(p) as u32;
+            let b1 = *self.buf.get_unchecked(p + 1) as u32;
             (b0 << 8) | b1
         };
         let total_bits = num_bits + self.bit_pos;
         let result = (v >> (16 - total_bits)) & mask;
         self.pos += total_bits >> 3;
         self.bit_pos = total_bits & 7;
+        if self.pos > self.data_len {
+            self.pos = self.data_len;
+        }
         result
     }
 
@@ -111,10 +122,12 @@ impl BitDecoder {
         if num_bits == 0 {
             return 0;
         }
-        // SAFETY: buffer is padded with 8 bytes
+        // SAFETY: pos is clamped to data_len, buffer has BUFFER_PADDING bytes
+        // after data_len, so pos+1 is always within bounds.
         let v = unsafe {
-            let b0 = *self.buf.get_unchecked(self.pos) as u32;
-            let b1 = *self.buf.get_unchecked(self.pos + 1) as u32;
+            let p = self.pos.min(self.data_len);
+            let b0 = *self.buf.get_unchecked(p) as u32;
+            let b1 = *self.buf.get_unchecked(p + 1) as u32;
             (b0 << 8) | b1
         };
         let v = v & (0xFFFF >> self.bit_pos);
@@ -122,6 +135,9 @@ impl BitDecoder {
         let result = v >> (16 - total_bits);
         self.pos += total_bits >> 3;
         self.bit_pos = total_bits & 7;
+        if self.pos > self.data_len {
+            self.pos = self.data_len;
+        }
         result
     }
 
@@ -130,9 +146,11 @@ impl BitDecoder {
     /// bit at (InAddr,InBit) at the highest position.
     #[inline(always)]
     pub fn getbits(&self) -> u32 {
-        // SAFETY: buffer is padded with 8 bytes, allowing 4-byte read
+        // SAFETY: pos clamped to data_len, buffer has BUFFER_PADDING bytes
+        // after data_len, so 4-byte read is always within bounds.
         unsafe {
-            let ptr = self.buf.as_ptr().add(self.pos) as *const u32;
+            let p = self.pos.min(self.data_len);
+            let ptr = self.buf.as_ptr().add(p) as *const u32;
             let v = u32::from_be(ptr.read_unaligned());
             (v >> (16 - self.bit_pos)) & 0xFFFF
         }
@@ -141,11 +159,12 @@ impl BitDecoder {
     /// Get up to 15 bits for Huffman decoding (without advancing).
     #[inline(always)]
     pub fn get_value_15(&self) -> u32 {
-        // SAFETY: buffer is padded with 8 bytes
+        // SAFETY: pos clamped to data_len, buffer has BUFFER_PADDING bytes
         unsafe {
-            let b0 = *self.buf.get_unchecked(self.pos) as u32;
-            let b1 = *self.buf.get_unchecked(self.pos + 1) as u32;
-            let b2 = *self.buf.get_unchecked(self.pos + 2) as u32;
+            let p = self.pos.min(self.data_len);
+            let b0 = *self.buf.get_unchecked(p) as u32;
+            let b1 = *self.buf.get_unchecked(p + 1) as u32;
+            let b2 = *self.buf.get_unchecked(p + 2) as u32;
             let v = (b0 << 16) | (b1 << 8) | b2;
             (v >> (9 - self.bit_pos)) & 0x7FFF
         }
@@ -157,15 +176,22 @@ impl BitDecoder {
         let total = num_bits + self.bit_pos;
         self.pos += total >> 3;
         self.bit_pos = total & 7;
+        // Clamp to data_len so subsequent reads stay within the padded buffer.
+        // Callers check is_eof() to detect end-of-data.
+        if self.pos > self.data_len {
+            self.pos = self.data_len;
+        }
     }
 
     /// Get value in high 32 bits for extended reading (matching unrar getbits32).
     /// Returns 32 bits with the first available bit at bit 31.
     #[inline(always)]
     pub fn get_value_high32(&self) -> u32 {
-        // SAFETY: buffer is padded with 8 bytes, allowing 8-byte read
+        // SAFETY: pos clamped to data_len, buffer has BUFFER_PADDING (>=16)
+        // bytes after data_len, so 8-byte read is always within bounds.
         unsafe {
-            let ptr = self.buf.as_ptr().add(self.pos);
+            let p = self.pos.min(self.data_len);
+            let ptr = self.buf.as_ptr().add(p);
             let v = u64::from_be((ptr as *const u64).read_unaligned());
             ((v << self.bit_pos) >> 32) as u32
         }
@@ -213,13 +239,13 @@ impl BitDecoder {
 
     /// Set byte position (resets bit position to 0).
     pub fn set_position(&mut self, pos: usize) {
-        self.pos = pos;
+        self.pos = pos.min(self.data_len);
         self.bit_pos = 0;
     }
 
     /// Set byte position and bit position within that byte.
     pub fn set_position_with_bit(&mut self, pos: usize, bit_pos: usize) {
-        self.pos = pos;
+        self.pos = pos.min(self.data_len);
         self.bit_pos = bit_pos;
     }
 
@@ -231,6 +257,11 @@ impl BitDecoder {
     /// Raw pointer to the underlying buffer data.
     pub fn buf_ptr(&self) -> *const u8 {
         self.buf.as_ptr()
+    }
+
+    /// Total length of the underlying buffer (including padding).
+    pub fn buf_len(&self) -> usize {
+        self.buf.len()
     }
 
     /// Pre-computed block end in total bits.

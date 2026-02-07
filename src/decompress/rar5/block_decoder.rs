@@ -479,7 +479,7 @@ impl Rar5BlockDecoder {
             self.output.push(byte);
         }
 
-        self.window_pos += 1;
+        self.window_pos = self.window_pos.wrapping_add(1);
     }
 
     /// Copy bytes from earlier position in window.
@@ -498,7 +498,7 @@ impl Rar5BlockDecoder {
 
             // Seed: copy first `offset` bytes
             for i in 0..offset {
-                let src_pos = (src_start + i) & self.window_mask;
+                let src_pos = src_start.wrapping_add(i) & self.window_mask;
                 let byte = unsafe { *self.window.get_unchecked(src_pos) };
                 unsafe {
                     *self.output.get_unchecked_mut(output_start + i) = byte;
@@ -518,12 +518,12 @@ impl Rar5BlockDecoder {
             // Update window from output
             let window_ptr = self.window.as_mut_ptr();
             for i in 0..length {
-                let dst_pos = (self.window_pos + i) & self.window_mask;
+                let dst_pos = self.window_pos.wrapping_add(i) & self.window_mask;
                 unsafe {
                     *window_ptr.add(dst_pos) = *self.output.get_unchecked(output_start + i);
                 }
             }
-            self.window_pos += length;
+            self.window_pos = self.window_pos.wrapping_add(length);
         } else if offset < length {
             // offset == 1: RLE case
             self.output.reserve(length);
@@ -532,28 +532,36 @@ impl Rar5BlockDecoder {
                 unsafe {
                     *self
                         .window
-                        .get_unchecked_mut((self.window_pos + i) & self.window_mask) = byte;
+                        .get_unchecked_mut(self.window_pos.wrapping_add(i) & self.window_mask) = byte;
                 }
                 self.output.push(byte);
             }
-            self.window_pos += length;
+            self.window_pos = self.window_pos.wrapping_add(length);
         } else {
             // No overlap - can copy efficiently
             let src_mask_start = src_start & self.window_mask;
             let dst_mask_start = self.window_pos & self.window_mask;
-            let src_mask_end = (src_start + length - 1) & self.window_mask;
-            let dst_mask_end = (self.window_pos + length - 1) & self.window_mask;
+            let src_mask_end = (src_start.wrapping_add(length).wrapping_sub(1)) & self.window_mask;
+            let dst_mask_end = (self.window_pos.wrapping_add(length).wrapping_sub(1)) & self.window_mask;
 
             // Fast path: no wraparound in either src or dst
             if src_mask_end >= src_mask_start && dst_mask_end >= dst_mask_start {
                 // Single contiguous copy within window
+                // Check for actual memory overlap (can happen with wrapping window_pos)
+                let src_end = src_mask_start + length;
+                let dst_end = dst_mask_start + length;
+                let overlaps = src_mask_start < dst_end && dst_mask_start < src_end;
                 unsafe {
                     let src = self.window.as_ptr().add(src_mask_start);
                     let dst = self.window.as_mut_ptr().add(dst_mask_start);
-                    std::ptr::copy_nonoverlapping(src, dst, length);
-                    // Extend output from window
+                    if overlaps {
+                        std::ptr::copy(src, dst, length);
+                    } else {
+                        std::ptr::copy_nonoverlapping(src, dst, length);
+                    }
+                    // Extend output from window destination
                     self.output
-                        .extend_from_slice(std::slice::from_raw_parts(src, length));
+                        .extend_from_slice(std::slice::from_raw_parts(dst.cast_const(), length));
                 }
             } else {
                 // Slow path: wraparound - copy byte by byte
@@ -566,8 +574,8 @@ impl Rar5BlockDecoder {
                 }
 
                 for i in 0..length {
-                    let src_pos = (src_start + i) & self.window_mask;
-                    let dst_pos = (self.window_pos + i) & self.window_mask;
+                    let src_pos = src_start.wrapping_add(i) & self.window_mask;
+                    let dst_pos = self.window_pos.wrapping_add(i) & self.window_mask;
                     let byte = unsafe { *self.window.get_unchecked(src_pos) };
                     unsafe {
                         *self.window.get_unchecked_mut(dst_pos) = byte;
@@ -575,7 +583,7 @@ impl Rar5BlockDecoder {
                     }
                 }
             }
-            self.window_pos += length;
+            self.window_pos = self.window_pos.wrapping_add(length);
         }
     }
 
@@ -1051,9 +1059,9 @@ impl Rar5BlockDecoder {
             (slot + 2) as usize
         } else {
             let extra_bits = ((slot - 4) / 4) as u32;
-            let base = ((4 + (slot & 3)) << extra_bits) + 2;
+            let base = ((4u32 + (slot & 3)) << extra_bits).wrapping_add(2);
             let extra = fb.read(extra_bits);
-            (base + extra) as usize
+            (base.wrapping_add(extra)) as usize
         }
     }
 
@@ -1068,7 +1076,7 @@ impl Rar5BlockDecoder {
             let base = (2 | (slot & 1)) << num_bits;
             if num_bits < NUM_ALIGN_BITS as u32 {
                 let extra = fb.read(num_bits);
-                (base + extra + 1) as usize
+                (base.wrapping_add(extra).wrapping_add(1)) as usize
             } else {
                 let high = if num_bits > NUM_ALIGN_BITS as u32 {
                     fb.read(num_bits - NUM_ALIGN_BITS as u32)
@@ -1080,7 +1088,7 @@ impl Rar5BlockDecoder {
                 } else {
                     fb.read(NUM_ALIGN_BITS as u32)
                 };
-                (base + (high << NUM_ALIGN_BITS) + low + 1) as usize
+                (base.wrapping_add(high << NUM_ALIGN_BITS).wrapping_add(low).wrapping_add(1)) as usize
             }
         }
     }
@@ -1591,10 +1599,10 @@ impl Rar5BlockDecoder {
             Ok((slot + 2) as usize)
         } else if slot < LEN_TABLE_SIZE as u32 {
             let extra_bits = ((slot - 4) / 4) as usize;
-            let base = ((4 + (slot & 3)) << extra_bits) + 2;
+            let base = ((4u32 + (slot & 3)) << extra_bits).wrapping_add(2);
             let v = bits.get_value_high32();
             let extra = bits.read_bits_big(extra_bits, v);
-            Ok((base + extra) as usize)
+            Ok((base.wrapping_add(extra)) as usize)
         } else {
             Err(DecompressError::Io(std::io::Error::new(
                 std::io::ErrorKind::InvalidData,
@@ -1625,7 +1633,7 @@ impl Rar5BlockDecoder {
                 // Few extra bits - read directly
                 let v = bits.get_value_high32();
                 let extra = bits.read_bits_big(num_bits, v);
-                Ok((base + extra + 1) as usize)
+                Ok(base.wrapping_add(extra).wrapping_add(1) as usize)
             } else {
                 // More bits - use alignment table
                 // Only read high bits if num_bits > 4
@@ -1643,7 +1651,7 @@ impl Rar5BlockDecoder {
                     bits.read_bits_9fix(NUM_ALIGN_BITS)
                 };
 
-                let offset = base + (high << NUM_ALIGN_BITS) + low + 1;
+                let offset = base.wrapping_add(high << NUM_ALIGN_BITS).wrapping_add(low).wrapping_add(1);
                 Ok(offset as usize)
             }
         }
@@ -1691,6 +1699,8 @@ struct FastBits {
     n: u32,
     src: *const u8,
     pos: usize,
+    /// Maximum byte position for safe 4-byte reads (buf_len - 4).
+    src_safe_end: usize,
 }
 
 impl FastBits {
@@ -1703,6 +1713,7 @@ impl FastBits {
             n: 0,
             src: bits.buf_ptr(),
             pos: byte_pos,
+            src_safe_end: bits.buf_len().saturating_sub(4),
         };
         fb.refill();
         if bit_pos > 0 {
@@ -1714,7 +1725,7 @@ impl FastBits {
 
     /// Sync state back to a BitDecoder.
     fn sync_to(&self, bits: &mut BitDecoder) {
-        let consumed = self.pos * 8 - self.n as usize;
+        let consumed = (self.pos * 8).saturating_sub(self.n as usize);
         bits.set_position_with_bit(consumed / 8, consumed % 8);
     }
 
@@ -1734,8 +1745,9 @@ impl FastBits {
     /// Refill buffer with a 4-byte read.
     #[inline(always)]
     fn refill(&mut self) {
-        if self.n <= 32 {
-            // SAFETY: source buffer is padded with 8 bytes
+        if self.n <= 32 && self.pos <= self.src_safe_end {
+            // SAFETY: pos <= src_safe_end = buf_len - 4, so reading
+            // 4 bytes at pos is within the allocated buffer.
             let v =
                 unsafe { u32::from_be((self.src.add(self.pos) as *const u32).read_unaligned()) };
             self.buf |= (v as u64) << (32 - self.n);
@@ -1759,8 +1771,13 @@ impl FastBits {
 
     #[inline(always)]
     fn skip(&mut self, bits: u32) {
-        self.buf <<= bits;
-        self.n -= bits;
+        if bits >= self.n {
+            self.buf = 0;
+            self.n = 0;
+        } else {
+            self.buf <<= bits;
+            self.n -= bits;
+        }
     }
 
     #[inline(always)]
@@ -1769,6 +1786,11 @@ impl FastBits {
             return 0;
         }
         self.ensure(num);
+        if num > self.n {
+            self.buf = 0;
+            self.n = 0;
+            return 0;
+        }
         let v = (self.buf >> (64 - num)) as u32;
         self.buf <<= num;
         self.n -= num;
@@ -1777,8 +1799,8 @@ impl FastBits {
 
     #[inline(always)]
     fn is_block_over(&self, end_bits: usize) -> bool {
-        // pos * 8 compiles to a single shift (lea [pos*8])
-        self.pos * 8 - self.n as usize >= end_bits
+        let consumed = (self.pos * 8).saturating_sub(self.n as usize);
+        consumed >= end_bits
     }
 
     /// Decode a Huffman symbol using the quick table.
@@ -2286,9 +2308,9 @@ impl Rar5BlockDecoder {
             slot + 2
         } else {
             let extra_bits = ((slot - 4) / 4) as u32;
-            let base = ((4 + (slot & 3)) << extra_bits) + 2;
+            let base = ((4u32 + (slot & 3)) << extra_bits).wrapping_add(2);
             let extra = fb.read(extra_bits);
-            base + extra
+            base.wrapping_add(extra)
         }
     }
 
@@ -2301,7 +2323,7 @@ impl Rar5BlockDecoder {
             let base = (2 | (slot & 1)) << num_bits;
             if num_bits < NUM_ALIGN_BITS as u32 {
                 let extra = fb.read(num_bits);
-                (base + extra + 1) as usize
+                base.wrapping_add(extra).wrapping_add(1) as usize
             } else {
                 let high = if num_bits > NUM_ALIGN_BITS as u32 {
                     fb.read(num_bits - NUM_ALIGN_BITS as u32)
@@ -2313,7 +2335,7 @@ impl Rar5BlockDecoder {
                 } else {
                     fb.read(NUM_ALIGN_BITS as u32)
                 };
-                (base + (high << NUM_ALIGN_BITS) + low + 1) as usize
+                base.wrapping_add(high << NUM_ALIGN_BITS).wrapping_add(low).wrapping_add(1) as usize
             }
         }
     }
@@ -2324,10 +2346,10 @@ impl Rar5BlockDecoder {
             slot + 2
         } else {
             let extra_bits = ((slot - 4) / 4) as usize;
-            let base = ((4 + (slot & 3)) << extra_bits) + 2;
+            let base = ((4u32 + (slot & 3)) << extra_bits).wrapping_add(2);
             let v = bits.get_value_high32();
             let extra = bits.read_bits_big(extra_bits, v);
-            base + extra
+            base.wrapping_add(extra)
         }
     }
 
@@ -2345,7 +2367,7 @@ impl Rar5BlockDecoder {
             if num_bits < NUM_ALIGN_BITS {
                 let v = bits.get_value_high32();
                 let extra = bits.read_bits_big(num_bits, v);
-                Ok((base + extra + 1) as usize)
+                Ok(base.wrapping_add(extra).wrapping_add(1) as usize)
             } else {
                 let high = if num_bits > NUM_ALIGN_BITS {
                     let v = bits.get_value_high32();
@@ -2358,7 +2380,7 @@ impl Rar5BlockDecoder {
                 } else {
                     bits.read_bits_9fix(NUM_ALIGN_BITS)
                 };
-                Ok((base + (high << NUM_ALIGN_BITS) + low + 1) as usize)
+                Ok(base.wrapping_add(high << NUM_ALIGN_BITS).wrapping_add(low).wrapping_add(1) as usize)
             }
         }
     }

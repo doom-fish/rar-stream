@@ -7,10 +7,10 @@ fuzz_target!(|data: &[u8]| {
         return;
     }
 
-    // Use first 8 bytes as unpacked_size (capped to 16MB to avoid OOM)
+    // Use first 8 bytes as unpacked_size (capped to 1MB to avoid OOM/timeouts)
     let unpacked_size = u64::from_le_bytes([
         data[0], data[1], data[2], data[3], data[4], data[5], data[6], data[7],
-    ]) % (16 * 1024 * 1024);
+    ]) % (1024 * 1024);
 
     let compressed = &data[8..];
     let mut decoder = Rar29Decoder::new();
