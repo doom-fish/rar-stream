@@ -4,6 +4,28 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [5.2.1] - 2026-02-07
+
+### Bug Fixes
+
+- Remove unused npm deps, fix all vulnerabilities
+
+### Performance
+
+- Replace iter().position() with SSE2/SWAR byte search in E8E9 filter
+- CRC32 slicing-by-8, LZSS bulk copy, zero-alloc VM filters
+- Conditional BitReader refill, unrolled Huffman, skip-scan E8E9
+- Bulk copy in PPMd alloc, RLE memset, pre-alloc table buffer
+- Single-copy overlap match, inline filter check, cold VM path
+- Extract byte_search to shared module, use SSE2 in RAR5 E8E9 filter
+- Incremental consumed_bits tracking, cold slow Huffman path
+
+### Refactor
+
+- Achieve true zero-dep core
+- Remove async feature, inline tokio into napi
+
+
 ## [5.2.0] - 2026-02-07
 
 ### Bug Fixes
