@@ -174,7 +174,7 @@ impl RarVM {
     fn read_data(data: &[u8], bit_pos: &mut usize) -> u32 {
         // We need at least 2 bits to determine the type, and up to 34 bits total for case 0xc000
         // But we can handle cases where we have less data by checking as we go
-        let bits_available = data.len() * 8 - *bit_pos;
+        let bits_available = (data.len() * 8).saturating_sub(*bit_pos);
         if bits_available < 2 {
             #[cfg(test)]
             eprintln!(
