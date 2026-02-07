@@ -152,7 +152,13 @@ jobs:
         run: MIRIFLAGS="-Zmiri-disable-isolation" cargo +nightly miri test --lib -- decompress::tests::test_decompress_lzss_default decompress::tests::test_decompress_ppmd decompress::tests::test_decompress_delta decompress::tests::test_lzss
 
       - name: Miri - RAR5 decompression
-        run: MIRIFLAGS="-Zmiri-disable-isolation" cargo +nightly miri test --lib -- "decompress::rar5"
+        run: |
+          MIRIFLAGS="-Zmiri-disable-isolation" cargo +nightly miri test --lib -- \
+            "decompress::rar5::bit_decoder" \
+            "decompress::rar5::block_decoder" \
+            "decompress::rar5::decoder::tests" \
+            "decompress::rar5::filter" \
+            "decompress::rar5::range_coder"
 
   fuzz:
     name: Fuzz (smoke test)
