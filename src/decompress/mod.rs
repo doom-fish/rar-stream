@@ -83,6 +83,7 @@
 #![allow(dead_code)]
 
 mod bit_reader;
+pub(crate) mod byte_search;
 mod huffman;
 mod lzss;
 mod ppm;

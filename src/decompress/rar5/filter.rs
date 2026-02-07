@@ -3,6 +3,8 @@
 //! RAR5 uses simplified filters compared to RAR4's VM-based system.
 //! Only 4 filter types are supported: Delta, E8, E8E9, and ARM.
 
+use crate::decompress::byte_search;
+
 /// Maximum filter block size (4MB).
 const MAX_FILTER_BLOCK_SIZE: usize = 0x400000;
 
@@ -125,13 +127,11 @@ fn apply_e8_filter_inplace(data: &mut [u8], file_offset: u32, include_e9: bool) 
     let mut cur_pos: usize = 0;
 
     while cur_pos < search_end {
-        // Fast scan for E8/E9 bytes using platform-optimized search
+        // Fast scan for E8/E9 bytes using SSE2/SWAR accelerated search
         let found = if include_e9 {
-            data[cur_pos..search_end]
-                .iter()
-                .position(|&b| b == 0xE8 || b == 0xE9)
+            byte_search::find_byte2(&data[cur_pos..search_end], 0xE8, 0xE9)
         } else {
-            data[cur_pos..search_end].iter().position(|&b| b == 0xE8)
+            byte_search::find_byte(&data[cur_pos..search_end], 0xE8)
         };
 
         let offset_in_slice = match found {
