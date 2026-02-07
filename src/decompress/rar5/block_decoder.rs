@@ -495,38 +495,63 @@ impl Rar5BlockDecoder {
 
         // Overlap case is when offset < length (run-length encoding pattern)
         if offset < length && offset > 1 {
-            // Doubling copy: seed with `offset` bytes, then double
-            let output_start = self.output.len();
-            self.output.reserve(length);
-            unsafe {
-                self.output.set_len(output_start + length);
-            }
+            // Doubling copy: seed window, double in window, single copy to output
+            let window_ptr = self.window.as_mut_ptr();
 
-            // Seed: copy first `offset` bytes
+            // Seed: copy first `offset` bytes into window
             for i in 0..offset {
                 let src_pos = src_start.wrapping_add(i) & self.window_mask;
-                let byte = unsafe { *self.window.get_unchecked(src_pos) };
-                unsafe {
-                    *self.output.get_unchecked_mut(output_start + i) = byte;
-                }
-            }
-            // Double the filled region
-            let out_ptr = unsafe { self.output.as_mut_ptr().add(output_start) };
-            let mut copied = offset;
-            while copied < length {
-                let chunk = copied.min(length - copied);
-                unsafe {
-                    std::ptr::copy_nonoverlapping(out_ptr, out_ptr.add(copied), chunk);
-                }
-                copied += chunk;
-            }
-
-            // Update window from output
-            let window_ptr = self.window.as_mut_ptr();
-            for i in 0..length {
                 let dst_pos = self.window_pos.wrapping_add(i) & self.window_mask;
                 unsafe {
-                    *window_ptr.add(dst_pos) = *self.output.get_unchecked(output_start + i);
+                    *window_ptr.add(dst_pos) = *self.window.get_unchecked(src_pos);
+                }
+            }
+
+            // Doubling in window (only works if dest doesn't wrap)
+            let dst_mask_start = self.window_pos & self.window_mask;
+            if dst_mask_start + length <= self.window.len() {
+                let win_ptr = unsafe { window_ptr.add(dst_mask_start) };
+                let mut copied = offset;
+                while copied < length {
+                    let chunk = copied.min(length - copied);
+                    unsafe {
+                        core::ptr::copy_nonoverlapping(win_ptr, win_ptr.add(copied), chunk);
+                    }
+                    copied += chunk;
+                }
+                // Single copy from window to output
+                self.output.reserve(length);
+                unsafe {
+                    let src = win_ptr.cast_const();
+                    let out_len = self.output.len();
+                    core::ptr::copy_nonoverlapping(
+                        src,
+                        self.output.as_mut_ptr().add(out_len),
+                        length,
+                    );
+                    self.output.set_len(out_len + length);
+                }
+            } else {
+                // Wrapping: fall back to byte-by-byte for remaining
+                let mut i = offset;
+                while i < length {
+                    let src_pos = self.window_pos.wrapping_add(i - offset) & self.window_mask;
+                    let dst_pos = self.window_pos.wrapping_add(i) & self.window_mask;
+                    unsafe {
+                        *window_ptr.add(dst_pos) = *self.window.get_unchecked(src_pos);
+                    }
+                    i += 1;
+                }
+                // Copy window to output
+                let out_start = self.output.len();
+                self.output.reserve(length);
+                unsafe { self.output.set_len(out_start + length) };
+                for i in 0..length {
+                    let pos = self.window_pos.wrapping_add(i) & self.window_mask;
+                    unsafe {
+                        *self.output.get_unchecked_mut(out_start + i) =
+                            *self.window.get_unchecked(pos);
+                    }
                 }
             }
             self.window_pos = self.window_pos.wrapping_add(length);

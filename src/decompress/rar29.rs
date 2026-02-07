@@ -747,6 +747,7 @@ impl Rar29Decoder {
 
     /// Read VM filter code from bit stream (for LZ mode, symbol 257).
     /// We read the VM code and register it with the VM for later execution.
+    #[cold]
     fn read_vm_code(&mut self, reader: &mut BitReader) -> Result<()> {
         #[cfg(test)]
         let bit_pos_start = reader.bit_position();
@@ -836,6 +837,7 @@ impl Rar29Decoder {
 
     /// Execute pending VM filters if we've reached their block_start position.
     /// Applies filters to window data, writes filtered output directly to output buffer.
+    #[inline]
     fn maybe_execute_filters(&mut self) {
         let total_written = self.lzss.total_written();
 
