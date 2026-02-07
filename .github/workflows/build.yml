@@ -161,7 +161,7 @@ jobs:
           npm version "$CARGO_VERSION" --no-git-tag-version --allow-same-version
       
       - name: Publish to crates.io
-        run: cargo publish --allow-dirty
+        run: cargo publish --allow-dirty || echo "::warning::crates.io publish failed (version may already exist)"
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
       

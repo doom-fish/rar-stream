@@ -2,20 +2,35 @@
  * rar-stream browser entry point with Web Streams API support
  */
 
-// Re-export WASM bindings
+// WASM init
+/**
+ * Initialize the WASM module. Safe to call multiple times.
+ * Automatically called by all async helper functions.
+ */
+export declare function init(wasmUrl?: string | URL | Request | Response | BufferSource | WebAssembly.Module): Promise<void>;
+export declare function initSync(module: { module: BufferSource | WebAssembly.Module } | BufferSource | WebAssembly.Module): void;
+
+// Auto-init async helpers (call init() automatically)
+export declare function isRarArchive(data: Uint8Array): Promise<boolean>;
+export declare function getRarVersion(data: Uint8Array): Promise<number>;
+export declare function parseRarHeader(data: Uint8Array): Promise<any>;
+export declare function parseRarHeaders(data: Uint8Array): Promise<any[]>;
+export declare function parseRar5Header(data: Uint8Array): Promise<any>;
+export declare function parseRar5Headers(data: Uint8Array): Promise<any[]>;
+
+// Classes (require init() before construction)
+export { WasmRarDecoder, WasmRar5Decoder, WasmRar5Crypto } from '../pkg/rar_stream.d.ts';
+export { WasmRarDecoder as RarDecoder, WasmRar5Decoder as Rar5Decoder } from '../pkg/rar_stream.d.ts';
+
+// Direct snake_case access (require init() before use)
 export {
-  default as init,
-  initSync,
-  isRarArchive,
-  getRarVersion,
-  parseRarHeader,
-  RarDecoder,
-  WasmRar5Crypto,
   is_rar_archive,
   get_rar_version,
   parse_rar_header,
-  WasmRarDecoder,
-} from '../browser.js';
+  parse_rar_headers,
+  parse_rar5_header,
+  parse_rar5_headers,
+} from '../pkg/rar_stream.d.ts';
 
 /** Options for creating a ReadableStream */
 export interface ReadableStreamOptions {
