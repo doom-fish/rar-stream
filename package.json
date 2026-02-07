@@ -86,8 +86,7 @@
     "prettier": "^3.2.0",
     "typescript": "^5.4.0",
     "typescript-eslint": "^8.0.0",
-    "vitest": "^2.1.8",
-    "webtorrent": "^2.8.5"
+    "vitest": "^4.0.18"
   },
   "files": [
     "lib/index.mjs",
@@ -103,14 +102,5 @@
     "pkg/rar_stream_bg.wasm",
     "pkg/rar_stream_bg.wasm.d.ts",
     "*.node"
-  ],
-  "optionalDependencies": {
-    "rar-stream-darwin-arm64": "5.1.0",
-    "rar-stream-darwin-x64": "5.1.0",
-    "rar-stream-linux-arm64-gnu": "5.1.0",
-    "rar-stream-linux-arm64-musl": "5.1.0",
-    "rar-stream-linux-x64-gnu": "5.1.0",
-    "rar-stream-linux-x64-musl": "5.1.0",
-    "rar-stream-win32-x64-msvc": "5.1.0"
-  }
+  ]
 }
