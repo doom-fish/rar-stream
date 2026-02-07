@@ -12,6 +12,84 @@ use crate::formats::Signature;
 use crate::parsing::rar5::{Rar5ArchiveHeaderParser, Rar5FileHeaderParser};
 use crate::parsing::{ArchiveHeaderParser, FileHeaderParser, MarkerHeaderParser};
 
+/// Extract the first file from a RAR archive buffer.
+/// Auto-detects RAR4/RAR5 format, parses headers, and decompresses.
+/// Returns a JS object with `name`, `data` (Uint8Array), and `size`.
+#[wasm_bindgen]
+pub fn extract_file(archive: &[u8]) -> Result<JsValue, JsError> {
+    match Signature::from_bytes(archive) {
+        Some(Signature::Rar15) => extract_rar4_file(archive),
+        Some(Signature::Rar50) => extract_rar5_file(archive),
+        None => Err(JsError::new("Not a RAR archive")),
+    }
+}
+
+fn extract_rar4_file(archive: &[u8]) -> Result<JsValue, JsError> {
+    let marker = MarkerHeaderParser::parse(archive)
+        .map_err(|e| JsError::new(&format!("Invalid marker: {e}")))?;
+    let mut offset = marker.size as usize;
+
+    let arch = ArchiveHeaderParser::parse(&archive[offset..])
+        .map_err(|e| JsError::new(&format!("Invalid archive header: {e}")))?;
+    offset += arch.size as usize;
+
+    let fh = FileHeaderParser::parse(&archive[offset..])
+        .map_err(|e| JsError::new(&format!("Invalid file header: {e}")))?;
+    let data_offset = offset + fh.head_size as usize;
+    let compressed = &archive[data_offset..data_offset + fh.packed_size as usize];
+
+    let decompressed = if fh.method == 0x30 {
+        compressed.to_vec()
+    } else {
+        let mut decoder = Rar29Decoder::new();
+        decoder
+            .decompress(compressed, fh.unpacked_size)
+            .map_err(|e| JsError::new(&e.to_string()))?
+    };
+
+    build_extract_result(&fh.name, &decompressed)
+}
+
+fn extract_rar5_file(archive: &[u8]) -> Result<JsValue, JsError> {
+    let mut offset = 8usize;
+
+    let (_arch, arch_consumed) = Rar5ArchiveHeaderParser::parse(&archive[offset..])
+        .map_err(|e| JsError::new(&format!("Invalid archive header: {e}")))?;
+    offset += arch_consumed;
+
+    let (fh, file_consumed) = Rar5FileHeaderParser::parse(&archive[offset..])
+        .map_err(|e| JsError::new(&format!("Invalid file header: {e}")))?;
+    let data_offset = offset + file_consumed;
+    let compressed = &archive[data_offset..data_offset + fh.packed_size as usize];
+
+    let decompressed = if fh.compression.is_stored() {
+        compressed[..fh.unpacked_size as usize].to_vec()
+    } else {
+        let mut decoder = Rar5Decoder::with_dict_size(fh.compression.dict_size_log);
+        decoder
+            .decompress(compressed, fh.unpacked_size, fh.compression.method, false)
+            .map_err(|e| JsError::new(&e.to_string()))?
+    };
+
+    build_extract_result(&fh.name, &decompressed)
+}
+
+fn build_extract_result(name: &str, data: &[u8]) -> Result<JsValue, JsError> {
+    let obj = js_sys::Object::new();
+    let _ = js_sys::Reflect::set(&obj, &"name".into(), &JsValue::from_str(name));
+    let _ = js_sys::Reflect::set(
+        &obj,
+        &"data".into(),
+        &js_sys::Uint8Array::from(data).into(),
+    );
+    let _ = js_sys::Reflect::set(
+        &obj,
+        &"size".into(),
+        &JsValue::from_f64(data.len() as f64),
+    );
+    Ok(obj.into())
+}
+
 /// Check if a buffer contains a RAR signature.
 #[wasm_bindgen]
 pub fn is_rar_archive(data: &[u8]) -> bool {

@@ -18,6 +18,12 @@ export declare function parseRarHeaders(data: Uint8Array): Promise<any[]>;
 export declare function parseRar5Header(data: Uint8Array): Promise<any>;
 export declare function parseRar5Headers(data: Uint8Array): Promise<any[]>;
 
+/**
+ * Extract the first file from a RAR archive buffer.
+ * Auto-detects RAR4/RAR5, parses headers, and decompresses in one call.
+ */
+export declare function extractFile(data: Uint8Array): Promise<{name: string, data: Uint8Array, size: number}>;
+
 // Classes (require init() before construction)
 export { WasmRarDecoder, WasmRar5Decoder, WasmRar5Crypto } from '../pkg/rar_stream.d.ts';
 export { WasmRarDecoder as RarDecoder, WasmRar5Decoder as Rar5Decoder } from '../pkg/rar_stream.d.ts';
@@ -30,6 +36,7 @@ export {
   parse_rar_headers,
   parse_rar5_header,
   parse_rar5_headers,
+  extract_file,
 } from '../pkg/rar_stream.d.ts';
 
 /** Options for creating a ReadableStream */

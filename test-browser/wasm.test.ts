@@ -122,6 +122,48 @@ test.describe('rar-stream WASM multi-header parsing', () => {
   });
 });
 
+test.describe('rar-stream WASM extract_file', () => {
+  test('extracts RAR4 compressed file in one call', async ({ page }) => {
+    await page.goto('http://localhost:8765/test-browser/index.html');
+    await page.waitForFunction(() => document.querySelector('.test.pass') !== null);
+
+    const result = await page.evaluate(async () => {
+      const response = await fetch('/__fixtures__/compressed/lipsum_rar4_default.rar');
+      const buffer = await response.arrayBuffer();
+      const data = new Uint8Array(buffer);
+
+      const { extract_file } = await import('../pkg/rar_stream.js');
+      const file = extract_file(data);
+      const text = new TextDecoder().decode(file.data);
+      return { name: file.name, size: file.size, startsWithLorem: text.startsWith('Lorem ipsum') };
+    });
+
+    expect(result.name).toBe('lorem_ipsum.txt');
+    expect(result.size).toBe(3515);
+    expect(result.startsWithLorem).toBe(true);
+  });
+
+  test('extracts RAR5 compressed file in one call', async ({ page }) => {
+    await page.goto('http://localhost:8765/test-browser/index.html');
+    await page.waitForFunction(() => document.querySelector('.test.pass') !== null);
+
+    const result = await page.evaluate(async () => {
+      const response = await fetch('/__fixtures__/rar5/compressed.rar');
+      const buffer = await response.arrayBuffer();
+      const data = new Uint8Array(buffer);
+
+      const { extract_file } = await import('../pkg/rar_stream.js');
+      const file = extract_file(data);
+      const text = new TextDecoder().decode(file.data);
+      return { name: file.name, size: file.size, hasTestFile: text.includes('test file') };
+    });
+
+    expect(result.name).toBe('compress_test.txt');
+    expect(result.size).toBe(152);
+    expect(result.hasTestFile).toBe(true);
+  });
+});
+
 test.describe('rar-stream WASM decompression', () => {
   test('can decompress LZSS store file', async ({ page }) => {
     await page.goto('http://localhost:8765/test-browser/index.html');
