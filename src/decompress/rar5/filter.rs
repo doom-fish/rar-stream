@@ -121,39 +121,43 @@ fn apply_e8_filter_inplace(data: &mut [u8], file_offset: u32, include_e9: bool) 
         return;
     }
 
+    let search_end = data.len() - 4;
     let mut cur_pos: usize = 0;
-    while cur_pos + 4 < data.len() {
-        let cur_byte = data[cur_pos];
-        cur_pos += 1;
 
-        if cur_byte == 0xE8 || (include_e9 && cur_byte == 0xE9) {
-            // Note: unrar uses (CurPos + FileOffset) % FileSize
-            let offset = ((cur_pos as u32).wrapping_add(file_offset)) % FILE_SIZE;
-            let addr = u32::from_le_bytes([
-                data[cur_pos],
-                data[cur_pos + 1],
-                data[cur_pos + 2],
-                data[cur_pos + 3],
-            ]);
+    while cur_pos < search_end {
+        // Fast scan for E8/E9 bytes using platform-optimized search
+        let found = if include_e9 {
+            data[cur_pos..search_end]
+                .iter()
+                .position(|&b| b == 0xE8 || b == 0xE9)
+        } else {
+            data[cur_pos..search_end].iter().position(|&b| b == 0xE8)
+        };
 
-            // Check high bit for sign
-            if (addr & 0x80000000) != 0 {
-                // addr < 0
-                if (addr.wrapping_add(offset) & 0x80000000) == 0 {
-                    // addr + offset >= 0
-                    let new_addr = addr.wrapping_add(FILE_SIZE);
-                    data[cur_pos..cur_pos + 4].copy_from_slice(&new_addr.to_le_bytes());
-                }
-            } else {
-                // addr >= 0
-                if (addr.wrapping_sub(FILE_SIZE) & 0x80000000) != 0 {
-                    // addr < FILE_SIZE
-                    let new_addr = addr.wrapping_sub(offset);
-                    data[cur_pos..cur_pos + 4].copy_from_slice(&new_addr.to_le_bytes());
-                }
+        let offset_in_slice = match found {
+            Some(o) => o,
+            None => break,
+        };
+        cur_pos += offset_in_slice + 1; // advance past the E8/E9 byte
+
+        let offset = ((cur_pos as u32).wrapping_add(file_offset)) % FILE_SIZE;
+        let addr = u32::from_le_bytes([
+            data[cur_pos],
+            data[cur_pos + 1],
+            data[cur_pos + 2],
+            data[cur_pos + 3],
+        ]);
+
+        if (addr & 0x80000000) != 0 {
+            if (addr.wrapping_add(offset) & 0x80000000) == 0 {
+                let new_addr = addr.wrapping_add(FILE_SIZE);
+                data[cur_pos..cur_pos + 4].copy_from_slice(&new_addr.to_le_bytes());
             }
-            cur_pos += 4;
+        } else if (addr.wrapping_sub(FILE_SIZE) & 0x80000000) != 0 {
+            let new_addr = addr.wrapping_sub(offset);
+            data[cur_pos..cur_pos + 4].copy_from_slice(&new_addr.to_le_bytes());
         }
+        cur_pos += 4;
     }
 }
 

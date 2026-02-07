@@ -284,13 +284,21 @@ impl HuffmanTable {
             return Ok(entry.symbol);
         }
 
-        // Slow path: find the matching bit length using unrar's algorithm
+        // Slow path: find matching bit length (codes 11-15 bits).
+        // Unrolled for branch-predictor friendliness.
         // SAFETY: decode_len has 16 entries, we access indices 11..15
-        let mut bits = MAX_CODE_LENGTH;
-        for i in (QUICK_BITS as usize + 1)..MAX_CODE_LENGTH {
-            if bit_field < unsafe { *self.decode_len.get_unchecked(i) } {
-                bits = i;
-                break;
+        let bits;
+        unsafe {
+            if bit_field < *self.decode_len.get_unchecked(11) {
+                bits = 11;
+            } else if bit_field < *self.decode_len.get_unchecked(12) {
+                bits = 12;
+            } else if bit_field < *self.decode_len.get_unchecked(13) {
+                bits = 13;
+            } else if bit_field < *self.decode_len.get_unchecked(14) {
+                bits = 14;
+            } else {
+                bits = MAX_CODE_LENGTH;
             }
         }
 

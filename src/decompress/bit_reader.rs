@@ -87,7 +87,10 @@ impl<'a> BitReader<'a> {
         self.buffer <<= n;
         self.bits_in_buffer = self.bits_in_buffer.saturating_sub(n);
         self.bit_pos += n;
-        self.fill_buffer();
+        // Only refill when buffer can't satisfy a 16-bit peek
+        if self.bits_in_buffer < 16 {
+            self.fill_buffer();
+        }
     }
 
     /// Read a single bit.

@@ -308,7 +308,7 @@ impl Rar29Decoder {
             }
 
             if symbol < 256 {
-                // Literal byte
+                // Literal byte — most common case, skip rest of dispatch
                 #[cfg(test)]
                 {
                     let pos = self.lzss.total_written();
