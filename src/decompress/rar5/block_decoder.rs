@@ -488,22 +488,55 @@ impl Rar5BlockDecoder {
         let src_start = self.window_pos.wrapping_sub(offset);
 
         // Overlap case is when offset < length (run-length encoding pattern)
-        // Must copy byte by byte as source depends on destination
-        if offset < length {
-            // Pre-extend output buffer, then write directly
+        if offset < length && offset > 1 {
+            // Doubling copy: seed with `offset` bytes, then double
+            let output_start = self.output.len();
             self.output.reserve(length);
+            unsafe {
+                self.output.set_len(output_start + length);
+            }
 
-            for i in 0..length {
+            // Seed: copy first `offset` bytes
+            for i in 0..offset {
                 let src_pos = (src_start + i) & self.window_mask;
                 let byte = unsafe { *self.window.get_unchecked(src_pos) };
                 unsafe {
+                    *self.output.get_unchecked_mut(output_start + i) = byte;
+                }
+            }
+            // Double the filled region
+            let out_ptr = unsafe { self.output.as_mut_ptr().add(output_start) };
+            let mut copied = offset;
+            while copied < length {
+                let chunk = copied.min(length - copied);
+                unsafe {
+                    std::ptr::copy_nonoverlapping(out_ptr, out_ptr.add(copied), chunk);
+                }
+                copied += chunk;
+            }
+
+            // Update window from output
+            let window_ptr = self.window.as_mut_ptr();
+            for i in 0..length {
+                let dst_pos = (self.window_pos + i) & self.window_mask;
+                unsafe {
+                    *window_ptr.add(dst_pos) = *self.output.get_unchecked(output_start + i);
+                }
+            }
+            self.window_pos += length;
+        } else if offset < length {
+            // offset == 1: RLE case
+            self.output.reserve(length);
+            let byte = unsafe { *self.window.get_unchecked(src_start & self.window_mask) };
+            for i in 0..length {
+                unsafe {
                     *self
                         .window
-                        .get_unchecked_mut(self.window_pos & self.window_mask) = byte;
+                        .get_unchecked_mut((self.window_pos + i) & self.window_mask) = byte;
                 }
                 self.output.push(byte);
-                self.window_pos += 1;
             }
+            self.window_pos += length;
         } else {
             // No overlap - can copy efficiently
             let src_mask_start = src_start & self.window_mask;
@@ -1619,6 +1652,7 @@ impl Rar5BlockDecoder {
 
 /// Copy bytes within the output buffer for a backreference match.
 /// Handles overlap correctly (offset < length) for run-length patterns.
+/// Uses doubling copy trick (like zlib/zstd) for overlapping matches.
 ///
 /// # Safety
 /// Caller must ensure `buf[pos-offset..pos-offset+length]` and
@@ -1635,9 +1669,16 @@ fn copy_match(buf: *mut u8, pos: usize, offset: usize, length: usize) {
             // No overlap - single memcpy
             std::ptr::copy_nonoverlapping(buf.add(src), buf.add(pos), length);
         } else {
-            // General overlap - byte by byte
-            for i in 0..length {
-                *buf.add(pos + i) = *buf.add(src + i);
+            // Overlapping copy with doubling trick:
+            // First copy `offset` bytes from src, then double the filled
+            // region repeatedly until we've written enough.
+            let dst = buf.add(pos);
+            std::ptr::copy_nonoverlapping(buf.add(src), dst, offset);
+            let mut copied = offset;
+            while copied < length {
+                let chunk = copied.min(length - copied);
+                std::ptr::copy_nonoverlapping(dst, dst.add(copied), chunk);
+                copied += chunk;
             }
         }
     }
