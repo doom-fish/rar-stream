@@ -10,8 +10,9 @@
 //!
 //! | Feature | Default | Description |
 //! |---------|---------|-------------|
+//! | `async` | No | Async archive reading via tokio (RarFilesPackage, InnerFile) |
 //! | `crypto` | No | Encrypted archive support (AES-256 for RAR5, AES-128 for RAR4) |
-//! | `napi` | No | Node.js native bindings via napi-rs (includes async I/O) |
+//! | `napi` | No | Node.js native bindings via napi-rs (implies `async` + `parallel`) |
 //! | `wasm` | No | Browser WebAssembly bindings |
 //!
 //! ## Supported Formats
@@ -43,7 +44,7 @@
 //!
 //! ## Quick Start
 //!
-//! ### High-Level API (requires `napi` feature for Node.js)
+//! ### High-Level API (requires `async` feature)
 //!
 //! ```rust,ignore
 //! use rar_stream::{RarFilesPackage, ParseOptions, LocalFileMedia, FileMedia};
@@ -51,17 +52,14 @@
 //!
 //! #[tokio::main]
 //! async fn main() -> Result<(), Box<dyn std::error::Error>> {
-//!     // Open a RAR archive
 //!     let file: Arc<dyn FileMedia> = Arc::new(LocalFileMedia::new("archive.rar")?);
 //!     let package = RarFilesPackage::new(vec![file]);
 //!
-//!     // Parse and list files
 //!     let files = package.parse(ParseOptions::default()).await?;
 //!     for f in &files {
 //!         println!("{}: {} bytes", f.name, f.length);
 //!     }
 //!
-//!     // Read file content (automatically decompresses)
 //!     let content = files[0].read_to_end().await?;
 //!     Ok(())
 //! }
@@ -140,12 +138,14 @@ mod file_media;
 pub mod formats;
 pub mod parsing;
 
-// Async modules (require 'napi' feature)
-#[cfg(feature = "napi")]
+// Async modules (require 'async' feature for tokio-based I/O)
+#[cfg(feature = "async")]
+#[cfg_attr(docsrs, doc(cfg(feature = "async")))]
 mod inner_file;
-#[cfg(feature = "napi")]
+#[cfg(feature = "async")]
 mod rar_file_chunk;
-#[cfg(feature = "napi")]
+#[cfg(feature = "async")]
+#[cfg_attr(docsrs, doc(cfg(feature = "async")))]
 mod rar_files_package;
 
 #[cfg(feature = "napi")]
@@ -157,13 +157,16 @@ mod wasm_bindings;
 pub use error::RarError;
 pub use file_media::{LocalFileMedia, ReadInterval};
 
-#[cfg(feature = "napi")]
+#[cfg(feature = "async")]
+#[cfg_attr(docsrs, doc(cfg(feature = "async")))]
 pub use file_media::FileMedia;
-#[cfg(feature = "napi")]
+#[cfg(feature = "async")]
+#[cfg_attr(docsrs, doc(cfg(feature = "async")))]
 pub use inner_file::{ChunkMapEntry, InnerFile, InnerFileStream, StreamChunkInfo};
-#[cfg(feature = "napi")]
+#[cfg(feature = "async")]
 pub use rar_file_chunk::RarFileChunk;
-#[cfg(feature = "napi")]
+#[cfg(feature = "async")]
+#[cfg_attr(docsrs, doc(cfg(feature = "async")))]
 pub use rar_files_package::{ParseOptions, RarFilesPackage};
 
 // Re-export decompression types

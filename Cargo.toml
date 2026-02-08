@@ -46,8 +46,8 @@ exclude = [
 wasm-opt = false
 
 [package.metadata.docs.rs]
-# Build docs.rs with all features except napi (conflicts with wasm)
-features = ["crypto"]
+# Build docs.rs with async + crypto (not napi/wasm — they need native tooling)
+features = ["crypto", "async"]
 # Document all features
 all-features = false
 # Show feature flags in docs
@@ -58,8 +58,10 @@ crate-type = ["cdylib", "rlib"]
 
 [features]
 default = []
+# Async file reading (tokio-based)
+async = ["dep:tokio"]
 # Node.js NAPI bindings
-napi = ["dep:napi", "dep:napi-derive", "dep:napi-build", "dep:tokio", "parallel"]
+napi = ["dep:napi", "dep:napi-derive", "dep:napi-build", "async", "parallel"]
 # Browser WASM bindings
 wasm = ["dep:wasm-bindgen", "dep:js-sys"]
 # Encrypted archive support
