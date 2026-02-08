@@ -1039,16 +1039,21 @@ impl Rar5BlockDecoder {
 
                     while pos < safe_end {
                         // Inline ensure(16) + refill
-                        if n < 16 && fb.pos <= fb.src_safe_end {
-                            // SAFETY: pos <= src_safe_end = buf_len - 4
-                            let v = unsafe {
-                                u32::from_be(
-                                    (fb.src.add(fb.pos) as *const u32).read_unaligned(),
-                                )
-                            };
-                            buf |= (v as u64) << (32 - n);
-                            n += 32;
-                            fb.pos += 4;
+                        if n < 16 {
+                            if fb.pos <= fb.src_safe_end {
+                                // SAFETY: pos <= src_safe_end = buf_len - 4
+                                let v = unsafe {
+                                    u32::from_be(
+                                        (fb.src.add(fb.pos) as *const u32).read_unaligned(),
+                                    )
+                                };
+                                buf |= (v as u64) << (32 - n);
+                                n += 32;
+                                fb.pos += 4;
+                            } else {
+                                // Source exhausted — fall back to outer loop
+                                break;
+                            }
                         }
                         // Inline quick table lookup
                         // SAFETY: code bounded by quick_bits (10), qt_ptr has 1024 entries.
@@ -1928,8 +1933,13 @@ impl FastBits {
         self.ensure(num);
         let v = (self.buf >> (64 - num)) as u32;
         self.consumed_bits += num as usize;
-        self.buf <<= num;
-        self.n -= num;
+        if num < self.n {
+            self.buf <<= num;
+            self.n -= num;
+        } else {
+            self.buf = 0;
+            self.n = 0;
+        }
         v
     }
 
@@ -1948,10 +1958,14 @@ impl FastBits {
         let entry = unsafe { *table.quick_table.get_unchecked(code) };
         if entry != 0 {
             let len = (entry & 0xF) as u32;
-            // Inline skip to avoid function call overhead on fast path
             self.consumed_bits += len as usize;
-            self.buf <<= len;
-            self.n -= len;
+            if len < self.n {
+                self.buf <<= len;
+                self.n -= len;
+            } else {
+                self.buf = 0;
+                self.n = 0;
+            }
             return (entry >> 4) as u16;
         }
 
