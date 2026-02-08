@@ -96,6 +96,8 @@ fn apply_delta_filter(data: &[u8], channels: usize) -> Vec<u8> {
     let data_size = data.len();
     let mut output = vec![0u8; data_size];
     let mut src_pos = 0;
+    let src_ptr = data.as_ptr();
+    let out_ptr = output.as_mut_ptr();
 
     // Bytes from same channels are grouped to continual data blocks,
     // so we need to place them back to their interleaving positions.
@@ -103,9 +105,12 @@ fn apply_delta_filter(data: &[u8], channels: usize) -> Vec<u8> {
         let mut prev_byte: u8 = 0;
         let mut dest_pos = cur_channel;
         while dest_pos < data_size {
-            // Delta decode: output[i] = prev - data[src]
-            prev_byte = prev_byte.wrapping_sub(data[src_pos]);
-            output[dest_pos] = prev_byte;
+            // SAFETY: src_pos < data_size (channels * iterations = data_size),
+            // dest_pos < data_size (checked by while condition)
+            unsafe {
+                prev_byte = prev_byte.wrapping_sub(*src_ptr.add(src_pos));
+                *out_ptr.add(dest_pos) = prev_byte;
+            }
             src_pos += 1;
             dest_pos += channels;
         }
@@ -169,16 +174,25 @@ fn apply_arm_filter_inplace(data: &mut [u8], file_offset: u32) {
         return;
     }
 
+    let ptr = data.as_mut_ptr();
+    let len = data.len();
     let mut cur_pos: usize = 0;
-    while cur_pos + 3 < data.len() {
-        // Check for BL instruction (0xEB in high byte with condition 1110 = Always)
-        if data[cur_pos + 3] == 0xEB {
-            let offset =
-                u32::from_le_bytes([data[cur_pos], data[cur_pos + 1], data[cur_pos + 2], 0]);
-            let new_offset = offset.wrapping_sub((file_offset.wrapping_add(cur_pos as u32)) / 4);
-            data[cur_pos] = (new_offset & 0xFF) as u8;
-            data[cur_pos + 1] = ((new_offset >> 8) & 0xFF) as u8;
-            data[cur_pos + 2] = ((new_offset >> 16) & 0xFF) as u8;
+    while cur_pos + 3 < len {
+        // SAFETY: cur_pos + 3 < len guaranteed by while condition
+        unsafe {
+            if *ptr.add(cur_pos + 3) == 0xEB {
+                let offset = u32::from_le_bytes([
+                    *ptr.add(cur_pos),
+                    *ptr.add(cur_pos + 1),
+                    *ptr.add(cur_pos + 2),
+                    0,
+                ]);
+                let new_offset =
+                    offset.wrapping_sub((file_offset.wrapping_add(cur_pos as u32)) / 4);
+                *ptr.add(cur_pos) = (new_offset & 0xFF) as u8;
+                *ptr.add(cur_pos + 1) = ((new_offset >> 8) & 0xFF) as u8;
+                *ptr.add(cur_pos + 2) = ((new_offset >> 16) & 0xFF) as u8;
+            }
         }
         cur_pos += 4;
     }
