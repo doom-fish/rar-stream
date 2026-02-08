@@ -41,6 +41,9 @@ exclude = [
   ".gitignore",
 ]
 
+[package.metadata.wasm-pack.profile.release]
+wasm-opt = false
+
 [package.metadata.docs.rs]
 # Build docs.rs with all features except napi (conflicts with wasm)
 features = ["crypto"]
