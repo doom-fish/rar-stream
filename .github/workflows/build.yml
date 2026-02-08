@@ -179,3 +179,68 @@ jobs:
           files: |
             *.node
             pkg/*
+
+  e2e:
+    name: E2E ${{ matrix.os }}
+    needs: [publish]
+    if: startsWith(github.ref, 'refs/tags/v')
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install rar-stream from npm
+        shell: bash
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          mkdir e2e-test && cd e2e-test
+          npm init -y
+          # Retry to handle npm registry propagation delay
+          for i in 1 2 3 4 5; do
+            npm install "rar-stream@${VERSION}" && break
+            echo "Attempt $i failed, waiting 15s..."
+            sleep 15
+          done
+
+      - name: Verify native binary loads
+        working-directory: e2e-test
+        shell: bash
+        run: |
+          node -e "
+            const rs = require('rar-stream');
+
+            // Verify exports
+            const expected = ['LocalFileMedia', 'InnerFile', 'RarFilesPackage', 'parseRarHeader', 'isRarArchive'];
+            for (const name of expected) {
+              if (!rs[name]) throw new Error('Missing export: ' + name);
+            }
+            console.log('✅ All exports present');
+
+            // Verify isRarArchive with non-RAR data
+            if (rs.isRarArchive(Buffer.from('not a rar'))) throw new Error('False positive');
+            console.log('✅ isRarArchive rejects non-RAR data');
+
+            // Verify RAR4 signature detection
+            const rar4 = Buffer.from([0x52, 0x61, 0x72, 0x21, 0x1a, 0x07, 0x00, 0x00, 0x00, 0x00]);
+            if (!rs.isRarArchive(rar4)) throw new Error('Failed to detect RAR4');
+            console.log('✅ isRarArchive detects RAR4');
+
+            // Verify RAR5 signature detection
+            const rar5 = Buffer.from([0x52, 0x61, 0x72, 0x21, 0x1a, 0x07, 0x01, 0x00, 0x00, 0x00]);
+            if (!rs.isRarArchive(rar5)) throw new Error('Failed to detect RAR5');
+            console.log('✅ isRarArchive detects RAR5');
+
+            // Verify parseRarHeader
+            const header = rs.parseRarHeader(rar5);
+            if (!header) throw new Error('Failed to parse RAR5 header');
+            console.log('✅ parseRarHeader works');
+
+            console.log('🎉 E2E passed on ' + process.platform + '-' + process.arch);
+          "
