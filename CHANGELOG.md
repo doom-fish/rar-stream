@@ -4,6 +4,22 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [5.3.0] - 2026-02-08
+
+### Bug Fixes
+
+- Detect both RAR4 and RAR5 in isRarArchive, remove unused npm/ packages
+
+### Documentation
+
+- Complete docstrings and add doctests for docs.rs
+- Restyle badges to match screencapturekit-rs (for-the-badge with custom colors)
+
+### Features
+
+- Add standalone async feature for pure-Rust async API
+
+
 ## [5.2.2] - 2026-02-08
 
 ### Ci
