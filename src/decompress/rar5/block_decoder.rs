@@ -909,15 +909,9 @@ impl Rar5BlockDecoder {
                 let offset = self.decode_offset(bits)?;
 
                 // Adjust length based on distance (unrar: Distance>0x100, 0x2000, 0x40000)
-                if offset > 0x100 {
-                    length += 1;
-                    if offset > 0x2000 {
-                        length += 1;
-                        if offset > 0x40000 {
-                            length += 1;
-                        }
-                    }
-                }
+                length += (offset > 0x100) as usize
+                    + (offset > 0x2000) as usize
+                    + (offset > 0x40000) as usize;
 
                 // Update recent offsets
                 for j in (1..NUM_REPS).rev() {
@@ -995,15 +989,10 @@ impl Rar5BlockDecoder {
                     let len_slot = sym - 262;
                     let mut length = self.fast_slot_to_length(len_slot as u32, &mut fb);
                     let offset = self.fast_decode_offset(&mut fb);
-                    if offset > 0x100 {
-                        length += 1;
-                        if offset > 0x2000 {
-                            length += 1;
-                            if offset > 0x40000 {
-                                length += 1;
-                            }
-                        }
-                    }
+                    // Branchless length bonus based on offset magnitude
+                    length += (offset > 0x100) as usize
+                        + (offset > 0x2000) as usize
+                        + (offset > 0x40000) as usize;
                     self.recent_offsets[3] = self.recent_offsets[2];
                     self.recent_offsets[2] = self.recent_offsets[1];
                     self.recent_offsets[1] = self.recent_offsets[0];
@@ -1224,15 +1213,9 @@ impl Rar5BlockDecoder {
                     let len_slot = sym - 262;
                     let mut length = Self::slot_to_length_fast(len_slot as u32, &mut fb);
                     let offset = self.fast_decode_offset(&mut fb);
-                    if offset > 0x100 {
-                        length += 1;
-                        if offset > 0x2000 {
-                            length += 1;
-                            if offset > 0x40000 {
-                                length += 1;
-                            }
-                        }
-                    }
+                    length += (offset > 0x100) as u32
+                        + (offset > 0x2000) as u32
+                        + (offset > 0x40000) as u32;
                     output_size += length as usize;
                     self.last_length = length as usize;
                     items.push(DecodedItem::Match { length, offset });
@@ -1798,9 +1781,8 @@ impl FastBits {
         if self.n <= 32 && self.pos <= self.src_safe_end {
             // SAFETY: pos <= src_safe_end = buf_len - 4, so reading
             // 4 bytes at pos is within the allocated buffer.
-            let v = unsafe {
-                u32::from_be((self.src.add(self.pos) as *const u32).read_unaligned())
-            };
+            let v =
+                unsafe { u32::from_be((self.src.add(self.pos) as *const u32).read_unaligned()) };
             self.buf |= (v as u64) << (32 - self.n);
             self.n += 32;
             self.pos += 4;
@@ -1834,15 +1816,7 @@ impl FastBits {
 
     #[inline(always)]
     fn read(&mut self, num: u32) -> u32 {
-        if num == 0 {
-            return 0;
-        }
         self.ensure(num);
-        if num > self.n {
-            self.buf = 0;
-            self.n = 0;
-            return 0;
-        }
         let v = (self.buf >> (64 - num)) as u32;
         self.consumed_bits += num as usize;
         self.buf <<= num;
@@ -2203,15 +2177,9 @@ impl Rar5BlockDecoder {
                     let mut length = Self::slot_to_length_fast(len_slot, &mut fb);
                     let dist_slot = fb.decode(&tables.dist_table) as u32;
                     let offset = Self::decode_offset_fast(dist_slot, tables, &mut fb);
-                    if offset > 0x100 {
-                        length += 1;
-                        if offset > 0x2000 {
-                            length += 1;
-                            if offset > 0x40000 {
-                                length += 1;
-                            }
-                        }
-                    }
+                    length += (offset > 0x100) as u32
+                        + (offset > 0x2000) as u32
+                        + (offset > 0x40000) as u32;
                     output_size += length as usize;
                     last_length = length;
                     items.push(DecodedItem::Match { length, offset });
@@ -2326,15 +2294,9 @@ impl Rar5BlockDecoder {
                     let mut length = Self::slot_to_length_fast(len_slot, &mut fb);
                     let dist_slot = fb.decode(&tables.dist_table) as u32;
                     let offset = Self::decode_offset_fast(dist_slot, tables, &mut fb);
-                    if offset > 0x100 {
-                        length += 1;
-                        if offset > 0x2000 {
-                            length += 1;
-                            if offset > 0x40000 {
-                                length += 1;
-                            }
-                        }
-                    }
+                    length += (offset > 0x100) as u32
+                        + (offset > 0x2000) as u32
+                        + (offset > 0x40000) as u32;
                     output_size += length as usize;
                     last_length = length;
                     commands.push(DecodeCmd::Match {
@@ -2806,15 +2768,9 @@ impl Rar5BlockDecoder {
                 let offset = Self::decode_offset_static(dist_slot, tables, bits)?;
 
                 let mut adj_length = length;
-                if offset > 0x100 {
-                    adj_length += 1;
-                    if offset > 0x2000 {
-                        adj_length += 1;
-                        if offset > 0x40000 {
-                            adj_length += 1;
-                        }
-                    }
-                }
+                adj_length += (offset > 0x100) as u32
+                    + (offset > 0x2000) as u32
+                    + (offset > 0x40000) as u32;
 
                 for j in (1..NUM_REPS).rev() {
                     self.recent_offsets[j] = self.recent_offsets[j - 1];

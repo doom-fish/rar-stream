@@ -125,6 +125,7 @@ fn apply_e8_filter_inplace(data: &mut [u8], file_offset: u32, include_e9: bool) 
 
     let search_end = data.len() - 4;
     let mut cur_pos: usize = 0;
+    let ptr = data.as_mut_ptr();
 
     while cur_pos < search_end {
         // Fast scan for E8/E9 bytes using SSE2/SWAR accelerated search
@@ -141,21 +142,21 @@ fn apply_e8_filter_inplace(data: &mut [u8], file_offset: u32, include_e9: bool) 
         cur_pos += offset_in_slice + 1; // advance past the E8/E9 byte
 
         let offset = ((cur_pos as u32).wrapping_add(file_offset)) % FILE_SIZE;
-        let addr = u32::from_le_bytes([
-            data[cur_pos],
-            data[cur_pos + 1],
-            data[cur_pos + 2],
-            data[cur_pos + 3],
-        ]);
+        // SAFETY: cur_pos + 3 < data.len() guaranteed by search_end = len - 4
+        let addr = unsafe { (ptr.add(cur_pos) as *const u32).read_unaligned().to_le() };
 
-        if (addr & 0x80000000) != 0 {
-            if (addr.wrapping_add(offset) & 0x80000000) == 0 {
+        if (addr & 0x8000_0000) != 0 {
+            if (addr.wrapping_add(offset) & 0x8000_0000) == 0 {
                 let new_addr = addr.wrapping_add(FILE_SIZE);
-                data[cur_pos..cur_pos + 4].copy_from_slice(&new_addr.to_le_bytes());
+                unsafe {
+                    (ptr.add(cur_pos) as *mut u32).write_unaligned(new_addr.to_le());
+                }
             }
-        } else if (addr.wrapping_sub(FILE_SIZE) & 0x80000000) != 0 {
+        } else if (addr.wrapping_sub(FILE_SIZE) & 0x8000_0000) != 0 {
             let new_addr = addr.wrapping_sub(offset);
-            data[cur_pos..cur_pos + 4].copy_from_slice(&new_addr.to_le_bytes());
+            unsafe {
+                (ptr.add(cur_pos) as *mut u32).write_unaligned(new_addr.to_le());
+            }
         }
         cur_pos += 4;
     }
