@@ -1010,16 +1010,35 @@ impl Rar5BlockDecoder {
             'block: while pos < output_size && !fb.is_block_over(block_end) {
                 let mut sym = fb.decode(&self.main_table) as usize;
 
-                // Tight literal loop
-                while sym < 256 {
+                // Tight literal loop with safe burst optimization.
+                // Compute a safe iteration count where neither output bounds
+                // nor block-end can be reached, eliminating two checks per symbol.
+                if sym < 256 {
                     unsafe {
                         *out_ptr.add(pos) = sym as u8;
                     }
                     pos += 1;
-                    if pos >= output_size || fb.is_block_over(block_end) {
-                        break 'block;
+
+                    // Each Huffman symbol is at most 15 bits.
+                    let bits_left = block_end.saturating_sub(fb.consumed_bits);
+                    let safe = (bits_left / 15).min(output_size - pos);
+                    let safe_end = pos + safe;
+
+                    while pos < safe_end {
+                        sym = fb.decode(&self.main_table) as usize;
+                        if sym >= 256 {
+                            break;
+                        }
+                        unsafe {
+                            *out_ptr.add(pos) = sym as u8;
+                        }
+                        pos += 1;
                     }
-                    sym = fb.decode(&self.main_table) as usize;
+
+                    if sym < 256 {
+                        continue 'block;
+                    }
+                    // sym >= 256: fall through to non-literal handling
                 }
 
                 // Non-literal symbol handling
@@ -1856,21 +1875,20 @@ impl FastBits {
     #[inline(always)]
     fn decode(&mut self, table: &HuffTable) -> u16 {
         self.ensure(16);
-        let bit_field = (self.buf >> 48) as u32;
-
-        if bit_field < table.decode_len[table.quick_bits] {
-            let code = (bit_field >> (16 - table.quick_bits)) as usize;
-            let entry = unsafe { *table.quick_table.get_unchecked(code) };
-            if entry != 0 {
-                let len = (entry & 0xF) as u32;
-                // Inline skip to avoid function call overhead on fast path
-                self.consumed_bits += len as usize;
-                self.buf <<= len;
-                self.n -= len;
-                return (entry >> 4) as u16;
-            }
+        // Quick table lookup: entry is 0 for codes longer than quick_bits,
+        // so we can skip the decode_len pre-check and just test the entry.
+        let code = (self.buf >> (64 - table.quick_bits as u64)) as usize;
+        let entry = unsafe { *table.quick_table.get_unchecked(code) };
+        if entry != 0 {
+            let len = (entry & 0xF) as u32;
+            // Inline skip to avoid function call overhead on fast path
+            self.consumed_bits += len as usize;
+            self.buf <<= len;
+            self.n -= len;
+            return (entry >> 4) as u16;
         }
 
+        let bit_field = (self.buf >> 48) as u32;
         self.decode_slow(bit_field, table)
     }
 
