@@ -166,8 +166,9 @@ jobs:
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
       
-      - name: Move binaries into per-platform npm packages
+      - name: Prepare per-platform npm packages
         run: |
+          npx napi prepublish -t npm --skip-gh-release
           for dir in npm/*/; do
             platform=$(basename "$dir")
             src="rar-stream.${platform}.node"
@@ -186,7 +187,6 @@ jobs:
           for dir in npm/*/; do
             if [ -f "$dir/package.json" ]; then
               platform=$(basename "$dir")
-              # Update version to match Cargo.toml
               cd "$dir"
               npm version "$CARGO_VERSION" --no-git-tag-version --allow-same-version 2>/dev/null || true
               echo "Publishing ${platform}@${CARGO_VERSION}..."
