@@ -28,7 +28,7 @@ export interface RarFileInfo {
  * The buffer should contain at least the first ~300 bytes of a .rar file.
  */
 export declare function parseRarHeader(buffer: Buffer): RarFileInfo | null
-/** Check if a buffer starts with a RAR signature. */
+/** Check if a buffer starts with a RAR signature (RAR4 or RAR5). */
 export declare function isRarArchive(buffer: Buffer): boolean
 /** LocalFileMedia - reads from local filesystem. */
 export declare class LocalFileMedia {

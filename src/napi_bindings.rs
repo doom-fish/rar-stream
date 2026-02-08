@@ -279,10 +279,11 @@ pub fn parse_rar_header(buffer: Buffer) -> Result<Option<RarFileInfo>> {
     }))
 }
 
-/// Check if a buffer starts with a RAR signature.
+/// Check if a buffer starts with a RAR signature (RAR4 or RAR5).
 #[napi]
 pub fn is_rar_archive(buffer: Buffer) -> bool {
-    use crate::parsing::marker_header::RAR4_SIGNATURE;
+    use crate::parsing::marker_header::{RAR4_SIGNATURE, RAR5_SIGNATURE};
     let data: &[u8] = &buffer;
-    data.len() >= 7 && data[..7] == RAR4_SIGNATURE
+    (data.len() >= 8 && data[..8] == RAR5_SIGNATURE)
+        || (data.len() >= 7 && data[..7] == RAR4_SIGNATURE)
 }

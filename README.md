@@ -18,6 +18,8 @@
 npm install rar-stream
 ```
 
+Native binaries are automatically downloaded from [GitHub Releases](https://github.com/doom-fish/rar-stream/releases) during install. Supported platforms: Linux (x64, arm64), macOS (x64, arm64), Windows (x64).
+
 ### Rust
 
 ```toml

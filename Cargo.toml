@@ -22,6 +22,7 @@ exclude = [
   "pkg/",
   "target/",
   "node_modules/",
+  "npm/",
   "test-results/",
   "pgo-data/",
   "*.mjs",

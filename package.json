@@ -75,8 +75,7 @@
     "bench:compare": "cargo bench -- --baseline main",
     "profile": "cargo build --release && perf record -g ./target/release/examples/profile_decompress && perf report",
     "flamegraph": "cargo flamegraph --bench decompress -- --bench",
-    "postinstall": "node scripts/postinstall.js",
-    "prepublishOnly": "napi prepublish -t npm --skip-gh-release"
+    "postinstall": "node scripts/postinstall.js"
   },
   "devDependencies": {
     "@eslint/js": "^9.0.0",
