@@ -978,9 +978,11 @@ impl Rar5BlockDecoder {
         let mut filters = Vec::new();
 
         // Pre-allocate output buffer without zeroing.
+        // Extra 16 bytes allow 8-byte wide writes in copy_match without
+        // bounds overflow (the extra bytes are capacity, never read as output).
         // SAFETY: all positions [0..output_size) are written before being read
         // (either directly as literals or as destinations of copy_match).
-        let mut output: Vec<u8> = Vec::with_capacity(output_size);
+        let mut output: Vec<u8> = Vec::with_capacity(output_size + 16);
         unsafe {
             output.set_len(output_size);
         }
@@ -1737,26 +1739,42 @@ impl Rar5BlockDecoder {
 
 /// Copy bytes within the output buffer for a backreference match.
 /// Handles overlap correctly (offset < length) for run-length patterns.
-/// Uses doubling copy trick (like zlib/zstd) for overlapping matches.
 ///
 /// # Safety
 /// Caller must ensure `buf[pos-offset..pos-offset+length]` and
-/// `buf[pos..pos+length]` are within the allocated buffer.
+/// `buf[pos..pos+length+8]` are within the allocated buffer
+/// (the +8 allows wide writes into over-allocated headroom).
 #[inline(always)]
 fn copy_match(buf: *mut u8, pos: usize, offset: usize, length: usize) {
     let src = pos - offset;
     // SAFETY: caller guarantees all positions are within bounds
+    // and buffer has 16 bytes of headroom past output_size.
     unsafe {
         if offset == 1 {
             // Very common RLE case: fill with repeated byte (memset)
             std::ptr::write_bytes(buf.add(pos), *buf.add(src), length);
         } else if offset >= length {
-            // No overlap - single memcpy
+            // No overlap - single memcpy (vectorized by compiler/libc)
             std::ptr::copy_nonoverlapping(buf.add(src), buf.add(pos), length);
+        } else if offset >= 8 && length <= 64 {
+            // Short overlapping match with offset >= 8: copy 8 bytes at a time.
+            // Safe because each 8-byte read finishes before reaching the write region.
+            let src_p = buf.add(src);
+            let dst_p = buf.add(pos);
+            let mut i = 0;
+            while i + 8 <= length {
+                (dst_p.add(i) as *mut u64)
+                    .write_unaligned((src_p.add(i) as *const u64).read_unaligned());
+                i += 8;
+            }
+            if i < length {
+                // Tail: wide write; extra bytes land in over-allocated headroom
+                (dst_p.add(i) as *mut u64)
+                    .write_unaligned((src_p.add(i) as *const u64).read_unaligned());
+            }
         } else {
-            // Overlapping copy with doubling trick:
-            // First copy `offset` bytes from src, then double the filled
-            // region repeatedly until we've written enough.
+            // Long overlap or small offset (2-7): doubling trick.
+            // Copy `offset` bytes, then double the filled region repeatedly.
             let dst = buf.add(pos);
             std::ptr::copy_nonoverlapping(buf.add(src), dst, offset);
             let mut copied = offset;
