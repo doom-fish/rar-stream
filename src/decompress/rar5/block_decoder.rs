@@ -15,6 +15,16 @@ use crate::decompress::DecompressError;
 #[cfg(feature = "parallel")]
 use std::sync::Arc;
 
+/// Cold error for invalid back-references — keeps hot path code small.
+#[cold]
+#[inline(never)]
+fn backref_error() -> DecompressError {
+    DecompressError::Io(std::io::Error::new(
+        std::io::ErrorKind::InvalidData,
+        "Invalid back-reference: offset or length out of bounds",
+    ))
+}
+
 // Table sizes from RAR5 spec (matching unrar5j)
 /// Number of repetition entries
 const NUM_REPS: usize = 4;
@@ -999,10 +1009,7 @@ impl Rar5BlockDecoder {
                     self.recent_offsets[0] = offset as u32;
                     self.last_length = length;
                     if offset > pos || pos + length > output_size {
-                        return Err(DecompressError::Io(std::io::Error::new(
-                            std::io::ErrorKind::InvalidData,
-                            "Invalid back-reference: offset or length out of bounds",
-                        )));
+                        return Err(backref_error());
                     }
                     copy_match(out_ptr, pos, offset, length);
                     pos += length;
@@ -1029,10 +1036,7 @@ impl Rar5BlockDecoder {
                     }
                     self.last_length = length;
                     if offset > pos || pos + length > output_size {
-                        return Err(DecompressError::Io(std::io::Error::new(
-                            std::io::ErrorKind::InvalidData,
-                            "Invalid back-reference: offset or length out of bounds",
-                        )));
+                        return Err(backref_error());
                     }
                     copy_match(out_ptr, pos, offset, length);
                     pos += length;
@@ -1041,10 +1045,7 @@ impl Rar5BlockDecoder {
                         let length = self.last_length;
                         let offset = self.recent_offsets[0] as usize;
                         if offset > pos || pos + length > output_size {
-                            return Err(DecompressError::Io(std::io::Error::new(
-                                std::io::ErrorKind::InvalidData,
-                                "Invalid back-reference: offset or length out of bounds",
-                            )));
+                            return Err(backref_error());
                         }
                         copy_match(out_ptr, pos, offset, length);
                         pos += length;
@@ -2768,9 +2769,8 @@ impl Rar5BlockDecoder {
                 let offset = Self::decode_offset_static(dist_slot, tables, bits)?;
 
                 let mut adj_length = length;
-                adj_length += (offset > 0x100) as u32
-                    + (offset > 0x2000) as u32
-                    + (offset > 0x40000) as u32;
+                adj_length +=
+                    (offset > 0x100) as u32 + (offset > 0x2000) as u32 + (offset > 0x40000) as u32;
 
                 for j in (1..NUM_REPS).rev() {
                     self.recent_offsets[j] = self.recent_offsets[j - 1];
