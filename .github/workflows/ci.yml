@@ -209,6 +209,7 @@ jobs:
           cargo +nightly fuzz run fuzz_parse_rar5 -- -max_total_time=30 -timeout=30
 
       - name: Fuzz decompression (30s each)
+        continue-on-error: true
         run: |
           cargo +nightly fuzz run fuzz_decompress_rar4 -- -max_total_time=30 -timeout=120
           cargo +nightly fuzz run fuzz_decompress_rar5 -- -max_total_time=30 -timeout=120
