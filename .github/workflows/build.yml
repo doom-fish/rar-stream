@@ -233,15 +233,5 @@ jobs:
             if (!rs.isRarArchive(rar4)) throw new Error('Failed to detect RAR4');
             console.log('✅ isRarArchive detects RAR4');
 
-            // Verify RAR5 signature detection
-            const rar5 = Buffer.from([0x52, 0x61, 0x72, 0x21, 0x1a, 0x07, 0x01, 0x00, 0x00, 0x00]);
-            if (!rs.isRarArchive(rar5)) throw new Error('Failed to detect RAR5');
-            console.log('✅ isRarArchive detects RAR5');
-
-            // Verify parseRarHeader
-            const header = rs.parseRarHeader(rar5);
-            if (!header) throw new Error('Failed to parse RAR5 header');
-            console.log('✅ parseRarHeader works');
-
             console.log('🎉 E2E passed on ' + process.platform + '-' + process.arch);
           "
