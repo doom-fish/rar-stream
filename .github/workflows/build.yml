@@ -166,14 +166,31 @@ jobs:
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
       
-      - name: Publish per-platform npm packages
+      - name: Move binaries into per-platform npm packages
         run: |
-          npx napi prepublish -t npm --skip-gh-release
+          for dir in npm/*/; do
+            platform=$(basename "$dir")
+            src="rar-stream.${platform}.node"
+            if [ -f "$src" ]; then
+              cp "$src" "$dir"
+              echo "✅ Copied $src → $dir"
+            else
+              echo "⚠️  $src not found (skipping $platform)"
+            fi
+          done
+
+      - name: Publish per-platform npm packages
+        continue-on-error: true
+        run: |
+          CARGO_VERSION=$(grep '^version' Cargo.toml | head -1 | sed 's/.*"\(.*\)".*/\1/')
           for dir in npm/*/; do
             if [ -f "$dir/package.json" ]; then
-              echo "Publishing $(basename $dir)..."
+              platform=$(basename "$dir")
+              # Update version to match Cargo.toml
               cd "$dir"
-              npm publish --access public --provenance || echo "::warning::Failed to publish $(basename $dir)"
+              npm version "$CARGO_VERSION" --no-git-tag-version --allow-same-version 2>/dev/null || true
+              echo "Publishing ${platform}@${CARGO_VERSION}..."
+              npm publish --access public --provenance || echo "::warning::Failed to publish $platform"
               cd ../..
             fi
           done
@@ -181,6 +198,7 @@ jobs:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
       
       - name: Publish main npm package
+        continue-on-error: true
         run: npm publish --access public --provenance
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
