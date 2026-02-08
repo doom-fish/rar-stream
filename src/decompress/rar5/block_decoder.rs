@@ -147,8 +147,16 @@ impl HuffTable {
     pub fn build(&mut self, lengths: &[u8]) -> bool {
         let num_symbols = lengths.len().min(self.num_symbols);
         self.code_lengths[..num_symbols].copy_from_slice(&lengths[..num_symbols]);
-        for i in num_symbols..self.num_symbols {
-            self.code_lengths[i] = 0;
+        // Zero remaining lengths
+        if num_symbols < self.num_symbols {
+            // SAFETY: filling a u8 slice with zeros
+            unsafe {
+                std::ptr::write_bytes(
+                    self.code_lengths.as_mut_ptr().add(num_symbols),
+                    0,
+                    self.num_symbols - num_symbols,
+                );
+            }
         }
 
         // Find max length
@@ -160,7 +168,10 @@ impl HuffTable {
         }
 
         if self.max_length == 0 {
-            self.quick_table.fill(0);
+            // SAFETY: filling a u16 slice with zeros
+            unsafe {
+                std::ptr::write_bytes(self.quick_table.as_mut_ptr(), 0, self.quick_table.len());
+            }
             return false;
         }
 
@@ -204,20 +215,29 @@ impl HuffTable {
         ];
 
         // Build symbols array (unrar: DecodeNum)
-        self.symbols.fill(0);
+        // SAFETY: filling a u16 slice with zeros via memset
+        unsafe {
+            std::ptr::write_bytes(self.symbols.as_mut_ptr(), 0, self.symbols.len());
+        }
         let mut copy_pos = decode_pos;
         for (symbol, &len) in self.code_lengths[..num_symbols].iter().enumerate() {
             if len > 0 && len < 16 {
                 let pos = copy_pos[len as usize] as usize;
                 if pos < self.symbols.len() {
-                    self.symbols[pos] = symbol as u16;
+                    // SAFETY: pos bounds-checked above
+                    unsafe {
+                        *self.symbols.get_unchecked_mut(pos) = symbol as u16;
+                    }
                 }
                 copy_pos[len as usize] += 1;
             }
         }
 
         // Build quick table for fast decode
-        self.quick_table.fill(0);
+        // SAFETY: filling a u16 slice with zeros via memset
+        unsafe {
+            std::ptr::write_bytes(self.quick_table.as_mut_ptr(), 0, self.quick_table.len());
+        }
         let mut cur_bit_length = 1usize;
         let quick_size = 1 << self.quick_bits;
 
@@ -241,9 +261,12 @@ impl HuffTable {
                 let pos = decode_pos[cur_bit_length] + dist_shifted;
 
                 if (pos as usize) < self.symbols.len() {
-                    let symbol = self.symbols[pos as usize];
-                    // Pack: symbol in high 12 bits, length in low 4 bits
-                    self.quick_table[code] = ((symbol as u16) << 4) | (cur_bit_length as u16);
+                    // SAFETY: pos bounds-checked, code < quick_size = quick_table.len()
+                    unsafe {
+                        let symbol = *self.symbols.get_unchecked(pos as usize);
+                        *self.quick_table.get_unchecked_mut(code) =
+                            ((symbol as u16) << 4) | (cur_bit_length as u16);
+                    }
                 }
             }
         }
