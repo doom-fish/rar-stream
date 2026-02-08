@@ -4,6 +4,47 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [5.2.1] - 2026-02-08
+
+### Bug Fixes
+
+- Remove unused npm deps, fix all vulnerabilities
+- Guard against bit buffer underflow with exhausted input
+- Increase fuzz decompress per-execution timeout to 60s
+
+### Miscellaneous Tasks
+
+- Version sync, dead code cleanup, README perf update
+- Feature-gate parallel code, add crypto/MSRV CI, remove dead peek16
+- Add PGO benchmark script
+
+### Performance
+
+- Replace iter().position() with SSE2/SWAR byte search in E8E9 filter
+- CRC32 slicing-by-8, LZSS bulk copy, zero-alloc VM filters
+- Conditional BitReader refill, unrolled Huffman, skip-scan E8E9
+- Bulk copy in PPMd alloc, RLE memset, pre-alloc table buffer
+- Single-copy overlap match, inline filter check, cold VM path
+- Extract byte_search to shared module, use SSE2 in RAR5 E8E9 filter
+- Incremental consumed_bits tracking, cold slow Huffman path
+- Branchless offset length bonus, streamlined read(), direct ptr E8E9
+- Cold backref_error helper, reduce code size in hot decode loop
+- Unsafe ptr access in delta/ARM filters, eliminate bounds checks
+- Optimize HuffTable::build with memset and unchecked access
+- Safe literal burst and simplified Huffman decode
+- Over-allocate output buffer, 8-byte copy_match for short overlaps
+- Hoist FastBits fields into register-locals in literal loop
+
+### Refactor
+
+- Achieve true zero-dep core
+- Remove async feature, inline tokio into napi
+
+### Ci
+
+- Restructure build.yml for per-platform npm publishing
+
+
 ## [5.2.0] - 2026-02-07
 
 ### Bug Fixes
