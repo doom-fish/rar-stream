@@ -149,6 +149,7 @@ pub struct InnerFile {
 }
 
 impl InnerFile {
+    /// Create a new uncompressed or compressed inner file with default dictionary size.
     pub fn new(
         name: String,
         chunks: Vec<RarFileChunk>,

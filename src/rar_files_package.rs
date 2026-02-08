@@ -214,6 +214,10 @@ pub struct RarFilesPackage {
 }
 
 impl RarFilesPackage {
+    /// Create a new [`RarFilesPackage`] from a list of volume files.
+    ///
+    /// Volumes are automatically sorted into the correct order
+    /// (`.rar` first, then `.r00`, `.r01`, etc.).
     pub fn new(files: Vec<Arc<dyn FileMedia>>) -> Self {
         // Sort files by name to ensure correct order (.rar, .r00, .r01, ...)
         let mut files = files;

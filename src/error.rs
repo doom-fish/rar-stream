@@ -44,7 +44,7 @@ use std::io;
 ///
 /// # Example
 ///
-/// ```rust,ignore
+/// ```rust
 /// use rar_stream::RarError;
 ///
 /// fn handle_error(err: RarError) {

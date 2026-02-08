@@ -152,6 +152,15 @@ impl From<io::Error> for DecompressError {
 pub type Result<T> = std::result::Result<T, DecompressError>;
 
 /// Compression methods used in RAR.
+///
+/// ```
+/// use rar_stream::CompressionMethod;
+///
+/// let method = CompressionMethod::from_u8(0x33);
+/// assert_eq!(method, Some(CompressionMethod::Normal));
+///
+/// assert_eq!(CompressionMethod::from_u8(0xFF), None);
+/// ```
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u8)]
 pub enum CompressionMethod {
@@ -170,6 +179,7 @@ pub enum CompressionMethod {
 }
 
 impl CompressionMethod {
+    /// Convert a raw byte to a compression method, if valid.
     pub fn from_u8(v: u8) -> Option<Self> {
         match v {
             0x30 => Some(Self::Store),

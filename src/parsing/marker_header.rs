@@ -6,10 +6,21 @@
 
 use crate::error::{RarError, Result};
 
-/// RAR4 magic signature.
+/// RAR4 magic signature: `Rar!\x1a\x07\x00`.
+///
+/// ```
+/// use rar_stream::parsing::marker_header::RAR4_SIGNATURE;
+/// assert_eq!(&RAR4_SIGNATURE[..4], b"Rar!");
+/// ```
 pub const RAR4_SIGNATURE: [u8; 7] = [0x52, 0x61, 0x72, 0x21, 0x1A, 0x07, 0x00];
 
-/// RAR5 magic signature.
+/// RAR5 magic signature: `Rar!\x1a\x07\x01\x00`.
+///
+/// ```
+/// use rar_stream::parsing::marker_header::RAR5_SIGNATURE;
+/// assert_eq!(&RAR5_SIGNATURE[..4], b"Rar!");
+/// assert_eq!(RAR5_SIGNATURE[6], 0x01); // distinguishes RAR5 from RAR4
+/// ```
 pub const RAR5_SIGNATURE: [u8; 8] = [0x52, 0x61, 0x72, 0x21, 0x1A, 0x07, 0x01, 0x00];
 
 /// RAR archive version.
@@ -32,21 +43,46 @@ impl RarVersion {
     }
 }
 
+/// Parsed RAR marker header (the first header in every RAR archive).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MarkerHeader {
+    /// Header CRC (RAR4 only; always 0x6152 for valid archives).
     pub crc: u16,
+    /// Header type byte.
     pub header_type: u8,
+    /// Header flags.
     pub flags: u16,
+    /// Header size in bytes.
     pub size: u32,
+    /// Detected RAR format version.
     pub version: RarVersion,
 }
 
+/// Parser for the RAR archive marker (signature) header.
 pub struct MarkerHeaderParser;
 
 impl MarkerHeaderParser {
+    /// Size of the RAR4 marker header in bytes.
     pub const HEADER_SIZE: usize = 7;
 
     /// Detect RAR version from buffer without full parsing.
+    ///
+    /// Returns [`RarVersion::Rar4`] or [`RarVersion::Rar5`] based on the
+    /// signature bytes, or [`RarError::InvalidSignature`] if the buffer
+    /// doesn't start with a valid RAR signature.
+    ///
+    /// ```
+    /// use rar_stream::parsing::marker_header::MarkerHeaderParser;
+    /// use rar_stream::parsing::marker_header::RarVersion;
+    ///
+    /// let rar4 = [0x52, 0x61, 0x72, 0x21, 0x1A, 0x07, 0x00];
+    /// assert_eq!(MarkerHeaderParser::detect_version(&rar4).unwrap(), RarVersion::Rar4);
+    ///
+    /// let rar5 = [0x52, 0x61, 0x72, 0x21, 0x1A, 0x07, 0x01, 0x00];
+    /// assert_eq!(MarkerHeaderParser::detect_version(&rar5).unwrap(), RarVersion::Rar5);
+    ///
+    /// assert!(MarkerHeaderParser::detect_version(b"not rar").is_err());
+    /// ```
     pub fn detect_version(buffer: &[u8]) -> Result<RarVersion> {
         if buffer.len() >= 8 && buffer[..8] == RAR5_SIGNATURE {
             return Ok(RarVersion::Rar5);

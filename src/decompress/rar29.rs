@@ -68,7 +68,19 @@ const DIST_EXTRA: [u8; 60] = [
     18, 18, 18, 18, 18, 18, 18,
 ];
 
-/// RAR 2.9 decoder state.
+/// RAR 2.9 (RAR4) decoder state.
+///
+/// Handles LZSS + Huffman decompression with PPMd fallback and VM-based
+/// filters for RAR 1.5–4.x archives.
+///
+/// # Example
+///
+/// ```
+/// use rar_stream::Rar29Decoder;
+///
+/// let mut decoder = Rar29Decoder::new();
+/// // decoder.decompress(&compressed_data, expected_size) to decompress
+/// ```
 pub struct Rar29Decoder {
     /// LZSS sliding window
     lzss: LzssDecoder,

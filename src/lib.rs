@@ -128,8 +128,11 @@
 // Note: unsafe_code = "warn" in Cargo.toml allows targeted unsafe for performance
 // All unsafe blocks should be minimal and well-documented with SAFETY comments
 
+#![cfg_attr(docsrs, feature(doc_cfg))]
+
 mod crc32;
 #[cfg(feature = "crypto")]
+#[cfg_attr(docsrs, doc(cfg(feature = "crypto")))]
 pub mod crypto;
 pub mod decompress;
 pub mod error;
