@@ -202,11 +202,12 @@ jobs:
           VERSION="${GITHUB_REF_NAME#v}"
           mkdir e2e-test && cd e2e-test
           npm init -y
-          # Retry to handle npm registry propagation delay
-          for i in 1 2 3 4 5; do
+          # Wait for npm registry propagation after publish
+          sleep 30
+          for i in 1 2 3 4 5 6; do
             npm install "rar-stream@${VERSION}" && break
-            echo "Attempt $i failed, waiting 15s..."
-            sleep 15
+            echo "Attempt $i failed, waiting 30s..."
+            sleep 30
           done
 
       - name: Verify native binary loads
