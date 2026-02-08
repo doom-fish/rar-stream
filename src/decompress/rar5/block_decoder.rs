@@ -1012,30 +1012,79 @@ impl Rar5BlockDecoder {
             'block: while pos < output_size && !fb.is_block_over(block_end) {
                 let mut sym = fb.decode(&self.main_table) as usize;
 
-                // Tight literal loop with safe burst optimization.
-                // Compute a safe iteration count where neither output bounds
-                // nor block-end can be reached, eliminating two checks per symbol.
+                // Tight literal loop with register-local consumed_bits.
+                // The compiler spills FastBits.consumed_bits to the stack, causing
+                // a store-forward penalty (~4 cycles) on every symbol. By keeping
+                // consumed_bits as a local variable and manually inlining the decode
+                // fast path, we eliminate this bottleneck.
                 if sym < 256 {
                     unsafe {
                         *out_ptr.add(pos) = sym as u8;
                     }
                     pos += 1;
 
+                    // Hoist FastBits hot fields into locals for register allocation.
+                    // The compiler spills struct fields to the stack, causing
+                    // store-forward penalties (~4 cycles) per symbol.
+                    let mut consumed = fb.consumed_bits;
+                    let mut buf = fb.buf;
+                    let mut n = fb.n;
+
                     // Each Huffman symbol is at most 15 bits.
-                    let bits_left = block_end.saturating_sub(fb.consumed_bits);
+                    let bits_left = block_end.saturating_sub(consumed);
                     let safe = (bits_left / 15).min(output_size - pos);
                     let safe_end = pos + safe;
+                    let quick_bits = self.main_table.quick_bits as u64;
+                    let qt_ptr = self.main_table.quick_table.as_ptr();
 
                     while pos < safe_end {
-                        sym = fb.decode(&self.main_table) as usize;
-                        if sym >= 256 {
-                            break;
+                        // Inline ensure(16) + refill
+                        if n < 16 && fb.pos <= fb.src_safe_end {
+                            // SAFETY: pos <= src_safe_end = buf_len - 4
+                            let v = unsafe {
+                                u32::from_be(
+                                    (fb.src.add(fb.pos) as *const u32).read_unaligned(),
+                                )
+                            };
+                            buf |= (v as u64) << (32 - n);
+                            n += 32;
+                            fb.pos += 4;
                         }
+                        // Inline quick table lookup
+                        // SAFETY: code bounded by quick_bits (10), qt_ptr has 1024 entries.
+                        // out_ptr valid for [0..output_size), pos < safe_end <= output_size.
                         unsafe {
+                            let code = (buf >> (64 - quick_bits)) as usize;
+                            let entry = *qt_ptr.add(code);
+                            if entry == 0 {
+                                // Slow path: sync locals back and delegate
+                                fb.buf = buf;
+                                fb.n = n;
+                                fb.consumed_bits = consumed;
+                                let bit_field = (buf >> 48) as u32;
+                                sym = fb.decode_slow(bit_field, &self.main_table) as usize;
+                                buf = fb.buf;
+                                n = fb.n;
+                                consumed = fb.consumed_bits;
+                            } else {
+                                let len = (entry & 0xF) as u32;
+                                consumed += len as usize;
+                                buf <<= len;
+                                n -= len;
+                                sym = (entry >> 4) as usize;
+                            }
+
+                            if sym >= 256 {
+                                break;
+                            }
                             *out_ptr.add(pos) = sym as u8;
                         }
                         pos += 1;
                     }
+
+                    fb.buf = buf;
+                    fb.n = n;
+                    fb.consumed_bits = consumed;
 
                     if sym < 256 {
                         continue 'block;
