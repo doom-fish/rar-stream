@@ -32,11 +32,31 @@ jobs:
       
       - name: Clippy (WASM)
         run: cargo clippy --features wasm,crypto --no-default-features -- -D warnings
+      
+      - name: Clippy (minimal, no features)
+        run: cargo clippy -- -D warnings
 
       - name: Security audit
         run: |
           cargo install cargo-audit --quiet
           cargo audit
+
+  msrv:
+    name: MSRV Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Install MSRV toolchain
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: "1.85"
+      
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+      
+      - name: Check MSRV
+        run: cargo check --lib
 
   lint-typescript:
     name: Lint TypeScript
@@ -73,6 +93,9 @@ jobs:
       
       - name: Run tests (parallel)
         run: cargo test --features parallel --lib
+      
+      - name: Run tests (crypto)
+        run: cargo test --features crypto --lib
 
   test-napi:
     name: Test NAPI

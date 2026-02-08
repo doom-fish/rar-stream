@@ -1825,13 +1825,6 @@ impl FastBits {
         }
     }
 
-    #[allow(dead_code)]
-    #[inline(always)]
-    fn peek16(&mut self) -> u32 {
-        self.ensure(16);
-        (self.buf >> 48) as u32
-    }
-
     #[inline(always)]
     fn skip(&mut self, bits: u32) {
         self.consumed_bits += bits as usize;
@@ -2396,6 +2389,7 @@ impl Rar5BlockDecoder {
     }
 
     /// Static version of slot_to_length using BitDecoder (for large-block path).
+    #[cfg(feature = "parallel")]
     #[allow(dead_code)]
     fn slot_to_length_static(slot: u32, bits: &mut BitDecoder) -> u32 {
         if slot < 8 {
@@ -2410,6 +2404,7 @@ impl Rar5BlockDecoder {
     }
 
     /// Static version of decode_offset using BitDecoder (for large-block path).
+    #[cfg(feature = "parallel")]
     #[allow(dead_code)]
     fn decode_offset_static(
         slot: u32,

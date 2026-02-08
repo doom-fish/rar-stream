@@ -1,7 +1,8 @@
-//! RAR5 Range Coder implementation.
+//! RAR5 Range Coder implementation (WIP).
 //!
 //! Range coding is an entropy coding method similar to arithmetic coding.
-//! It's used in RAR5 to compress the LZSS output stream.
+//! This module provides the infrastructure for future RAR5 PPMd support.
+//! Currently unused — RAR5 PPMd blocks are rare in practice.
 
 // WIP: range coder for RAR5 PPMd
 /// Range coder state for decoding.
