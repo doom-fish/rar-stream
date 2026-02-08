@@ -134,6 +134,9 @@ jobs:
           cache: 'npm'
           registry-url: 'https://registry.npmjs.org'
       
+      - name: Ensure npm supports OIDC trusted publishing
+        run: npm install -g npm@latest
+      
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
       
@@ -160,6 +163,17 @@ jobs:
         run: |
           CARGO_VERSION=$(grep '^version' Cargo.toml | head -1 | sed 's/.*"\(.*\)".*/\1/')
           npm version "$CARGO_VERSION" --no-git-tag-version --allow-same-version
+          # Update optionalDependencies versions to match
+          node -e "
+            const fs = require('fs');
+            const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+            if (pkg.optionalDependencies) {
+              for (const dep of Object.keys(pkg.optionalDependencies)) {
+                pkg.optionalDependencies[dep] = '${CARGO_VERSION}';
+              }
+              fs.writeFileSync('package.json', JSON.stringify(pkg, null, 2) + '\n');
+            }
+          "
       
       - name: Publish to crates.io
         run: cargo publish --allow-dirty || echo "::warning::crates.io publish failed (version may already exist)"
@@ -193,14 +207,10 @@ jobs:
               cd ../..
             fi
           done
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
       
       - name: Publish main npm package
         continue-on-error: true
-        run: npm publish --access public --provenance
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: npm publish --access public --provenance --ignore-scripts
       
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
