@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [5.2.2] - 2026-02-08
+
+### Ci
+
+- Add E2E verification after publish
+
+
 ## [5.2.1] - 2026-02-08
 
 ### Bug Fixes
