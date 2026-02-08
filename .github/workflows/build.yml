@@ -168,7 +168,6 @@ jobs:
       
       - name: Prepare per-platform npm packages
         run: |
-          npx napi prepublish -t npm --skip-gh-release
           for dir in npm/*/; do
             platform=$(basename "$dir")
             src="rar-stream.${platform}.node"

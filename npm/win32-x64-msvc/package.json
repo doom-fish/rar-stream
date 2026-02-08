@@ -1,0 +1,37 @@
+{
+  "name": "rar-stream-win32-x64-msvc",
+  "version": "5.2.1",
+  "os": [
+    "win32"
+  ],
+  "cpu": [
+    "x64"
+  ],
+  "main": "rar-stream.win32-x64-msvc.node",
+  "files": [
+    "rar-stream.win32-x64-msvc.node"
+  ],
+  "description": "RAR streaming library - Rust implementation with NAPI and WASM bindings",
+  "keywords": [
+    "rar",
+    "archive",
+    "extract",
+    "decompress",
+    "streaming",
+    "wasm",
+    "napi"
+  ],
+  "author": "doom-fish",
+  "homepage": "https://github.com/doom-fish/rar-stream#readme",
+  "license": "MIT",
+  "engines": {
+    "node": ">= 18"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/doom-fish/rar-stream"
+  },
+  "bugs": {
+    "url": "https://github.com/doom-fish/rar-stream/issues"
+  }
+}
