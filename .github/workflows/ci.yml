@@ -219,3 +219,27 @@ jobs:
         run: |
           cargo +nightly fuzz run fuzz_archive_rar4 -- -max_total_time=30 -timeout=30
           cargo +nightly fuzz run fuzz_archive_rar5 -- -max_total_time=30 -timeout=30
+
+  coverage:
+    name: Coverage
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+
+      - name: Install cargo-llvm-cov
+        uses: taiki-e/install-action@cargo-llvm-cov
+
+      - name: Generate coverage
+        run: cargo llvm-cov --lib --features crypto,parallel --lcov --output-path lcov.info
+
+      - name: Upload to Codecov
+        uses: codecov/codecov-action@v5
+        with:
+          files: lcov.info
+          fail_ci_if_error: false

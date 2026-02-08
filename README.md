@@ -10,9 +10,26 @@
     <a href="https://www.npmjs.com/package/rar-stream"><img alt="npm Downloads" src="https://img.shields.io/npm/dm/rar-stream?style=for-the-badge&logo=npm&color=F5E0DC&logoColor=D9E0EE&labelColor=302D41" /></a>
     <a href="https://github.com/doom-fish/rar-stream#license"><img alt="License" src="https://img.shields.io/crates/l/rar-stream?style=for-the-badge&logo=apache&color=ee999f&logoColor=D9E0EE&labelColor=302D41" /></a>
     <a href="https://github.com/doom-fish/rar-stream/actions"><img alt="Build Status" src="https://img.shields.io/github/actions/workflow/status/doom-fish/rar-stream/ci.yml?branch=main&style=for-the-badge&logo=github&color=c69ff5&logoColor=D9E0EE&labelColor=302D41" /></a>
+    <a href="https://codecov.io/gh/doom-fish/rar-stream"><img alt="Coverage" src="https://img.shields.io/codecov/c/github/doom-fish/rar-stream?style=for-the-badge&logo=codecov&color=F0C6C6&logoColor=D9E0EE&labelColor=302D41" /></a>
 </p></div>
 
 > Fast RAR archive streaming for Rust, Node.js, and browsers. Zero dependencies core.
+
+## 📑 Table of Contents
+
+- [Installation](#installation)
+- [Quick Start](#quick-start)
+- [Examples](#examples)
+- [API](#api)
+- [Feature Flags](#feature-flags)
+- [Format Support](#format-support)
+- [Performance](#performance)
+- [Migrating from v3.x](#migrating-from-v3x)
+- [Architecture](ARCHITECTURE.md)
+- [Contributing](CONTRIBUTING.md)
+- [Security](SECURITY.md)
+- [Changelog](CHANGELOG.md)
+- [License](#license)
 
 ## Installation
 
@@ -108,6 +125,30 @@ interface FileMedia {
 | `streamToBuffer(stream)` | Convert Readable to Buffer |
 | `createFileMedia(source)` | Wrap any `{ createReadStream }` as FileMedia |
 
+## Feature Flags
+
+### Rust (Cargo)
+
+| Feature | Default | Description |
+|---------|---------|-------------|
+| `async` | No | Async archive reading via tokio (`RarFilesPackage`, `InnerFile`) |
+| `crypto` | No | AES encryption (RAR4: AES-128, RAR5: AES-256) |
+| `parallel` | No | Multi-threaded RAR5 decompression (rayon) |
+| `napi` | No | Node.js bindings (implies `async` + `parallel`) |
+| `wasm` | No | Browser WASM bindings |
+
+### Platform Support
+
+| Capability | Rust | Node.js (NAPI) | Browser (WASM) |
+|-----------|------|----------------|----------------|
+| Parse RAR4/RAR5 | ✅ | ✅ | ✅ |
+| Decompress | ✅ | ✅ | ✅ |
+| Encryption | ✅ (`crypto`) | ✅ (always on) | ✅ (`crypto`) |
+| Async I/O | ✅ (`async`) | ✅ | — |
+| Parallel decompress | ✅ (`parallel`) | ✅ (always on) | — |
+| Multi-volume | ✅ | ✅ | ✅ |
+| Streaming reads | ✅ | ✅ | — |
+
 ## Format Support
 
 | Feature | RAR4 | RAR5 |
@@ -195,6 +236,10 @@ Ratio < 1.0 = rar-stream is faster.
 ## Migrating from v3.x
 
 Drop-in replacement. Same API, native Rust implementation. Requires Node.js 18+.
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup, conventions, and the PR process.
 
 ## License
 
