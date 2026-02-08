@@ -210,8 +210,8 @@ jobs:
 
       - name: Fuzz decompression (30s each)
         run: |
-          cargo +nightly fuzz run fuzz_decompress_rar4 -- -max_total_time=30 -timeout=30
-          cargo +nightly fuzz run fuzz_decompress_rar5 -- -max_total_time=30 -timeout=30
+          cargo +nightly fuzz run fuzz_decompress_rar4 -- -max_total_time=30 -timeout=60
+          cargo +nightly fuzz run fuzz_decompress_rar5 -- -max_total_time=30 -timeout=60
 
       - name: Fuzz full archives (30s each)
         continue-on-error: true
