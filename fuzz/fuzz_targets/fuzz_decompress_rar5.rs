@@ -7,10 +7,11 @@ fuzz_target!(|data: &[u8]| {
         return;
     }
 
-    // First 8 bytes: unpacked_size (capped to 1MB)
+    // First 8 bytes: unpacked_size
+    // Cap to 8KB to avoid timeouts with slow decompression methods (PPMd)
     let unpacked_size = u64::from_le_bytes([
         data[0], data[1], data[2], data[3], data[4], data[5], data[6], data[7],
-    ]) % (1024 * 1024);
+    ]) % (8 * 1024);
 
     // Byte 8: dict_size_log (17-28 valid range)
     let dict_size_log = 17 + (data[8] % 12);
