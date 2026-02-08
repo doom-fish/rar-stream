@@ -13,6 +13,7 @@ pub struct Rar5Decoder {
     /// Block decoder with sliding window
     block_decoder: Rar5BlockDecoder,
     /// Dictionary size log (power of 2)
+    #[allow(dead_code)]
     dict_size_log: u8,
     /// Pending filters
     filters: Vec<UnpackFilter>,

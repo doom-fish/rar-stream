@@ -3,7 +3,9 @@
 //! Range coding is an entropy coding method similar to arithmetic coding.
 //! It's used in RAR5 to compress the LZSS output stream.
 
+// WIP: range coder for RAR5 PPMd
 /// Range coder state for decoding.
+#[allow(dead_code)]
 pub struct RangeCoder {
     /// Low bound of current range
     low: u64,
@@ -17,6 +19,7 @@ pub struct RangeCoder {
     pos: usize,
 }
 
+#[allow(dead_code)]
 impl RangeCoder {
     /// Top value for range normalization (2^24)
     const TOP: u64 = 1 << 24;

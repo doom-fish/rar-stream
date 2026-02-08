@@ -15,18 +15,23 @@ use super::{
     DecompressError, Result,
 };
 
+#[allow(dead_code)]
 /// Number of main codes (literals + length symbols).
 const MAIN_CODES: usize = 299;
 
+#[allow(dead_code)]
 /// Number of distance codes.
 const DIST_CODES: usize = 60;
 
+#[allow(dead_code)]
 /// Number of low distance codes.
 const LOW_DIST_CODES: usize = 17;
 
+#[allow(dead_code)]
 /// Number of length codes.
 const LEN_CODES: usize = 28;
 
+#[allow(dead_code)]
 /// Maximum match length.
 const MAX_MATCH_LEN: u32 = 258;
 
@@ -1071,8 +1076,10 @@ impl Default for Rar29Decoder {
     }
 }
 
+// WIP: streaming decoder
 /// Streaming decompressor for RAR29.
 /// Allows decompressing chunks at a time.
+#[allow(dead_code)]
 pub struct Rar29StreamDecoder {
     decoder: Rar29Decoder,
     /// Accumulated compressed data
@@ -1083,6 +1090,7 @@ pub struct Rar29StreamDecoder {
     unpacked_size: u64,
 }
 
+#[allow(dead_code)]
 impl Rar29StreamDecoder {
     /// Create a new streaming decoder.
     pub fn new(unpacked_size: u64) -> Self {

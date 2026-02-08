@@ -40,6 +40,7 @@ const ALIGN_TABLE_SIZE: usize = 16;
 const NUM_ALIGN_BITS: usize = 4;
 /// Level table size (pre-code)
 const LEVEL_TABLE_SIZE: usize = 20;
+#[allow(dead_code)]
 /// Maximum Huffman code bits
 const NUM_HUFFMAN_BITS: usize = 15;
 /// Quick lookup table bits
@@ -52,6 +53,7 @@ const QUICK_BITS_LEVEL: usize = 6;
 /// Decoded item from Huffman decoding phase.
 /// Used for multi-threaded decompression where decoding and output are separate.
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub enum DecodedItem {
     /// Literal bytes (up to 8 bytes packed for efficiency)
     Literal { bytes: [u8; 8], len: u8 },
@@ -297,6 +299,7 @@ impl HuffTable {
 
 /// Block types in RAR5
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[allow(dead_code)]
 pub enum BlockType {
     /// LZ block with Huffman tables
     Lz,
@@ -415,6 +418,7 @@ pub struct Rar5BlockDecoder {
     /// Current position in window
     window_pos: usize,
     /// Dictionary size
+    #[allow(dead_code)]
     dict_size: usize,
     /// Output buffer (accumulates all output)
     output: Vec<u8>,
@@ -637,6 +641,7 @@ impl Rar5BlockDecoder {
     }
 
     /// Get output from output buffer.
+    #[allow(dead_code)]
     pub fn get_output(&self, start: usize, length: usize) -> Vec<u8> {
         let end = (start + length).min(self.output.len());
         self.output[start..end].to_vec()
@@ -1797,6 +1802,7 @@ impl FastBits {
         }
     }
 
+    #[allow(dead_code)]
     #[inline(always)]
     fn peek16(&mut self) -> u32 {
         self.ensure(16);
@@ -2367,6 +2373,7 @@ impl Rar5BlockDecoder {
     }
 
     /// Static version of slot_to_length using BitDecoder (for large-block path).
+    #[allow(dead_code)]
     fn slot_to_length_static(slot: u32, bits: &mut BitDecoder) -> u32 {
         if slot < 8 {
             slot + 2
@@ -2380,6 +2387,7 @@ impl Rar5BlockDecoder {
     }
 
     /// Static version of decode_offset using BitDecoder (for large-block path).
+    #[allow(dead_code)]
     fn decode_offset_static(
         slot: u32,
         tables: &BlockTables,
@@ -2719,6 +2727,7 @@ impl Rar5BlockDecoder {
     /// Decode a large block directly to window (single-threaded).
     /// Returns any filters found in the block.
     #[cfg(feature = "parallel")]
+    #[allow(dead_code)]
     fn decode_large_block(
         &mut self,
         bits: &mut super::bit_decoder::BitDecoder,
@@ -2785,6 +2794,7 @@ impl Rar5BlockDecoder {
 
     /// Decode length using provided tables.
     #[cfg(feature = "parallel")]
+    #[allow(dead_code)]
     fn decode_length_with_tables(
         &self,
         bits: &mut super::bit_decoder::BitDecoder,

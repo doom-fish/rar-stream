@@ -158,6 +158,7 @@ impl BitDecoder {
 
     /// Get up to 15 bits for Huffman decoding (without advancing).
     #[inline(always)]
+    #[allow(dead_code)]
     pub fn get_value_15(&self) -> u32 {
         // SAFETY: pos clamped to data_len, buffer has BUFFER_PADDING bytes
         unsafe {
@@ -238,6 +239,7 @@ impl BitDecoder {
     }
 
     /// Set byte position (resets bit position to 0).
+    #[allow(dead_code)]
     pub fn set_position(&mut self, pos: usize) {
         self.pos = pos.min(self.data_len);
         self.bit_pos = 0;

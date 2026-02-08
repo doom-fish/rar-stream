@@ -79,9 +79,6 @@
 //! - Window size is 4MB for RAR4, up to 4GB for RAR5
 //! - PPMd uses significant memory (~100MB for order-8 model)
 
-// Work-in-progress: Some filters not fully integrated yet
-#![allow(dead_code)]
-
 mod bit_reader;
 pub(crate) mod byte_search;
 mod huffman;

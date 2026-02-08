@@ -205,7 +205,6 @@ fn test_lzss_decompression() {
 
 /// Test decompression of a larger LZSS file (alpine.tar, ~8MB).
 /// This tests the output buffer accumulation and length bonus for long distances.
-/// TODO: There's a remaining issue at byte 46592 that needs investigation.
 #[test]
 fn test_decompress_large_lzss() {
     use std::io::Read;
@@ -233,16 +232,6 @@ fn test_decompress_large_lzss() {
 
     let comp_start = file_header_pos + header_size;
     let compressed = &data[comp_start..comp_start + pack_size];
-
-    eprintln!(
-        "TEST: comp_start={}, pack_size={}, unp_size={}",
-        comp_start, pack_size, unp_size
-    );
-    eprintln!(
-        "TEST: first 8 bytes of compressed: {:02x?}",
-        &compressed[0..8]
-    );
-    eprintln!("TEST: bytes at 38964: {:02x?}", &compressed[38964..38972]);
 
     let mut decoder = super::rar29::Rar29Decoder::new();
     let result = match decoder.decompress(compressed, unp_size) {

@@ -126,8 +126,16 @@ Core decompression (3 KB files, single-threaded):
 | Method | rar-stream | unrar | Speedup |
 |--------|-----------|-------|---------|
 | LZSS | 8 µs | 92 µs | 11x |
-| PPMd | 101 µs | 177 µs | 1.8x |
+| PPMd | 107 µs | 177 µs | 1.7x |
 | Stored | 54 ns | 123 µs | 2170x |
+
+Single-threaded decompression vs unrar across data types (200 MB, method 5, 128 MB dict):
+
+| Data type | rar-stream | unrar | Ratio |
+|-----------|-----------|-------|-------|
+| Text | 631 MiB/s | 535 MiB/s | **1.18x faster** |
+| Binary | 424 MiB/s | 439 MiB/s | 0.97x |
+| ISO (x86) | 297 MiB/s | 440 MiB/s | 0.67x |
 
 With the `parallel` feature (enabled by default in npm), rar-stream's pipeline beats unrar across all 24 benchmark scenarios. Best case: 1.9x faster.
 

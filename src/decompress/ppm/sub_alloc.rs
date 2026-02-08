@@ -13,6 +13,7 @@ const N_INDEXES: usize = N1 + N2 + N3 + N4;
 const UNIT_SIZE: usize = 12;
 
 /// Memory block header.
+#[allow(dead_code)]
 struct MemBlock {
     stamp: u16,
     nu: u16,
@@ -21,6 +22,7 @@ struct MemBlock {
 }
 
 /// Free list node.
+#[allow(dead_code)]
 struct FreeNode {
     next: u32,
 }

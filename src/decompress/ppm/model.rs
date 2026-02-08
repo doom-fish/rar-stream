@@ -14,6 +14,7 @@ const INTERVAL: u32 = 1 << INT_BITS;
 const BIN_SCALE: u32 = 1 << TOT_BITS;
 const MAX_FREQ: u32 = 124;
 const MAX_O: usize = 64;
+#[allow(dead_code)]
 const INIT_ESC: u32 = 4;
 
 /// PPMd state (symbol + frequency + successor).
@@ -21,10 +22,12 @@ const INIT_ESC: u32 = 4;
 struct State {
     symbol: u8,
     freq: u8,
+    #[allow(dead_code)]
     successor: u32, // Offset in sub-allocator
 }
 
 /// PPMd context.
+#[allow(dead_code)]
 struct Context {
     num_stats: u16,
     summ_freq: u16,
@@ -80,6 +83,7 @@ pub struct PpmModel {
     /// Minimum context.
     min_context: u32,
     /// Medium context.
+    #[allow(dead_code)]
     med_context: u32,
     /// Maximum context.
     max_context: u32,
@@ -120,6 +124,7 @@ pub struct PpmModel {
     /// Escape character.
     esc_char: i32,
     /// Debug: decode count
+    #[allow(dead_code)]
     debug_count: u32,
 }
 
@@ -1292,8 +1297,8 @@ impl PpmModel {
 
             self.write_context_num_stats(ctx, new_ns);
 
-            // TODO: Shrink stats array if needed (requires shrink_units in allocator)
-            // For now, we just leave the extra space allocated
+            // Note: could shrink stats array here (requires shrink_units in allocator).
+            // For now, we just leave the extra space allocated.
         }
 
         // Update SummFreq with remaining escape frequency
