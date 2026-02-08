@@ -145,15 +145,16 @@ jobs:
         with:
           path: artifacts
       
-      - name: Move artifacts
+      - name: Move native artifacts
         run: |
-          for dir in artifacts/*/; do
+          for dir in artifacts/bindings-*/; do
             cp "$dir"*.node . 2>/dev/null || true
           done
           ls -la *.node
       
-      - name: Update npm to latest
-        run: npm install -g npm@latest
+      - name: Copy WASM artifacts
+        run: |
+          cp -r artifacts/wasm-pkg/* pkg/ 2>/dev/null || true
       
       - name: Sync package.json version from Cargo.toml
         run: |
@@ -165,8 +166,24 @@ jobs:
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
       
-      - name: Publish to npm with OIDC
+      - name: Publish per-platform npm packages
+        run: |
+          npx napi prepublish -t npm --skip-gh-release
+          for dir in npm/*/; do
+            if [ -f "$dir/package.json" ]; then
+              echo "Publishing $(basename $dir)..."
+              cd "$dir"
+              npm publish --access public --provenance || echo "::warning::Failed to publish $(basename $dir)"
+              cd ../..
+            fi
+          done
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+      
+      - name: Publish main npm package
         run: npm publish --access public --provenance
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
       
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
@@ -174,4 +191,4 @@ jobs:
           generate_release_notes: true
           files: |
             *.node
-            artifacts/wasm-pkg/*
+            pkg/*
