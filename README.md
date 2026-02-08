@@ -1,14 +1,18 @@
-# rar-stream
+<div align="center">
+  <h1>rar-stream</h1>
+</div>
+
+<div align="center"><p>
+    <a href="https://crates.io/crates/rar-stream"><img alt="Crates.io" src="https://img.shields.io/crates/v/rar-stream?style=for-the-badge&logo=rust&color=C9CBFF&logoColor=D9E0EE&labelColor=302D41" /></a>
+    <a href="https://crates.io/crates/rar-stream"><img alt="Crates.io Downloads" src="https://img.shields.io/crates/d/rar-stream?style=for-the-badge&logo=rust&color=A6E3A1&logoColor=D9E0EE&labelColor=302D41" /></a>
+    <a href="https://docs.rs/rar-stream"><img alt="docs.rs" src="https://img.shields.io/docsrs/rar-stream?style=for-the-badge&logo=docs.rs&color=8bd5ca&logoColor=D9E0EE&labelColor=302D41" /></a>
+    <a href="https://www.npmjs.com/package/rar-stream"><img alt="npm" src="https://img.shields.io/npm/v/rar-stream?style=for-the-badge&logo=npm&color=F5A97F&logoColor=D9E0EE&labelColor=302D41" /></a>
+    <a href="https://www.npmjs.com/package/rar-stream"><img alt="npm Downloads" src="https://img.shields.io/npm/dm/rar-stream?style=for-the-badge&logo=npm&color=F5E0DC&logoColor=D9E0EE&labelColor=302D41" /></a>
+    <a href="https://github.com/doom-fish/rar-stream#license"><img alt="License" src="https://img.shields.io/crates/l/rar-stream?style=for-the-badge&logo=apache&color=ee999f&logoColor=D9E0EE&labelColor=302D41" /></a>
+    <a href="https://github.com/doom-fish/rar-stream/actions"><img alt="Build Status" src="https://img.shields.io/github/actions/workflow/status/doom-fish/rar-stream/ci.yml?branch=main&style=for-the-badge&logo=github&color=c69ff5&logoColor=D9E0EE&labelColor=302D41" /></a>
+</p></div>
 
 > Fast RAR archive streaming for Rust, Node.js, and browsers. Zero dependencies core.
-
-[![CI](https://github.com/doom-fish/rar-stream/actions/workflows/ci.yml/badge.svg)](https://github.com/doom-fish/rar-stream/actions/workflows/ci.yml)
-[![npm version](https://img.shields.io/npm/v/rar-stream.svg)](https://www.npmjs.com/package/rar-stream)
-[![npm downloads](https://img.shields.io/npm/dm/rar-stream.svg)](https://www.npmjs.com/package/rar-stream)
-[![crates.io](https://img.shields.io/crates/v/rar-stream.svg)](https://crates.io/crates/rar-stream)
-[![crates.io downloads](https://img.shields.io/crates/d/rar-stream.svg)](https://crates.io/crates/rar-stream)
-[![docs.rs](https://docs.rs/rar-stream/badge.svg)](https://docs.rs/rar-stream)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 ## Installation
 
