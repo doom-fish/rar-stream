@@ -75,6 +75,7 @@
     "bench:compare": "cargo bench -- --baseline main",
     "profile": "cargo build --release && perf record -g ./target/release/examples/profile_decompress && perf report",
     "flamegraph": "cargo flamegraph --bench decompress -- --bench",
+    "postinstall": "node scripts/postinstall.js",
     "prepublishOnly": "napi prepublish -t npm --skip-gh-release"
   },
   "devDependencies": {
@@ -100,15 +101,7 @@
     "pkg/rar_stream.js",
     "pkg/rar_stream.d.ts",
     "pkg/rar_stream_bg.wasm",
-    "pkg/rar_stream_bg.wasm.d.ts"
-  ],
-  "optionalDependencies": {
-    "rar-stream-win32-x64-msvc": "5.2.0",
-    "rar-stream-darwin-x64": "5.2.0",
-    "rar-stream-linux-x64-gnu": "5.2.0",
-    "rar-stream-linux-x64-musl": "5.2.0",
-    "rar-stream-linux-arm64-gnu": "5.2.0",
-    "rar-stream-darwin-arm64": "5.2.0",
-    "rar-stream-linux-arm64-musl": "5.2.0"
-  }
+    "pkg/rar_stream_bg.wasm.d.ts",
+    "scripts/postinstall.js"
+  ]
 }

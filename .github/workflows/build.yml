@@ -162,50 +162,11 @@ jobs:
         run: |
           CARGO_VERSION=$(grep '^version' Cargo.toml | head -1 | sed 's/.*"\(.*\)".*/\1/')
           npm version "$CARGO_VERSION" --no-git-tag-version --allow-same-version
-          # Update optionalDependencies versions to match
-          node -e "
-            const fs = require('fs');
-            const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
-            if (pkg.optionalDependencies) {
-              for (const dep of Object.keys(pkg.optionalDependencies)) {
-                pkg.optionalDependencies[dep] = '${CARGO_VERSION}';
-              }
-              fs.writeFileSync('package.json', JSON.stringify(pkg, null, 2) + '\n');
-            }
-          "
       
       - name: Publish to crates.io
         run: cargo publish --allow-dirty || echo "::warning::crates.io publish failed (version may already exist)"
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
-      
-      - name: Prepare per-platform npm packages
-        run: |
-          for dir in npm/*/; do
-            platform=$(basename "$dir")
-            src="rar-stream.${platform}.node"
-            if [ -f "$src" ]; then
-              cp "$src" "$dir"
-              echo "✅ Copied $src → $dir"
-            else
-              echo "⚠️  $src not found (skipping $platform)"
-            fi
-          done
-
-      - name: Publish per-platform npm packages
-        continue-on-error: true
-        run: |
-          CARGO_VERSION=$(grep '^version' Cargo.toml | head -1 | sed 's/.*"\(.*\)".*/\1/')
-          for dir in npm/*/; do
-            if [ -f "$dir/package.json" ]; then
-              platform=$(basename "$dir")
-              cd "$dir"
-              npm version "$CARGO_VERSION" --no-git-tag-version --allow-same-version 2>/dev/null || true
-              echo "Publishing ${platform}@${CARGO_VERSION}..."
-              npm publish --access public --provenance || echo "::warning::Failed to publish $platform"
-              cd ../..
-            fi
-          done
       
       - name: Publish main npm package
         continue-on-error: true
