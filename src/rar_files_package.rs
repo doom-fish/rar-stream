@@ -84,6 +84,79 @@ use crate::rar_file_chunk::RarFileChunk;
 use std::collections::HashMap;
 use std::sync::Arc;
 
+/// Default prefetch size for header parsing (32KB).
+///
+/// A single read of this size is done at the start of each volume. All header
+/// parsing (marker, archive header, file headers) is served from this buffer.
+/// Only if headers exceed this size is a follow-up read needed. Since RAR
+/// headers are typically small (50-500 bytes each), 32KB covers hundreds of
+/// files in a single I/O round trip.
+const HEADER_PREFETCH_SIZE: u64 = 32 * 1024;
+
+/// Buffered reader that minimizes I/O calls during header parsing.
+///
+/// Reads a large chunk from the underlying media up-front, then serves
+/// sub-range reads from the buffer. Falls back to a direct read only when
+/// the requested range extends beyond the prefetched data.
+struct HeaderBuffer {
+    data: Vec<u8>,
+    /// Byte offset in the file where `data[0]` starts.
+    file_offset: u64,
+    /// Size of each prefetch read.
+    prefetch_size: u64,
+}
+
+impl HeaderBuffer {
+    /// Create a new header buffer by prefetching from the given offset.
+    async fn new(media: &Arc<dyn FileMedia>, start: u64, prefetch_size: u64) -> Result<Self> {
+        let end = (start + prefetch_size - 1).min(media.length().saturating_sub(1));
+        if start > end {
+            return Ok(Self {
+                data: Vec::new(),
+                file_offset: start,
+                prefetch_size,
+            });
+        }
+        let data = media.read_range(ReadInterval { start, end }).await?;
+        Ok(Self {
+            data,
+            file_offset: start,
+            prefetch_size,
+        })
+    }
+
+    /// Read a range from the buffer, falling back to media if needed.
+    async fn read(&mut self, media: &Arc<dyn FileMedia>, start: u64, end: u64) -> Result<Vec<u8>> {
+        if end < start {
+            return Ok(Vec::new());
+        }
+        let buf_start = self.file_offset;
+        let buf_end = buf_start + self.data.len() as u64;
+
+        // Fast path: fully within prefetched buffer
+        if start >= buf_start && end < buf_end {
+            let local_start = (start - buf_start) as usize;
+            let local_end = (end - buf_start) as usize;
+            return Ok(self.data[local_start..=local_end].to_vec());
+        }
+
+        // Slow path: need a fresh read from media (and refresh buffer from here)
+        let prefetch_end = (start + self.prefetch_size - 1).min(media.length().saturating_sub(1));
+        let read_end = end.max(prefetch_end);
+        let data = media
+            .read_range(ReadInterval {
+                start,
+                end: read_end,
+            })
+            .await?;
+        let result = data[..(end - start + 1) as usize].to_vec();
+        // Update buffer to serve future reads from this new position
+        self.data = data;
+        self.file_offset = start;
+        Ok(result)
+    }
+}
+
 /// Archive metadata returned by [`RarFilesPackage::get_archive_info`].
 ///
 /// Contains information about the archive format, flags, and capabilities.
@@ -162,6 +235,14 @@ pub struct ParseOptions {
     /// large archives without parsing everything.
     pub max_files: Option<usize>,
 
+    /// Prefetch buffer size for header parsing (default: 32KB).
+    ///
+    /// All headers in a volume are read from a single prefetched buffer
+    /// of this size, minimizing I/O round-trips on slow media (e.g., HTTP
+    /// range requests). Increase for archives with many files or large
+    /// headers; decrease if memory is constrained.
+    pub header_prefetch_size: Option<u64>,
+
     /// Password for encrypted archives.
     ///
     /// Required for archives with encrypted file data or headers.
@@ -196,7 +277,6 @@ struct ParsedChunk {
     chunk: RarFileChunk,
     continues_in_next: bool,
     unpacked_size: u64,
-    chunk_size: u64,
     method: u8,
     /// Dictionary size (log2), only for RAR5 compressed files
     dict_size_log: u8,
@@ -229,7 +309,15 @@ impl RarFilesPackage {
     fn volume_order(name: &str) -> (u32, String) {
         let lower = name.to_lowercase();
         if lower.ends_with(".rar") {
-            (0, lower) // .rar comes first
+            // Check for .partN.rar naming (e.g., archive.part1.rar, archive.part10.rar)
+            if let Some(stem) = lower.strip_suffix(".rar") {
+                if let Some(part_pos) = stem.rfind(".part") {
+                    if let Ok(n) = stem[part_pos + 5..].parse::<u32>() {
+                        return (n, lower);
+                    }
+                }
+            }
+            (0, lower) // .rar comes first (for old-style naming)
         } else {
             // Try to extract number from extension like .r00, .r01
             let ext = lower.rsplit('.').next().unwrap_or("");
@@ -245,6 +333,8 @@ impl RarFilesPackage {
     }
 
     /// Get archive metadata from the first volume.
+    ///
+    /// This performs a single I/O read to fetch all headers needed for metadata.
     pub async fn get_archive_info(&self) -> Result<ArchiveInfo> {
         use crate::parsing::rar5::Rar5EncryptionHeaderParser;
 
@@ -253,22 +343,19 @@ impl RarFilesPackage {
         }
 
         let rar_file = &self.files[0];
-        let marker_buf = rar_file
-            .read_range(ReadInterval {
-                start: 0,
-                end: 7, // RAR5 signature is 8 bytes
-            })
-            .await?;
+        let mut buf = HeaderBuffer::new(rar_file, 0, HEADER_PREFETCH_SIZE).await?;
 
+        let marker_buf = buf.read(rar_file, 0, 7).await?;
         let marker = MarkerHeaderParser::parse(&marker_buf)?;
 
         match marker.version {
             RarVersion::Rar4 => {
-                let archive_buf = rar_file
-                    .read_range(ReadInterval {
-                        start: marker.size as u64,
-                        end: marker.size as u64 + ArchiveHeaderParser::HEADER_SIZE as u64 - 1,
-                    })
+                let archive_buf = buf
+                    .read(
+                        rar_file,
+                        marker.size as u64,
+                        marker.size as u64 + ArchiveHeaderParser::HEADER_SIZE as u64 - 1,
+                    )
                     .await?;
                 let archive = ArchiveHeaderParser::parse(&archive_buf)?;
 
@@ -282,19 +369,18 @@ impl RarFilesPackage {
                 })
             }
             RarVersion::Rar5 => {
-                // Check if next header is encryption header (type 4)
-                let header_buf = rar_file
-                    .read_range(ReadInterval {
-                        start: marker.size as u64,
-                        end: (marker.size as u64 + 255).min(rar_file.length() - 1),
-                    })
+                let header_buf = buf
+                    .read(
+                        rar_file,
+                        marker.size as u64,
+                        (marker.size as u64 + 255).min(rar_file.length() - 1),
+                    )
                     .await?;
 
                 let has_encrypted_headers =
                     Rar5EncryptionHeaderParser::is_encryption_header(&header_buf);
 
                 if has_encrypted_headers {
-                    // Headers are encrypted - we can't read archive flags without password
                     Ok(ArchiveInfo {
                         has_encrypted_headers: true,
                         version: RarVersion::Rar5,
@@ -317,31 +403,29 @@ impl RarFilesPackage {
     }
 
     /// Parse a single RAR file and extract file chunks.
+    ///
+    /// Prefetches a 32KB buffer to minimize I/O round-trips. All header
+    /// parsing is served from this buffer; a follow-up read only happens
+    /// if headers exceed 32KB.
     async fn parse_file(
         &self,
         rar_file: &Arc<dyn FileMedia>,
         opts: &ParseOptions,
     ) -> Result<Vec<ParsedChunk>> {
-        #[allow(unused_mut)]
-        let mut offset = 0u64;
+        // Prefetch headers with a single I/O read — this is the key
+        // optimization for slow/remote media (HTTP range requests, etc.)
+        let prefetch = opts.header_prefetch_size.unwrap_or(HEADER_PREFETCH_SIZE);
+        let mut buf = HeaderBuffer::new(rar_file, 0, prefetch).await?;
 
-        // Read enough for both RAR4 and RAR5 signatures
-        let marker_buf = rar_file
-            .read_range(ReadInterval {
-                start: offset,
-                end: offset + 8 - 1, // RAR5 signature is 8 bytes
-            })
-            .await?;
-
+        let marker_buf = buf.read(rar_file, 0, 7).await?;
         let marker = MarkerHeaderParser::parse(&marker_buf)?;
 
-        // Dispatch based on version
         match marker.version {
             RarVersion::Rar4 => {
-                self.parse_rar4_file(rar_file, opts, marker.size as u64)
+                self.parse_rar4_file(rar_file, opts, marker.size as u64, &mut buf)
                     .await
             }
-            RarVersion::Rar5 => self.parse_rar5_file(rar_file, opts).await,
+            RarVersion::Rar5 => self.parse_rar5_file(rar_file, opts, &mut buf).await,
         }
     }
 
@@ -351,16 +435,18 @@ impl RarFilesPackage {
         rar_file: &Arc<dyn FileMedia>,
         opts: &ParseOptions,
         marker_size: u64,
+        buf: &mut HeaderBuffer,
     ) -> Result<Vec<ParsedChunk>> {
         let mut chunks = Vec::new();
         let mut offset = marker_size;
 
         // Parse archive header
-        let archive_buf = rar_file
-            .read_range(ReadInterval {
-                start: offset,
-                end: offset + ArchiveHeaderParser::HEADER_SIZE as u64 - 1,
-            })
+        let archive_buf = buf
+            .read(
+                rar_file,
+                offset,
+                offset + ArchiveHeaderParser::HEADER_SIZE as u64 - 1,
+            )
             .await?;
         let archive = ArchiveHeaderParser::parse(&archive_buf)?;
         let is_solid = archive.has_solid_attributes;
@@ -381,12 +467,7 @@ impl RarFilesPackage {
                 break;
             }
 
-            let header_buf = rar_file
-                .read_range(ReadInterval {
-                    start: offset,
-                    end: offset + read_size - 1,
-                })
-                .await?;
+            let header_buf = buf.read(rar_file, offset, offset + read_size - 1).await?;
 
             let file_header = match FileHeaderParser::parse(&header_buf) {
                 Ok(h) => h,
@@ -404,11 +485,22 @@ impl RarFilesPackage {
                 return Err(RarError::EncryptedNotSupported);
             }
 
-            let data_start = offset + file_header.head_size as u64;
+            let data_start = offset
+                .checked_add(file_header.head_size as u64)
+                .ok_or_else(|| RarError::InvalidOffset {
+                    offset,
+                    length: rar_file.length(),
+                })?;
             let data_end = if file_header.packed_size > 0 {
-                data_start + file_header.packed_size - 1
-            } else {
                 data_start
+                    .checked_add(file_header.packed_size - 1)
+                    .ok_or_else(|| RarError::InvalidOffset {
+                        offset: data_start,
+                        length: rar_file.length(),
+                    })?
+            } else {
+                // Empty range: end < start so RarFileChunk::length() returns 0
+                data_start.saturating_sub(1)
             };
 
             // Apply filter
@@ -419,7 +511,6 @@ impl RarFilesPackage {
 
             if include {
                 let chunk = RarFileChunk::new(rar_file.clone(), data_start, data_end);
-                let chunk_size = chunk.length();
 
                 // Parse encryption info if present (RAR4)
                 #[cfg(feature = "crypto")]
@@ -436,7 +527,6 @@ impl RarFilesPackage {
                     chunk,
                     continues_in_next: file_header.continues_in_next,
                     unpacked_size: file_header.unpacked_size,
-                    chunk_size,
                     method: file_header.method,
                     dict_size_log: 22, // RAR4 doesn't specify, use 4MB default
                     rar_version: RarVersion::Rar4,
@@ -527,16 +617,18 @@ impl RarFilesPackage {
         &self,
         rar_file: &Arc<dyn FileMedia>,
         opts: &ParseOptions,
+        buf: &mut HeaderBuffer,
     ) -> Result<Vec<ParsedChunk>> {
         let mut chunks = Vec::new();
         let mut offset = 8u64; // RAR5 signature is 8 bytes
 
         // Read first header to check for encryption header
-        let header_buf = rar_file
-            .read_range(ReadInterval {
-                start: offset,
-                end: (offset + 256 - 1).min(rar_file.length() - 1),
-            })
+        let header_buf = buf
+            .read(
+                rar_file,
+                offset,
+                (offset + 256 - 1).min(rar_file.length() - 1),
+            )
             .await?;
 
         // Check if headers are encrypted
@@ -567,11 +659,12 @@ impl RarFilesPackage {
         #[cfg(feature = "crypto")]
         let (archive_header, consumed) = if let Some(ref crypto) = header_crypto {
             // Read IV (16 bytes) + encrypted header
-            let enc_buf = rar_file
-                .read_range(ReadInterval {
-                    start: offset,
-                    end: (offset + 512 - 1).min(rar_file.length() - 1),
-                })
+            let enc_buf = buf
+                .read(
+                    rar_file,
+                    offset,
+                    (offset + 512 - 1).min(rar_file.length() - 1),
+                )
                 .await?;
 
             self.parse_encrypted_header(&enc_buf, crypto, |data| {
@@ -600,12 +693,7 @@ impl RarFilesPackage {
                 break;
             }
 
-            let header_buf = rar_file
-                .read_range(ReadInterval {
-                    start: offset,
-                    end: offset + read_size - 1,
-                })
-                .await?;
+            let header_buf = buf.read(rar_file, offset, offset + read_size - 1).await?;
 
             // Try to parse as file header (may be encrypted)
             #[cfg(feature = "crypto")]
@@ -629,11 +717,22 @@ impl RarFilesPackage {
                 Err(_) => break,
             };
 
-            let data_start = offset + header_consumed as u64;
+            let data_start = offset.checked_add(header_consumed as u64).ok_or_else(|| {
+                RarError::InvalidOffset {
+                    offset,
+                    length: rar_file.length(),
+                }
+            })?;
             let data_end = if file_header.packed_size > 0 {
-                data_start + file_header.packed_size - 1
-            } else {
                 data_start
+                    .checked_add(file_header.packed_size - 1)
+                    .ok_or_else(|| RarError::InvalidOffset {
+                        offset: data_start,
+                        length: rar_file.length(),
+                    })?
+            } else {
+                // Empty range: end < start so RarFileChunk::length() returns 0
+                data_start.saturating_sub(1)
             };
 
             // Apply filter
@@ -644,7 +743,6 @@ impl RarFilesPackage {
 
             if include {
                 let chunk = RarFileChunk::new(rar_file.clone(), data_start, data_end);
-                let chunk_size = file_header.packed_size;
 
                 // Convert RAR5 method to RAR4-compatible format
                 // RAR5 method 0 = stored, 1-5 = compression
@@ -672,7 +770,6 @@ impl RarFilesPackage {
                     chunk,
                     continues_in_next: file_header.continues_in_next(),
                     unpacked_size: file_header.unpacked_size,
-                    chunk_size,
                     method,
                     dict_size_log: file_header.compression.dict_size_log,
                     rar_version: RarVersion::Rar5,
@@ -715,41 +812,28 @@ impl RarFilesPackage {
             }
 
             // Get info from last chunk
-            let last = chunks.last().unwrap();
-            let continues = last.continues_in_next;
-            let chunk_size = last.chunk_size;
-            let unpacked_size = last.unpacked_size;
-            let chunk_start = last.chunk.start_offset;
-            let chunk_end = last.chunk.end_offset;
-            let name = last.name.clone();
-            let rar_version = last.rar_version;
-            let is_solid = last.is_solid;
+            let continues = chunks.last().unwrap().continues_in_next;
 
             all_parsed.push(chunks);
 
-            // Handle continuation - simplified approach matching original rar-stream
+            // Handle continuation - parse each continuation volume's headers
+            // to find actual data offsets (they may differ between volumes)
             if continues {
-                let mut remaining = unpacked_size.saturating_sub(chunk_size);
-                while remaining >= chunk_size && i + 1 < self.files.len() {
+                while i + 1 < self.files.len() {
                     i += 1;
                     let next_file = &self.files[i];
 
-                    // Create chunk at same offsets in next volume
-                    let chunk = RarFileChunk::new(next_file.clone(), chunk_start, chunk_end);
-                    all_parsed.push(vec![ParsedChunk {
-                        name: name.clone(),
-                        chunk,
-                        continues_in_next: false,
-                        unpacked_size,
-                        chunk_size,
-                        method: 0x30,      // Continue chunks are always raw data
-                        dict_size_log: 22, // Default, not used for stored data
-                        rar_version,
-                        is_solid,
-                        #[cfg(feature = "crypto")]
-                        encryption: None, // Continuation chunks don't have encryption headers
-                    }]);
-                    remaining = remaining.saturating_sub(chunk_size);
+                    let cont_chunks = self.parse_file(next_file, &opts).await?;
+                    if cont_chunks.is_empty() {
+                        break;
+                    }
+
+                    let cont_continues = cont_chunks.last().unwrap().continues_in_next;
+                    all_parsed.push(cont_chunks);
+
+                    if !cont_continues {
+                        break;
+                    }
                 }
             }
 
@@ -869,6 +953,43 @@ impl RarFilesPackage {
 mod tests {
     use super::*;
     use crate::file_media::{FileMedia, LocalFileMedia};
+
+    #[test]
+    fn test_volume_order_old_style() {
+        // .rar comes first
+        assert_eq!(RarFilesPackage::volume_order("archive.rar").0, 0);
+        // .r00 = order 1, .r01 = order 2
+        assert_eq!(RarFilesPackage::volume_order("archive.r00").0, 1);
+        assert_eq!(RarFilesPackage::volume_order("archive.r01").0, 2);
+        assert_eq!(RarFilesPackage::volume_order("archive.r99").0, 100);
+    }
+
+    #[test]
+    fn test_volume_order_part_naming() {
+        // .partN.rar naming should sort numerically
+        let mut names = vec![
+            "archive.part10.rar",
+            "archive.part2.rar",
+            "archive.part1.rar",
+            "archive.part3.rar",
+        ];
+        names.sort_by_key(|n| RarFilesPackage::volume_order(n));
+        assert_eq!(
+            names,
+            vec![
+                "archive.part1.rar",
+                "archive.part2.rar",
+                "archive.part3.rar",
+                "archive.part10.rar",
+            ]
+        );
+    }
+
+    #[test]
+    fn test_volume_order_unknown() {
+        // Unknown extensions get high order
+        assert_eq!(RarFilesPackage::volume_order("archive.zip").0, 1000);
+    }
 
     #[tokio::test]
     #[cfg(feature = "async")]

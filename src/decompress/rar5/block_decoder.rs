@@ -850,28 +850,34 @@ impl Rar5BlockDecoder {
         let start_pos = self.window_pos;
         let mut filters = Vec::new();
 
+        let target_end = start_pos.checked_add(output_size).ok_or_else(|| {
+            DecompressError::Io(std::io::Error::new(
+                std::io::ErrorKind::InvalidData,
+                "Output size overflow",
+            ))
+        })?;
+
         // Pre-allocate output buffer if needed
-        if self.output.capacity() < start_pos + output_size {
+        if self.output.capacity() < target_end {
             self.output.reserve(output_size);
         }
 
         // Map output to window to avoid duplicate writes
         self.output_start = start_pos;
-        if self.output.len() < start_pos + output_size {
-            self.output
-                .reserve(start_pos + output_size - self.output.len());
-            // SAFETY: reserve() ensures capacity >= start_pos + output_size.
-            // All positions in [start_pos..start_pos+output_size) are written by the
+        if self.output.len() < target_end {
+            self.output.reserve(target_end - self.output.len());
+            // SAFETY: reserve() ensures capacity >= target_end.
+            // All positions in [start_pos..target_end) are written by the
             // decode loop below (write_byte / copy_match). If the loop exits early,
             // set_len(pos) at the end truncates to actual written bytes.
             unsafe {
-                self.output.set_len(start_pos + output_size);
+                self.output.set_len(target_end);
             }
         }
         self.output_mapped = true;
 
         // Decode symbols until we have enough output
-        while self.window_pos - start_pos < output_size {
+        while self.window_pos.wrapping_sub(start_pos) < output_size {
             // Check if we need to read a new block header
             if bits.is_block_over_read() || !self.tables_valid {
                 // If this was the last block, we're done
@@ -1111,7 +1117,7 @@ impl Rar5BlockDecoder {
                     self.recent_offsets[1] = self.recent_offsets[0];
                     self.recent_offsets[0] = offset as u32;
                     self.last_length = length;
-                    if offset > pos || pos + length > output_size {
+                    if offset > pos || pos.saturating_add(length) > output_size {
                         return Err(backref_error());
                     }
                     copy_match(out_ptr, pos, offset, length);
@@ -1138,7 +1144,7 @@ impl Rar5BlockDecoder {
                         self.recent_offsets[0] = off;
                     }
                     self.last_length = length;
-                    if offset > pos || pos + length > output_size {
+                    if offset > pos || pos.saturating_add(length) > output_size {
                         return Err(backref_error());
                     }
                     copy_match(out_ptr, pos, offset, length);
@@ -1147,7 +1153,7 @@ impl Rar5BlockDecoder {
                     if self.last_length != 0 && self.recent_offsets[0] != 0 {
                         let length = self.last_length;
                         let offset = self.recent_offsets[0] as usize;
-                        if offset > pos || pos + length > output_size {
+                        if offset > pos || pos.saturating_add(length) > output_size {
                             return Err(backref_error());
                         }
                         copy_match(out_ptr, pos, offset, length);

@@ -108,10 +108,10 @@ impl InnerFile {
     pub async fn read_to_end(&self) -> Result<Buffer> {
         let inner = self.inner.lock().await;
         let data = inner
-            .read_to_end()
+            .read_to_end_shared()
             .await
             .map_err(|e| Error::from_reason(format!("{}", e)))?;
-        Ok(Buffer::from(data))
+        Ok(Buffer::from(data.as_slice()))
     }
 }
 
@@ -183,7 +183,16 @@ impl RarFilesPackage {
                     });
                 ParseOptions {
                     filter,
-                    max_files: js_opts.max_files.map(|n| n as usize),
+                    max_files: js_opts
+                        .max_files
+                        .map(|n| if n < 0 { 0usize } else { n as usize }),
+                    header_prefetch_size: js_opts.header_prefetch_size.map(|n| {
+                        if n < 0 {
+                            0u64
+                        } else {
+                            n as u64
+                        }
+                    }),
                     #[cfg(feature = "crypto")]
                     password: None,
                 }
@@ -216,6 +225,9 @@ impl RarFilesPackage {
 #[napi(object)]
 pub struct ParseOptionsJs {
     pub max_files: Option<i32>,
+    /// Prefetch buffer size for header parsing in bytes (default: 32768).
+    /// Increase for archives with many files over slow connections.
+    pub header_prefetch_size: Option<i64>,
 }
 
 /// Parsed file info from RAR header.

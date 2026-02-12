@@ -102,6 +102,13 @@ impl Rar5EncryptionInfo {
             let mut sum = [0u8; SIZE_PSWCHECK_CSUM];
             sum.copy_from_slice(sum_bytes);
 
+            // Validate psw_check_sum = SHA-256(psw_check)[0..4]
+            use sha2::{Digest, Sha256};
+            let hash = Sha256::digest(check);
+            if hash[..SIZE_PSWCHECK_CSUM] != sum {
+                return Err(super::CryptoError::InvalidHeader);
+            }
+
             (Some(check), Some(sum))
         } else {
             (None, None)
@@ -131,16 +138,22 @@ pub struct Rar5Crypto {
 impl Rar5Crypto {
     /// Derive key from password using PBKDF2-HMAC-SHA256.
     ///
-    /// RAR5 derives 3 values:
-    /// 1. Key (32 bytes) - for AES-256 encryption
-    /// 2. Hash key (32 bytes) - for MAC checksums (iterations + 16)
-    /// 3. Password check (32 bytes) - for password verification (iterations + 32)
+    /// RAR5 derives these values using PBKDF2-HMAC-SHA256:
+    /// 1. Key (32 bytes) - for AES-256 encryption (at `iterations`)
+    /// 2. Password check (32 bytes) - for password verification (at `iterations + 32`)
+    ///
+    /// Note: RAR5 spec also defines a hash key (at `iterations + 16`) for MAC
+    /// checksums, but this implementation does not compute it since we don't
+    /// verify header MACs.
     pub fn derive_key(password: &str, salt: &[u8; SIZE_SALT50], lg2_count: u8) -> Self {
+        // Clamp to valid range to prevent shift overflow in release builds.
+        // CRYPT5_KDF_LG2_COUNT_MAX is 24 per RAR5 spec; values above 31 would
+        // wrap the u32 shift, undermining key derivation security.
+        let lg2_count = lg2_count.min(CRYPT5_KDF_LG2_COUNT_MAX as u8);
         let iterations = 1u32 << lg2_count;
 
-        // Derive key material: 32 bytes key + 32 bytes hash_key + 32 bytes psw_check
-        // RAR uses a modified PBKDF2 that outputs these at different iteration counts
-        // For simplicity, we compute the standard PBKDF2 and then the additional values
+        // Derive key material
+        // RAR uses PBKDF2 at different iteration counts for different values
 
         let mut key = [0u8; 32];
         pbkdf2_hmac::<Sha256>(password.as_bytes(), salt, iterations, &mut key);
@@ -169,7 +182,12 @@ impl Rar5Crypto {
         for (i, &byte) in self.psw_check_value.iter().enumerate() {
             check[i % SIZE_PSWCHECK] ^= byte;
         }
-        check == *expected
+        // Constant-time comparison to prevent timing side-channel attacks
+        let mut diff = 0u8;
+        for (a, b) in check.iter().zip(expected.iter()) {
+            diff |= a ^ b;
+        }
+        diff == 0
     }
 
     /// Decrypt data in-place using AES-256-CBC.
@@ -202,6 +220,19 @@ impl Rar5Crypto {
         let mut output = data.to_vec();
         self.decrypt(iv, &mut output)?;
         Ok(output)
+    }
+}
+
+impl Drop for Rar5Crypto {
+    fn drop(&mut self) {
+        // Zero sensitive key material to reduce exposure window.
+        // Use write_volatile to prevent the compiler from optimizing this out.
+        for byte in &mut self.key {
+            unsafe { std::ptr::write_volatile(byte, 0) };
+        }
+        for byte in &mut self.psw_check_value {
+            unsafe { std::ptr::write_volatile(byte, 0) };
+        }
     }
 }
 
@@ -243,15 +274,20 @@ mod tests {
 
     #[test]
     fn test_parse_encryption_info_with_check() {
+        use sha2::{Digest, Sha256};
+
         // Header with password check: version=0, flags=1, lg2_count=15, salt, iv, check, sum
         let mut data = vec![0u8; 47];
         data[0] = 0; // version
         data[1] = 1; // flags - password check present
         data[2] = 15; // lg2_count
-                      // Fill check value
+                      // Fill check value (bytes 35..43)
         for i in 35..43 {
             data[i] = i as u8;
         }
+        // Compute correct psw_check_sum = SHA-256(psw_check)[0..4]
+        let hash = Sha256::digest(&data[35..43]);
+        data[43..47].copy_from_slice(&hash[..4]);
 
         let info = Rar5EncryptionInfo::parse(&data).unwrap();
         assert_eq!(info.flags, 1);

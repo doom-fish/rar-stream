@@ -16,14 +16,14 @@ export function isRarArchive(data: Uint8Array): boolean;
 /** Get RAR version (15 for RAR4, 50 for RAR5, 0 if not RAR) */
 export function getRarVersion(data: Uint8Array): number;
 
-/** Parse RAR header information */
+/** Parse RAR header information (returns first file's header) */
 export function parseRarHeader(data: Uint8Array): {
-  version: number;
-  isMultiVolume: boolean;
-  hasRecovery: boolean;
-  isLocked: boolean;
-  isSolid: boolean;
-  hasAuthInfo: boolean;
+  name: string;
+  packedSize: number;
+  unpackedSize: number;
+  method: number;
+  isCompressed: boolean;
+  dataOffset: number;
 };
 
 /** RAR decompressor class */

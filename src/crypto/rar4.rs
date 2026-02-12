@@ -135,6 +135,18 @@ impl Rar4Crypto {
     }
 }
 
+impl Drop for Rar4Crypto {
+    fn drop(&mut self) {
+        // Zero sensitive key material to reduce exposure window.
+        for byte in &mut self.key {
+            unsafe { std::ptr::write_volatile(byte, 0) };
+        }
+        for byte in &mut self.iv {
+            unsafe { std::ptr::write_volatile(byte, 0) };
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

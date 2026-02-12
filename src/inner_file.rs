@@ -395,6 +395,22 @@ impl InnerFile {
         }
     }
 
+    /// Read the entire file, returning a shared reference for compressed data.
+    ///
+    /// For compressed files this avoids a copy compared to [`read_to_end`] —
+    /// the cached decompressed buffer is returned directly. For stored files
+    /// this behaves identically to `read_to_end`.
+    pub async fn read_to_end_shared(&self) -> Result<Arc<Vec<u8>>> {
+        if self.is_compressed() {
+            self.read_decompressed().await
+        } else {
+            let data = self
+                .read_raw_range(0, self.length.saturating_sub(1))
+                .await?;
+            Ok(Arc::new(data))
+        }
+    }
+
     /// Read raw data from all chunks (no decompression).
     async fn read_raw_range(&self, start: u64, end: u64) -> Result<Vec<u8>> {
         if start > end {
@@ -447,7 +463,10 @@ impl InnerFile {
 
     /// Read all raw packed data from chunks.
     async fn read_all_raw(&self) -> Result<Vec<u8>> {
-        let mut result = Vec::with_capacity(self.packed_size as usize);
+        // Cap initial capacity to avoid OOM from malicious packed_size headers.
+        // The Vec will grow as needed from actual chunk reads.
+        let capacity_hint = (self.packed_size as usize).min(64 * 1024 * 1024);
+        let mut result = Vec::with_capacity(capacity_hint);
         for chunk in &self.chunks {
             let data = chunk
                 .read_range(0, chunk.length().saturating_sub(1))

@@ -55,11 +55,12 @@ impl<'a> VintReader<'a> {
     /// Read a fixed number of bytes.
     #[inline]
     pub fn read_bytes(&mut self, count: usize) -> Option<&'a [u8]> {
-        if self.offset + count > self.data.len() {
+        let end = self.offset.checked_add(count)?;
+        if end > self.data.len() {
             return None;
         }
-        let slice = &self.data[self.offset..self.offset + count];
-        self.offset += count;
+        let slice = &self.data[self.offset..end];
+        self.offset = end;
         Some(slice)
     }
 
@@ -91,10 +92,14 @@ impl<'a> VintReader<'a> {
 
     /// Skip ahead by a number of bytes.
     pub fn skip(&mut self, count: usize) -> bool {
-        if self.offset + count > self.data.len() {
+        let end = match self.offset.checked_add(count) {
+            Some(end) => end,
+            None => return false,
+        };
+        if end > self.data.len() {
             return false;
         }
-        self.offset += count;
+        self.offset = end;
         true
     }
 }
@@ -145,5 +150,26 @@ mod tests {
     fn test_incomplete_vint() {
         // Continuation bit set but no more bytes
         assert_eq!(read_vint(&[0x80]), None);
+    }
+
+    #[test]
+    fn test_read_bytes_overflow_protection() {
+        // Ensure read_bytes handles usize overflow (offset + count wrapping)
+        let data = [0x41; 16];
+        let mut reader = VintReader::new(&data);
+        // Advance offset to near usize::MAX (simulated by consuming all data first)
+        assert!(reader.read_bytes(16).is_some());
+        // Now at offset 16, requesting usize::MAX should return None (not wrap)
+        assert_eq!(reader.read_bytes(usize::MAX), None);
+    }
+
+    #[test]
+    fn test_skip_overflow_protection() {
+        let data = [0x00; 8];
+        let mut reader = VintReader::new(&data);
+        // Skip with a count that would overflow
+        assert!(!reader.skip(usize::MAX));
+        // Reader position should be unchanged
+        assert_eq!(reader.position(), 0);
     }
 }

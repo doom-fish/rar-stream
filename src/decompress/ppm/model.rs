@@ -1365,9 +1365,10 @@ impl PpmModel {
                     let stats = self.read_context_stats(pc as usize);
                     p = stats as usize;
                     if self.read_state_symbol(p) != fs_symbol {
+                        let limit = stats as usize + num_stats as usize * 6;
                         loop {
                             p += 6;
-                            if self.read_state_symbol(p) == fs_symbol {
+                            if p >= limit || self.read_state_symbol(p) == fs_symbol {
                                 break;
                             }
                         }
@@ -1447,9 +1448,10 @@ impl PpmModel {
             let stats = self.read_context_stats(pc as usize);
             let mut p = stats as usize;
             if self.read_state_symbol(p) != up_state_symbol {
+                let limit = stats as usize + num_stats as usize * 6;
                 loop {
                     p += 6;
-                    if self.read_state_symbol(p) == up_state_symbol {
+                    if p >= limit || self.read_state_symbol(p) == up_state_symbol {
                         break;
                     }
                 }
@@ -1531,9 +1533,10 @@ impl PpmModel {
                 let stats = self.read_context_stats(suffix as usize);
                 let mut state_ptr = stats as usize;
                 if self.read_state_symbol(state_ptr) != fs_symbol {
+                    let limit = stats as usize + num_stats as usize * 6;
                     loop {
                         state_ptr += 6;
-                        if self.read_state_symbol(state_ptr) == fs_symbol {
+                        if state_ptr >= limit || self.read_state_symbol(state_ptr) == fs_symbol {
                             break;
                         }
                     }

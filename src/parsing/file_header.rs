@@ -153,7 +153,9 @@ impl FileHeaderParser {
         }
 
         // Parse filename
-        let name_end = offset + name_size as usize;
+        let name_end = offset
+            .checked_add(name_size as usize)
+            .ok_or(RarError::InvalidHeader)?;
         if buffer.len() < name_end {
             return Err(RarError::BufferTooSmall {
                 needed: name_end,
@@ -163,8 +165,14 @@ impl FileHeaderParser {
         let name = String::from_utf8_lossy(&buffer[offset..name_end]).to_string();
         offset = name_end;
 
-        // Parse salt if present (8 bytes after filename)
-        let salt = if has_salt && buffer.len() >= offset + 8 {
+        // Parse salt if present (8 bytes after filename).
+        // Salt is present when has_salt flag is set, OR when the file is
+        // encrypted and the header has room for it (some RAR versions
+        // store the salt without setting the has_salt flag).
+        let salt = if (has_salt || is_encrypted)
+            && buffer.len() >= offset + 8
+            && head_size as usize > offset
+        {
             let mut s = [0u8; 8];
             s.copy_from_slice(&buffer[offset..offset + 8]);
             Some(s)

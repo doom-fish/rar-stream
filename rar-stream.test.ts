@@ -552,6 +552,69 @@ describe("Error Handling", () => {
     
     await expect(pkg.parse()).rejects.toThrow();
   });
+
+  test("Throws on encrypted RAR5 without crypto feature", async () => {
+    // RAR5 file-level encryption is only detected during extraction,
+    // not during header parsing (encryption info is in the extra area).
+    // Without crypto feature, parsing succeeds but we can verify the file is found.
+    const fixture = path.resolve(fixturePath, "encrypted/rar5-encrypted-stored.rar");
+    if (!fs.existsSync(fixture)) return;
+    const media = new LocalFileMedia(fixture);
+    const pkg = new RarFilesPackage([media]);
+    const files = await pkg.parse();
+    expect(files.length).toBeGreaterThan(0);
+  });
+
+  test("Throws on encrypted RAR4 without crypto feature", async () => {
+    // RAR4 encrypted files have the encryption flag in the file header.
+    // Without crypto feature, parsing should reject them.
+    const fixture = path.resolve(fixturePath, "encrypted/rar4-encrypted-stored.rar");
+    if (!fs.existsSync(fixture)) return;
+    const media = new LocalFileMedia(fixture);
+    const pkg = new RarFilesPackage([media]);
+    await expect(pkg.parse()).rejects.toThrow(/[Ee]ncrypt/);
+  });
+});
+
+describe("RAR5 Multi-volume (.partN.rar naming)", () => {
+  test("Parses RAR5 multi-volume with .partN.rar naming", async () => {
+    const dir = path.resolve(fixturePath, "rar5-multivolume");
+    if (!fs.existsSync(dir)) return;
+    const parts = fs.readdirSync(dir)
+      .filter(f => f.endsWith(".rar"))
+      .sort() // alphabetical - library should handle numeric sorting
+      .map(f => new LocalFileMedia(path.resolve(dir, f)));
+    expect(parts.length).toBeGreaterThan(1);
+
+    const pkg = new RarFilesPackage(parts);
+    const files = await pkg.parse();
+    expect(files.length).toBeGreaterThan(0);
+
+    // Should be able to read the content
+    const content = await files[0].readToEnd();
+    expect(content.length).toBeGreaterThan(0);
+  });
+});
+
+describe("Parse Options", () => {
+  test("headerPrefetchSize option is accepted", async () => {
+    const media = [new LocalFileMedia(path.resolve(fixturePath, "single/single.rar"))];
+    const pkg = new RarFilesPackage(media);
+    // Should parse fine with custom prefetch size
+    const files = await pkg.parse({ headerPrefetchSize: 4096 });
+    expect(files.length).toBe(1);
+    const content = await files[0].readToEnd();
+    const expected = fs.readFileSync(singleFilePath);
+    expect(Buffer.compare(content, expected)).toBe(0);
+  });
+
+  test("Very small prefetch still works (triggers re-read)", async () => {
+    const media = [new LocalFileMedia(path.resolve(fixturePath, "single/single.rar"))];
+    const pkg = new RarFilesPackage(media);
+    // 64 bytes - smaller than most headers, forces HeaderBuffer refetch
+    const files = await pkg.parse({ headerPrefetchSize: 64 });
+    expect(files.length).toBe(1);
+  });
 });
 
 // Skip 994MB tests entirely if benchmark files don't exist

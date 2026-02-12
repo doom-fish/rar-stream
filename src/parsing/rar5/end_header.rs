@@ -4,6 +4,7 @@
 //! optional flags about the archive state.
 
 use super::{Rar5HeaderFlags, VintReader};
+use crate::crc32::crc32 as compute_crc32;
 use crate::error::{RarError, Result};
 
 /// RAR5 end header flags.
@@ -73,7 +74,20 @@ impl Rar5EndHeaderParser {
 
         // Calculate total bytes consumed
         // header_size indicates bytes after the header_size vint itself
-        let total_consumed = header_content_start + header_size as usize;
+        let total_consumed = header_content_start
+            .checked_add(header_size as usize)
+            .ok_or(RarError::InvalidHeader)?;
+
+        // Validate CRC32
+        if total_consumed > 4 && total_consumed <= buffer.len() {
+            let actual_crc = compute_crc32(&buffer[4..total_consumed]);
+            if actual_crc != crc32 {
+                return Err(RarError::CrcMismatch {
+                    expected: crc32,
+                    actual: actual_crc,
+                });
+            }
+        }
 
         Ok((
             Rar5EndHeader {

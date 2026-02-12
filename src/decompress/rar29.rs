@@ -290,9 +290,6 @@ impl Rar29Decoder {
             return Err(DecompressError::InvalidHuffmanCode);
         }
 
-        #[cfg(test)]
-        let mut symbol_count = 0;
-
         while self.lzss.total_written() < max_size && !reader.is_eof() {
             // Check if we need to execute pending VM filters
             self.maybe_execute_filters();
@@ -653,18 +650,7 @@ impl Rar29Decoder {
                             high + low
                         } else {
                             // For dist_code <= 9, read extra bits directly
-                            #[cfg(test)]
-                            let peek = reader.peek_bits(extra as u32);
-                            let val = reader.read_bits(extra as u32)?;
-                            #[cfg(test)]
-                            {
-                                let written = self.lzss.total_written();
-                                if written >= 0 && written < 0 {
-                                    eprintln!("  direct: dist_code={}, base={}, extra_bits={}, peek={:04b}, extra_val={}, distance={}", 
-                                        dist_code, base, extra, peek, val, base + val + 1);
-                                }
-                            }
-                            val
+                            reader.read_bits(extra as u32)?
                         }
                     } else {
                         0
@@ -703,7 +689,7 @@ impl Rar29Decoder {
                         );
                         // Check what's in the window at source position
                         let src_pos = (written as u32).wrapping_sub(distance) as usize;
-                        let mask = self.lzss.window_mask() as usize;
+                        let _mask = self.lzss.window_mask() as usize;
                         let window = self.lzss.window();
                         eprintln!(
                             "  window src[{}..{}]: {:02x?}",

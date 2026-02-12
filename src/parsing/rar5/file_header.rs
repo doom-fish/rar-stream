@@ -4,6 +4,7 @@
 //! including name, size, compression method, and timestamps.
 
 use super::{Rar5HeaderFlags, VintReader};
+use crate::crc32::crc32 as compute_crc32;
 use crate::error::{RarError, Result};
 
 /// Safely cast u64 to usize, returning an error on 32-bit overflow.
@@ -168,24 +169,18 @@ impl Rar5FileHeader {
             let ftype = reader.read()?;
             let header_consumed = reader.position();
 
+            let size_usize = usize::try_from(size).ok()?;
+
             if ftype == field_type {
                 // Return the data after the type field
-                let data_start = pos + header_consumed;
-                let size_usize = size as usize;
-                if size_usize as u64 != size {
-                    return None; // Overflow on 32-bit
-                }
-                let data_end = pos + size_vint_len + size_usize;
+                let data_start = pos.checked_add(header_consumed)?;
+                let data_end = pos.checked_add(size_vint_len)?.checked_add(size_usize)?;
                 if data_end <= extra.len() {
                     return Some(&extra[data_start..data_end]);
                 }
             }
 
-            let size_usize = size as usize;
-            if size_usize as u64 != size {
-                return None;
-            }
-            pos += size_vint_len + size_usize;
+            pos = pos.checked_add(size_vint_len)?.checked_add(size_usize)?;
         }
         None
     }
@@ -286,7 +281,20 @@ impl Rar5FileHeaderParser {
 
         // Calculate total bytes consumed
         // header_size indicates bytes after the header_size vint itself
-        let total_consumed = header_content_start + safe_usize(header_size)?;
+        let total_consumed = header_content_start
+            .checked_add(safe_usize(header_size)?)
+            .ok_or(RarError::InvalidHeader)?;
+
+        // Validate CRC32 over header content (everything after the 4-byte CRC field)
+        if total_consumed > 4 && total_consumed <= buffer.len() {
+            let actual_crc = compute_crc32(&buffer[4..total_consumed]);
+            if actual_crc != crc32 {
+                return Err(RarError::CrcMismatch {
+                    expected: crc32,
+                    actual: actual_crc,
+                });
+            }
+        }
 
         Ok((
             Rar5FileHeader {

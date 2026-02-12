@@ -149,6 +149,14 @@ pub enum RarError {
     /// Wraps [`std::io::Error`] for file system operations.
     Io(io::Error),
 
+    /// A header CRC32 check failed, indicating corruption or tampering.
+    CrcMismatch {
+        /// Expected CRC from the header.
+        expected: u32,
+        /// Actual CRC computed from header data.
+        actual: u32,
+    },
+
     /// No files were found in the archive.
     ///
     /// The archive may be empty, or all files may have been filtered out.
@@ -186,6 +194,13 @@ impl fmt::Display for RarError {
                 write!(f, "Invalid offset: {} (file length: {})", offset, length)
             }
             Self::Io(e) => write!(f, "IO error: {}", e),
+            Self::CrcMismatch { expected, actual } => {
+                write!(
+                    f,
+                    "CRC32 mismatch: expected 0x{:08x}, got 0x{:08x}",
+                    expected, actual
+                )
+            }
             Self::NoFilesFound => write!(f, "No files found in archive"),
             Self::Rar5NotFullySupported => {
                 write!(

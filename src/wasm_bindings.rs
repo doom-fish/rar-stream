@@ -9,8 +9,18 @@ use wasm_bindgen::prelude::*;
 use crate::decompress::rar5::Rar5Decoder;
 use crate::decompress::Rar29Decoder;
 use crate::formats::Signature;
-use crate::parsing::rar5::{Rar5ArchiveHeaderParser, Rar5FileHeaderParser};
+use crate::parsing::rar5::{
+    Rar5ArchiveHeaderParser, Rar5FileHeaderParser, Rar5HeaderFlags, VintReader,
+};
 use crate::parsing::{ArchiveHeaderParser, FileHeaderParser, MarkerHeaderParser};
+
+/// Set a property on a JS object. Reflect::set on a plain Object::new()
+/// cannot fail, so we debug_assert and ignore in release.
+fn js_set(obj: &js_sys::Object, key: &str, value: &JsValue) {
+    let result = js_sys::Reflect::set(obj, &key.into(), value);
+    debug_assert!(result.is_ok(), "Reflect::set failed on plain object");
+    let _ = result;
+}
 
 /// Parsed file entry inside an archive (internal).
 struct ParsedEntry {
@@ -77,22 +87,18 @@ impl WasmRarArchive {
         let arr = js_sys::Array::new();
         for entry in &self.entries {
             let obj = js_sys::Object::new();
-            let _ = js_sys::Reflect::set(&obj, &"name".into(), &JsValue::from_str(&entry.name));
-            let _ = js_sys::Reflect::set(
+            js_set(&obj, "name", &JsValue::from_str(&entry.name));
+            js_set(
                 &obj,
-                &"length".into(),
+                "length",
                 &JsValue::from_f64(entry.unpacked_size as f64),
             );
-            let _ = js_sys::Reflect::set(
+            js_set(
                 &obj,
-                &"packedSize".into(),
+                "packedSize",
                 &JsValue::from_f64(entry.packed_size as f64),
             );
-            let _ = js_sys::Reflect::set(
-                &obj,
-                &"isDirectory".into(),
-                &JsValue::from_bool(entry.is_directory),
-            );
+            js_set(&obj, "isDirectory", &JsValue::from_bool(entry.is_directory));
             arr.push(&obj);
         }
         arr.into()
@@ -119,7 +125,11 @@ impl WasmRarArchive {
 
         let decompressed = if self.is_rar5 {
             if entry.rar5_is_stored {
-                compressed[..entry.unpacked_size as usize].to_vec()
+                let unpack_end = entry.unpacked_size as usize;
+                if unpack_end > compressed.len() {
+                    return Err(JsError::new("Archive data truncated"));
+                }
+                compressed[..unpack_end].to_vec()
             } else {
                 let mut decoder =
                     Rar5Decoder::with_dict_size(entry.rar5_dict_size_log.unwrap_or(22));
@@ -186,7 +196,11 @@ impl WasmRarArchive {
                 rar5_dict_size_log: None,
                 rar5_is_stored: false,
             });
-            offset = data_offset + fh.packed_size as usize;
+            let new_offset = data_offset.saturating_add(fh.packed_size as usize);
+            if new_offset <= offset {
+                break; // Prevent infinite loop on zero-length headers
+            }
+            offset = new_offset;
         }
         Ok(entries)
     }
@@ -200,27 +214,83 @@ impl WasmRarArchive {
 
         let mut entries = Vec::new();
         while offset + 12 <= data.len() {
-            let (fh, file_consumed) = match Rar5FileHeaderParser::parse(&data[offset..]) {
-                Ok(result) => result,
-                Err(_) => break,
+            // Read generic RAR5 header to get type and size
+            let mut reader = VintReader::new(&data[offset..]);
+            let _crc = match reader.read_u32_le() {
+                Some(v) => v,
+                None => break,
             };
-            let data_offset = offset + file_consumed;
-            let is_dir = fh.is_directory();
-            let method = fh.compression.method;
-            let dict_size_log = fh.compression.dict_size_log;
-            let is_stored = fh.compression.is_stored();
-            entries.push(ParsedEntry {
-                name: fh.name,
-                unpacked_size: fh.unpacked_size,
-                packed_size: fh.packed_size,
-                data_offset,
-                is_directory: is_dir,
-                rar4_method: None,
-                rar5_method: Some(method),
-                rar5_dict_size_log: Some(dict_size_log),
-                rar5_is_stored: is_stored,
-            });
-            offset = data_offset + fh.packed_size as usize;
+            let header_size = match reader.read() {
+                Some(v) => v,
+                None => break,
+            };
+            let header_content_start = reader.position();
+            let header_type = match reader.read() {
+                Some(v) => v,
+                None => break,
+            };
+            let header_flags_raw = match reader.read() {
+                Some(v) => v,
+                None => break,
+            };
+            let header_flags = Rar5HeaderFlags::from(header_flags_raw);
+
+            // Calculate total header bytes consumed
+            let total_header = match header_content_start.checked_add(header_size as usize) {
+                Some(v) => v,
+                None => break,
+            };
+
+            // Read data area size if present
+            let data_area_size = if header_flags.has_data_area {
+                // We need to parse the extra_area_size first if present, then data_area_size
+                // Simpler: for file headers (type 2), use the full parser
+                0u64
+            } else {
+                0u64
+            };
+
+            if header_type == 5 {
+                break; // End of archive header
+            }
+
+            if header_type == 2 {
+                // File header — use full parser
+                let (fh, file_consumed) = match Rar5FileHeaderParser::parse(&data[offset..]) {
+                    Ok(result) => result,
+                    Err(_) => break,
+                };
+                let data_offset = offset + file_consumed;
+                let is_dir = fh.is_directory();
+                let method = fh.compression.method;
+                let dict_size_log = fh.compression.dict_size_log;
+                let is_stored = fh.compression.is_stored();
+                entries.push(ParsedEntry {
+                    name: fh.name,
+                    unpacked_size: fh.unpacked_size,
+                    packed_size: fh.packed_size,
+                    data_offset,
+                    is_directory: is_dir,
+                    rar4_method: None,
+                    rar5_method: Some(method),
+                    rar5_dict_size_log: Some(dict_size_log),
+                    rar5_is_stored: is_stored,
+                });
+                let new_offset = data_offset.saturating_add(fh.packed_size as usize);
+                if new_offset <= offset {
+                    break;
+                }
+                offset = new_offset;
+            } else {
+                // Non-file header (service, encryption, etc.) — skip it
+                let new_offset = offset
+                    .saturating_add(total_header)
+                    .saturating_add(data_area_size as usize);
+                if new_offset <= offset {
+                    break;
+                }
+                offset = new_offset;
+            }
         }
         Ok(entries)
     }
@@ -250,7 +320,13 @@ fn extract_rar4_file(archive: &[u8]) -> Result<JsValue, JsError> {
     let fh = FileHeaderParser::parse(&archive[offset..])
         .map_err(|e| JsError::new(&format!("Invalid file header: {e}")))?;
     let data_offset = offset + fh.head_size as usize;
-    let compressed = &archive[data_offset..data_offset + fh.packed_size as usize];
+    let data_end = data_offset
+        .checked_add(fh.packed_size as usize)
+        .ok_or_else(|| JsError::new("Archive data offset overflow"))?;
+    if data_end > archive.len() {
+        return Err(JsError::new("Archive data truncated"));
+    }
+    let compressed = &archive[data_offset..data_end];
 
     let decompressed = if fh.method == 0x30 {
         compressed.to_vec()
@@ -274,10 +350,20 @@ fn extract_rar5_file(archive: &[u8]) -> Result<JsValue, JsError> {
     let (fh, file_consumed) = Rar5FileHeaderParser::parse(&archive[offset..])
         .map_err(|e| JsError::new(&format!("Invalid file header: {e}")))?;
     let data_offset = offset + file_consumed;
-    let compressed = &archive[data_offset..data_offset + fh.packed_size as usize];
+    let data_end = data_offset
+        .checked_add(fh.packed_size as usize)
+        .ok_or_else(|| JsError::new("Archive data offset overflow"))?;
+    if data_end > archive.len() {
+        return Err(JsError::new("Archive data truncated"));
+    }
+    let compressed = &archive[data_offset..data_end];
 
     let decompressed = if fh.compression.is_stored() {
-        compressed[..fh.unpacked_size as usize].to_vec()
+        let unpack_end = fh.unpacked_size as usize;
+        if unpack_end > compressed.len() {
+            return Err(JsError::new("Archive data truncated"));
+        }
+        compressed[..unpack_end].to_vec()
     } else {
         let mut decoder = Rar5Decoder::with_dict_size(fh.compression.dict_size_log);
         decoder
@@ -290,13 +376,9 @@ fn extract_rar5_file(archive: &[u8]) -> Result<JsValue, JsError> {
 
 fn build_extract_result(name: &str, data: &[u8]) -> Result<JsValue, JsError> {
     let obj = js_sys::Object::new();
-    let _ = js_sys::Reflect::set(&obj, &"name".into(), &JsValue::from_str(name));
-    let _ = js_sys::Reflect::set(&obj, &"data".into(), &js_sys::Uint8Array::from(data).into());
-    let _ = js_sys::Reflect::set(
-        &obj,
-        &"length".into(),
-        &JsValue::from_f64(data.len() as f64),
-    );
+    js_set(&obj, "name", &JsValue::from_str(name));
+    js_set(&obj, "data", &js_sys::Uint8Array::from(data).into());
+    js_set(&obj, "length", &JsValue::from_f64(data.len() as f64));
     Ok(obj.into())
 }
 
@@ -482,35 +564,35 @@ pub fn parse_rar_headers(data: &[u8]) -> Result<JsValue, JsError> {
         let data_offset = offset + file_header.head_size as usize;
 
         let obj = js_sys::Object::new();
-        let _ = js_sys::Reflect::set(&obj, &"name".into(), &file_header.name.into());
-        let _ = js_sys::Reflect::set(
+        js_set(&obj, "name", &file_header.name.into());
+        js_set(
             &obj,
-            &"packedSize".into(),
+            "packedSize",
             &JsValue::from_f64(file_header.packed_size as f64),
         );
-        let _ = js_sys::Reflect::set(
+        js_set(
             &obj,
-            &"unpackedSize".into(),
+            "unpackedSize",
             &JsValue::from_f64(file_header.unpacked_size as f64),
         );
-        let _ = js_sys::Reflect::set(
+        js_set(
             &obj,
-            &"method".into(),
+            "method",
             &JsValue::from_f64(file_header.method as f64),
         );
-        let _ = js_sys::Reflect::set(
+        js_set(
             &obj,
-            &"isCompressed".into(),
+            "isCompressed",
             &JsValue::from_bool(file_header.method != 0x30),
         );
-        let _ = js_sys::Reflect::set(
-            &obj,
-            &"dataOffset".into(),
-            &JsValue::from_f64(data_offset as f64),
-        );
+        js_set(&obj, "dataOffset", &JsValue::from_f64(data_offset as f64));
 
         arr.push(&obj);
-        offset = data_offset + file_header.packed_size as usize;
+        let new_offset = data_offset.saturating_add(file_header.packed_size as usize);
+        if new_offset <= offset {
+            break;
+        }
+        offset = new_offset;
     }
 
     Ok(arr.into())
@@ -544,45 +626,45 @@ pub fn parse_rar5_headers(data: &[u8]) -> Result<JsValue, JsError> {
         let data_offset = offset + file_consumed;
 
         let obj = js_sys::Object::new();
-        let _ = js_sys::Reflect::set(&obj, &"name".into(), &JsValue::from_str(&file_header.name));
-        let _ = js_sys::Reflect::set(
+        js_set(&obj, "name", &JsValue::from_str(&file_header.name));
+        js_set(
             &obj,
-            &"packedSize".into(),
+            "packedSize",
             &JsValue::from_f64(file_header.packed_size as f64),
         );
-        let _ = js_sys::Reflect::set(
+        js_set(
             &obj,
-            &"unpackedSize".into(),
+            "unpackedSize",
             &JsValue::from_f64(file_header.unpacked_size as f64),
         );
-        let _ = js_sys::Reflect::set(
+        js_set(
             &obj,
-            &"method".into(),
+            "method",
             &JsValue::from_f64(file_header.compression.method as f64),
         );
-        let _ = js_sys::Reflect::set(
+        js_set(
             &obj,
-            &"dictSizeLog".into(),
+            "dictSizeLog",
             &JsValue::from_f64(file_header.compression.dict_size_log as f64),
         );
-        let _ = js_sys::Reflect::set(
+        js_set(
             &obj,
-            &"isCompressed".into(),
+            "isCompressed",
             &JsValue::from_bool(!file_header.compression.is_stored()),
         );
-        let _ = js_sys::Reflect::set(
+        js_set(
             &obj,
-            &"isDirectory".into(),
+            "isDirectory",
             &JsValue::from_bool(file_header.is_directory()),
         );
-        let _ = js_sys::Reflect::set(
-            &obj,
-            &"dataOffset".into(),
-            &JsValue::from_f64(data_offset as f64),
-        );
+        js_set(&obj, "dataOffset", &JsValue::from_f64(data_offset as f64));
 
         arr.push(&obj);
-        offset = data_offset + file_header.packed_size as usize;
+        let new_offset = data_offset.saturating_add(file_header.packed_size as usize);
+        if new_offset <= offset {
+            break;
+        }
+        offset = new_offset;
     }
 
     Ok(arr.into())
@@ -619,32 +701,28 @@ pub fn parse_rar_header(data: &[u8]) -> Result<JsValue, JsError> {
 
     // Build result object
     let obj = js_sys::Object::new();
-    let _ = js_sys::Reflect::set(&obj, &"name".into(), &file_header.name.into());
-    let _ = js_sys::Reflect::set(
+    js_set(&obj, "name", &file_header.name.into());
+    js_set(
         &obj,
-        &"packedSize".into(),
+        "packedSize",
         &JsValue::from_f64(file_header.packed_size as f64),
     );
-    let _ = js_sys::Reflect::set(
+    js_set(
         &obj,
-        &"unpackedSize".into(),
+        "unpackedSize",
         &JsValue::from_f64(file_header.unpacked_size as f64),
     );
-    let _ = js_sys::Reflect::set(
+    js_set(
         &obj,
-        &"method".into(),
+        "method",
         &JsValue::from_f64(file_header.method as f64),
     );
-    let _ = js_sys::Reflect::set(
+    js_set(
         &obj,
-        &"isCompressed".into(),
+        "isCompressed",
         &JsValue::from_bool(file_header.method != 0x30),
     );
-    let _ = js_sys::Reflect::set(
-        &obj,
-        &"dataOffset".into(),
-        &JsValue::from_f64(data_offset as f64),
-    );
+    js_set(&obj, "dataOffset", &JsValue::from_f64(data_offset as f64));
 
     Ok(obj.into())
 }
@@ -676,43 +754,39 @@ pub fn parse_rar5_header(data: &[u8]) -> Result<JsValue, JsError> {
     let data_offset = offset + file_consumed;
 
     let obj = js_sys::Object::new();
-    let _ = js_sys::Reflect::set(&obj, &"name".into(), &JsValue::from_str(&file_header.name));
-    let _ = js_sys::Reflect::set(
+    js_set(&obj, "name", &JsValue::from_str(&file_header.name));
+    js_set(
         &obj,
-        &"packedSize".into(),
+        "packedSize",
         &JsValue::from_f64(file_header.packed_size as f64),
     );
-    let _ = js_sys::Reflect::set(
+    js_set(
         &obj,
-        &"unpackedSize".into(),
+        "unpackedSize",
         &JsValue::from_f64(file_header.unpacked_size as f64),
     );
-    let _ = js_sys::Reflect::set(
+    js_set(
         &obj,
-        &"method".into(),
+        "method",
         &JsValue::from_f64(file_header.compression.method as f64),
     );
-    let _ = js_sys::Reflect::set(
+    js_set(
         &obj,
-        &"dictSizeLog".into(),
+        "dictSizeLog",
         &JsValue::from_f64(file_header.compression.dict_size_log as f64),
     );
-    let _ = js_sys::Reflect::set(
+    js_set(
         &obj,
-        &"isCompressed".into(),
+        "isCompressed",
         &JsValue::from_bool(!file_header.compression.is_stored()),
     );
-    let _ = js_sys::Reflect::set(
+    js_set(
         &obj,
-        &"isDirectory".into(),
+        "isDirectory",
         &JsValue::from_bool(file_header.is_directory()),
     );
-    let _ = js_sys::Reflect::set(&obj, &"version".into(), &JsValue::from_f64(50.0));
-    let _ = js_sys::Reflect::set(
-        &obj,
-        &"dataOffset".into(),
-        &JsValue::from_f64(data_offset as f64),
-    );
+    js_set(&obj, "version", &JsValue::from_f64(50.0));
+    js_set(&obj, "dataOffset", &JsValue::from_f64(data_offset as f64));
 
     Ok(obj.into())
 }

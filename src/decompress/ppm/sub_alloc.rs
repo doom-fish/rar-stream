@@ -260,7 +260,7 @@ impl SubAllocator {
     /// Remove a node from free list.
     fn remove_node(&mut self, idx: usize) -> Option<usize> {
         let ptr = self.free_list[idx] as usize;
-        if ptr == 0 {
+        if ptr == 0 || ptr + 4 > self.heap.len() {
             return None;
         }
 
@@ -272,6 +272,9 @@ impl SubAllocator {
 
     /// Insert a node into free list.
     fn insert_node(&mut self, ptr: usize, idx: usize) {
+        if ptr + 4 > self.heap.len() {
+            return;
+        }
         let old_head = self.free_list[idx];
         self.write_u32(ptr, old_head);
         self.free_list[idx] = ptr as u32;
@@ -281,11 +284,11 @@ impl SubAllocator {
     fn split_block(&mut self, ptr: usize, old_idx: usize, new_idx: usize) {
         let old_units = self.idx2units[old_idx] as usize;
         let new_units = self.idx2units[new_idx] as usize;
-        let diff = old_units - new_units;
+        let diff = old_units.saturating_sub(new_units);
 
         if diff > 0 {
-            let new_ptr = ptr + new_units * UNIT_SIZE;
-            let diff_idx = self.units2idx[diff.saturating_sub(1)] as usize;
+            let new_ptr = ptr.saturating_add(new_units * UNIT_SIZE);
+            let diff_idx = self.units2idx[diff.saturating_sub(1).min(127)] as usize;
             self.insert_node(new_ptr, diff_idx);
         }
     }
@@ -298,7 +301,7 @@ impl SubAllocator {
 
     /// Free units.
     pub fn free_units(&mut self, ptr: usize, nu: usize) {
-        if nu >= 128 {
+        if nu >= 128 || ptr + 4 > self.heap.len() {
             return;
         }
         let idx = self.units2idx[nu] as usize;

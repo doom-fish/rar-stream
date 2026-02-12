@@ -672,7 +672,7 @@ impl RarVM {
         {
             eprintln!("  init_r: {:?}", filter.init_r);
             if block_start <= 4096 && block_start + block_length > 4096 {
-                let offset = 4096 - block_start;
+                let _offset = 4096 - block_start;
                 eprintln!(
                     "  BEFORE buffer[4096..4104]: {:02x?}",
                     &buffer[4096..4104.min(buffer.len())]

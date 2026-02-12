@@ -4,6 +4,7 @@
 //! All headers after this one are encrypted with AES-256-CBC.
 
 use super::VintReader;
+use crate::crc32::crc32 as compute_crc32;
 use crate::error::{RarError, Result};
 
 /// Archive encryption header (type 4).
@@ -39,7 +40,7 @@ impl Rar5EncryptionHeaderParser {
         let mut pos = 0;
 
         // CRC32 (4 bytes)
-        let _crc = u32::from_le_bytes([data[0], data[1], data[2], data[3]]);
+        let crc32 = u32::from_le_bytes([data[0], data[1], data[2], data[3]]);
         pos += 4;
 
         // Header size (vint)
@@ -100,7 +101,20 @@ impl Rar5EncryptionHeaderParser {
             None
         };
 
-        let total_consumed = header_content_start + header_size as usize;
+        let total_consumed = header_content_start
+            .checked_add(header_size as usize)
+            .ok_or(RarError::InvalidHeader)?;
+
+        // Validate CRC32
+        if total_consumed > 4 && total_consumed <= data.len() {
+            let actual_crc = compute_crc32(&data[4..total_consumed]);
+            if actual_crc != crc32 {
+                return Err(RarError::CrcMismatch {
+                    expected: crc32,
+                    actual: actual_crc,
+                });
+            }
+        }
 
         Ok((
             Rar5EncryptionHeader {

@@ -45,7 +45,7 @@ impl RarFileChunk {
     pub fn pad_start(&self, padding: u64) -> Self {
         Self {
             file_media: self.file_media.clone(),
-            start_offset: self.start_offset + padding,
+            start_offset: self.start_offset.saturating_add(padding),
             end_offset: self.end_offset,
         }
     }
@@ -73,8 +73,8 @@ impl RarFileChunk {
     pub async fn read_range(&self, start: u64, end: u64) -> Result<Vec<u8>> {
         self.file_media
             .read_range(ReadInterval {
-                start: self.start_offset + start,
-                end: self.start_offset + end,
+                start: self.start_offset.saturating_add(start),
+                end: self.start_offset.saturating_add(end),
             })
             .await
     }
