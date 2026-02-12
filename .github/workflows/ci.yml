@@ -172,6 +172,9 @@ jobs:
 
       - name: Cache cargo
         uses: Swatinem/rust-cache@v2
+        with:
+          # Separate cache for Miri/nightly to avoid stale build script artifacts
+          prefix-key: miri
 
       - name: Miri - parsing tests
         run: cargo +nightly miri test --lib -- parsing
