@@ -176,6 +176,9 @@ jobs:
           # Separate cache for Miri/nightly to avoid stale build script artifacts
           prefix-key: miri
 
+      - name: Clean stale Miri artifacts
+        run: cargo +nightly miri clean
+
       - name: Miri - parsing tests
         run: cargo +nightly miri test --lib -- parsing
 
