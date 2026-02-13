@@ -4,6 +4,22 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [5.3.1] - 2026-02-13
+
+### Bug Fixes
+
+- Comprehensive security hardening, I/O optimization, and correctness fixes
+
+### Documentation
+
+- Add SECURITY.md, CONTRIBUTING.md, ARCHITECTURE.md, README TOC, coverage CI
+
+### Ci
+
+- Fix Miri cache corruption by using separate cache prefix
+- Add cargo miri clean to prevent stale nightly cache artifacts
+
+
 ## [5.3.0] - 2026-02-08
 
 ### Bug Fixes
