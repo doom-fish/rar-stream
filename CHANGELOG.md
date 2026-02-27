@@ -4,6 +4,17 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [5.3.2] - 2026-02-27
+
+### Bug Fixes
+
+- Periodic window flush to prevent data loss on large RAR4 files
+
+### Miscellaneous Tasks
+
+- Bump npm version to 5.3.1
+
+
 ## [5.3.1] - 2026-02-13
 
 ### Bug Fixes
