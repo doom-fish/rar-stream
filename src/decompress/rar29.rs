@@ -291,6 +291,8 @@ impl Rar29Decoder {
         }
 
         while self.lzss.total_written() < max_size && !reader.is_eof() {
+            // Periodic flush to prevent window overflow on large files
+            self.maybe_flush_window();
             // Check if we need to execute pending VM filters
             self.maybe_execute_filters();
 
@@ -838,6 +840,31 @@ impl Rar29Decoder {
         Ok(())
     }
 
+    /// Flush the window to prevent data loss when unflushed data approaches window size.
+    /// Must not flush past any pending filter's start position.
+    #[inline]
+    fn maybe_flush_window(&mut self) {
+        let total_written = self.lzss.total_written();
+        let flushed = self.lzss.flushed_pos();
+        let window_size = self.lzss.window().len() as u64;
+
+        // Only flush if unflushed data exceeds half the window
+        if total_written - flushed < window_size / 2 {
+            return;
+        }
+
+        // Don't flush past the start of any pending filter
+        let safe_pos = match self.vm.next_filter_pos() {
+            Some(filter_start) if filter_start > flushed => filter_start,
+            Some(_) => return, // filter start already behind flushed pos, skip
+            None => total_written,
+        };
+
+        if safe_pos > flushed {
+            self.lzss.flush_to_output(safe_pos);
+        }
+    }
+
     /// Execute pending VM filters if we've reached their block_start position.
     /// Applies filters to window data, writes filtered output directly to output buffer.
     #[inline]
@@ -897,6 +924,24 @@ impl Rar29Decoder {
         let esc_char = self.ppm_esc_char;
 
         while self.lzss.total_written() < max_size && !reader.is_eof() {
+            // Periodic flush to prevent window overflow on large files.
+            // Inlined here because ppm/coder borrows prevent calling self.maybe_flush_window().
+            {
+                let total_written = self.lzss.total_written();
+                let flushed = self.lzss.flushed_pos();
+                let window_size = self.lzss.window().len() as u64;
+                if total_written - flushed >= window_size / 2 {
+                    let safe_pos = match self.vm.next_filter_pos() {
+                        Some(fs) if fs > flushed => fs,
+                        Some(_) => total_written, // filter behind flushed, safe to flush all
+                        None => total_written,
+                    };
+                    if safe_pos > flushed {
+                        self.lzss.flush_to_output(safe_pos);
+                    }
+                }
+            }
+
             let ch = ppm.decode_char(coder, reader).map_err(|e| {
                 #[cfg(test)]
                 eprintln!(
